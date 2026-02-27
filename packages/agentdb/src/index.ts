@@ -58,6 +58,10 @@ export { LLMRouter } from './services/LLMRouter.js';
 export { GraphTransformerService } from './services/GraphTransformerService.js';
 export { GNNService } from './services/GNNService.js';
 
+// Consensus - Distributed coordination
+export { RaftConsensus } from './consensus/RaftConsensus.js';
+export type { RaftConfig, LogEntry, RaftState } from './consensus/RaftConsensus.js';
+
 // Re-export service types for convenience
 export type { RouteResult, RouteConfig } from './services/SemanticRouter.js';
 export type { TrajectoryStep, StoredTrajectory, PredictionResult, SonaStats } from './services/SonaTrajectoryService.js';

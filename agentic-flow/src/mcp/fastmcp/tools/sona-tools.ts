@@ -16,7 +16,7 @@
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { RLTrainingService, TrainingConfig, MultiAgentConfig, TransferConfig } from '../../../services/rl-training-service.js';
-import { StoredTrajectory } from '../../../../packages/agentdb/src/services/SonaTrajectoryService.js';
+import { type StoredTrajectory } from 'agentdb';
 
 const rlService = new RLTrainingService();
 let initialized = false;

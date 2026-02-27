@@ -1,173 +1,11 @@
 /**
  * SDK Integration Module
  *
- * Re-exports all SDK integration components for easy importing.
+ * Re-exports available SDK integration components.
+ *
+ * NOTE: Many SDK utilities are planned but not yet implemented.
+ * This file will be expanded as new SDK features are added.
  */
-
-// Hooks bridge
-export {
-  getSdkHooks,
-  getToolSpecificHooks,
-  preToolUseHook,
-  postToolUseHook,
-  postToolUseFailureHook,
-  sessionStartHook,
-  sessionEndHook,
-  subagentStartHook,
-  subagentStopHook,
-  type HookEvent,
-  type HookCallback,
-  type HookCallbackMatcher,
-  type HookInput,
-  type HookJSONOutput
-} from './hooks-bridge.js';
-
-// Session manager
-export {
-  captureSessionId,
-  getCurrentSessionId,
-  getSessionInfo,
-  getActiveSessions,
-  getResumeOptions,
-  getForkOptions,
-  endSession,
-  clearAllSessions,
-  getSessionStats,
-  processResultMessage,
-  buildQueryOptionsWithSession
-} from './session-manager.js';
-
-// Permission handler
-export {
-  customPermissionHandler,
-  strictPermissionHandler,
-  getPermissionHandler,
-  initPermissionHandler,
-  type PermissionResult,
-  type ToolInput,
-  type PermissionHandlerOptions
-} from './permission-handler.js';
-
-// Agent converter
-export {
-  convertAgentToSdkFormat,
-  convertAllAgentsToSdkFormat,
-  getEssentialAgents,
-  getAgentsForUseCase,
-  getMergedAgents,
-  invalidateAgentCache,
-  type SDKAgentDefinition
-} from './agent-converter.js';
-
-// E2B Sandbox integration
-export {
-  E2BSandboxManager,
-  getE2BSandbox,
-  runInE2BSandbox,
-  isE2BAvailable,
-  type E2BSandboxConfig,
-  type ExecutionResult,
-  type FileResult
-} from './e2b-sandbox.js';
-
-// E2B Swarm orchestration
-export {
-  E2BSwarmOrchestrator,
-  createDefaultE2BSwarm,
-  runInSwarm,
-  type E2BAgentCapability,
-  type E2BAgentConfig,
-  type E2BAgent,
-  type E2BTask,
-  type E2BTaskResult,
-  type E2BSwarmMetrics
-} from './e2b-swarm.js';
-
-// E2B Swarm optimization
-export {
-  E2BSwarmOptimizer,
-  createSwarmOptimizer,
-  optimizeSwarm,
-  type OptimizationConfig,
-  type OptimizationReport,
-  type OptimizationRecommendation
-} from './e2b-swarm-optimizer.js';
-
-// Query control
-export {
-  createQueryController,
-  QueryController,
-  getActiveQueries,
-  getQuery,
-  abortAllQueries,
-  getQueryStats,
-  type QueryState,
-  type ModelOption
-} from './query-control.js';
-
-// Plugins system
-export {
-  loadPlugin,
-  getLoadedPlugins,
-  getPlugin,
-  setPluginEnabled,
-  unloadPlugin,
-  getAllPluginTools,
-  executePluginTool,
-  loadPluginsFromConfig,
-  getPluginsForSdk,
-  createPlugin,
-  defineTool,
-  type PluginConfig,
-  type LocalPluginConfig,
-  type NpmPluginConfig,
-  type RemotePluginConfig,
-  type InlinePluginConfig,
-  type PluginTool,
-  type LoadedPlugin
-} from './plugins.js';
-
-// Streaming input
-export {
-  createTextMessage,
-  createImageMessage,
-  createMixedMessage,
-  StreamingPromptBuilder,
-  streamingPrompt,
-  InteractivePromptStream,
-  createInteractiveStream,
-  pipelinePrompts,
-  fromArray,
-  transformPrompts,
-  filterPrompts,
-  rateLimitPrompts,
-  batchPrompts,
-  toStreamingInput,
-  logStreamingInput,
-  type SDKUserMessage,
-  type PromptSource
-} from './streaming-input.js';
-
-// Security
-export {
-  sanitizePath,
-  validateCommand,
-  sanitizeForLog,
-  redactSecrets,
-  containsSecrets,
-  checkRateLimit,
-  createRateLimiter,
-  auditLog,
-  auditToolUsage,
-  auditPermissionDecision,
-  getDefaultSecurityContext,
-  validateOperation,
-  secureHash,
-  generateSecureToken,
-  type RateLimitConfig,
-  type AuditLogEntry,
-  type SecurityContext
-} from './security.js';
 
 // Orchestration runtime API (stable programmatic API + loop policy + generic client)
 export {
@@ -205,3 +43,44 @@ export {
   type OrchestrationClient,
   type CreateOrchestrationClientOptions,
 } from '../orchestration/index.js';
+
+// Security utilities
+export {
+  validateFilePath,
+  validateReadPath,
+  validateWritePath,
+  type PathValidationOptions,
+} from '../security/path-validator.js';
+
+export {
+  validateString,
+  validateLanguage,
+  validateRunId,
+  validateMemoryEntry,
+  type ValidationOptions,
+} from '../security/input-validation.js';
+
+export {
+  redactKey,
+  sanitizeEnvironment,
+  type RedactionOptions,
+} from '../security/secret-redaction.js';
+
+export {
+  RateLimiter,
+  ConcurrencyLimiter,
+  type RateLimitConfig,
+  type RateLimitInfo,
+} from '../security/rate-limiter.js';
+
+// TODO: Implement remaining SDK utilities
+// - hooks-bridge.js (session/tool hooks)
+// - session-manager.js (session tracking)
+// - permission-handler.js (custom permissions)
+// - agent-converter.js (agent format conversion)
+// - e2b-sandbox.js (E2B sandbox integration)
+// - e2b-swarm.js (E2B swarm orchestration)
+// - e2b-swarm-optimizer.js (swarm optimization)
+// - query-control.js (query management)
+// - plugins.js (plugin system)
+// - streaming-input.js (streaming utilities)

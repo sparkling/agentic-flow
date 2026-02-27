@@ -4,7 +4,7 @@
  */
 
 import { BillingSystem } from '../index.js';
-import type { SubscriptionTier, BillingCycle, UsageMetric, CouponType } from '../types.js';
+import { SubscriptionTier, BillingCycle, UsageMetric, CouponType } from '../types.js';
 
 export interface MCPTool {
   name: string;

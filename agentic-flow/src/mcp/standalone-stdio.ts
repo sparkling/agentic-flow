@@ -4,6 +4,7 @@ import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import { execSync } from 'child_process';
 import { resolve } from 'path';
+import { validateWritePath } from '../security/path-validator.js';
 
 // Suppress FastMCP internal warnings for cleaner output
 const originalConsoleWarn = console.warn;

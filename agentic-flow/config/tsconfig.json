@@ -36,6 +36,7 @@
   "exclude": [
     "../node_modules",
     "../dist",
+    "../packages",
     "../src/examples/parallel-swarm-deployment.ts",
     "../src/agentdb/cli/**",
     "../src/agentdb/benchmarks/**",

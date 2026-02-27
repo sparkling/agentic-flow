@@ -26,7 +26,32 @@
  *   await trainer.learnFromExecution(state, action, reward, nextState);
  */
 
-import { SonaTrajectoryService, StoredTrajectory, PolicyGradientConfig, ValueFunctionConfig, ExperienceReplayConfig, RLMetrics } from '../../../packages/agentdb/src/services/SonaTrajectoryService.js';
+import { SonaTrajectoryService, type StoredTrajectory } from 'agentdb';
+
+// Types that may not be exported yet - define locally if needed
+export interface PolicyGradientConfig {
+  learningRate?: number;
+  gamma?: number;
+  baseline?: 'none' | 'avg' | 'learned';
+}
+
+export interface ValueFunctionConfig {
+  learningRate?: number;
+  gamma?: number;
+  lambda?: number;
+}
+
+export interface ExperienceReplayConfig {
+  bufferSize?: number;
+  batchSize?: number;
+  minSize?: number;
+}
+
+export interface RLMetrics {
+  avgReward?: number;
+  avgLoss?: number;
+  episodeCount?: number;
+}
 
 export type RLAlgorithm = 'reinforce' | 'ppo' | 'a3c' | 'q-learning';
 

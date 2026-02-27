@@ -8,7 +8,7 @@
  * - Cluster management
  */
 
-import { RaftConsensus, RaftConfig, LogEntry } from '../../../packages/agentdb/src/consensus/RaftConsensus.js';
+import { RaftConsensus, type RaftConfig, type LogEntry } from 'agentdb';
 import { EventEmitter } from 'events';
 
 export interface ConsensusConfig {

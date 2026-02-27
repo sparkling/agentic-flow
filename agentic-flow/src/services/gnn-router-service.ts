@@ -10,7 +10,7 @@
  * ADR-065 Phase P1-1 Implementation
  */
 
-import { GNNService } from '../../../packages/agentdb/src/services/GNNService.js';
+import { GNNService } from 'agentdb';
 
 export interface SkillNode {
   name: string;

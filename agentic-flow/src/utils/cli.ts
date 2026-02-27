@@ -1,7 +1,7 @@
 // CLI argument parsing and help utilities
 
 export interface CliOptions {
-  mode: 'agent' | 'parallel' | 'list' | 'mcp' | 'mcp-manager' | 'config' | 'agent-manager' | 'proxy' | 'quic' | 'claude-code' | 'reasoningbank' | 'federation';
+  mode: 'agent' | 'parallel' | 'list' | 'mcp' | 'mcp-manager' | 'config' | 'agent-manager' | 'proxy' | 'quic' | 'claude-code' | 'reasoningbank' | 'federation' | 'daemon' | 'hive-mind' | 'hivemind' | 'hooks' | 'session' | 'swarm' | 'memory' | 'task' | 'doctor' | 'autopilot';
   agent?: string;
   task?: string;
 

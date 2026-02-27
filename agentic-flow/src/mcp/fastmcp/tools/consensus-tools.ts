@@ -4,7 +4,7 @@
  * Provides 12 MCP tools for managing Raft consensus and distributed coordination.
  */
 
-import { FastMCP } from '@joshuapowell/fastmcp';
+import { FastMCP } from 'fastmcp';
 import { ConsensusService } from '../../../services/consensus-service.js';
 
 let consensusService: ConsensusService | null = null;
