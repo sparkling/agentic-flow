@@ -10,6 +10,8 @@
   },
   "exports": {
     ".": "./dist/index.js",
+    "./orchestration": "./dist/orchestration/index.js",
+    "./sdk": "./dist/sdk/index.js",
     "./reasoningbank": {
       "node": "./dist/reasoningbank/index.js",
       "browser": "./dist/reasoningbank/wasm-adapter.js",
@@ -54,7 +56,9 @@
     "proxy": "node dist/proxy/anthropic-to-openrouter.js",
     "proxy:dev": "tsx src/proxy/anthropic-to-openrouter.ts",
     "proxy:quic": "node dist/proxy/quic-proxy.js",
-    "proxy:quic:dev": "tsx src/proxy/quic-proxy.ts"
+    "proxy:quic:dev": "tsx src/proxy/quic-proxy.ts",
+    "test:orchestration": "vitest run tests/orchestration/ --reporter=verbose",
+    "test:orchestration:smoke": "tsx tests/orchestration/orchestration-api.smoke.ts && tsx tests/orchestration/loop-policy.smoke.ts && tsx tests/orchestration/memory-plane.smoke.ts"
   },
   "keywords": [
     "ai",
