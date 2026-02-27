@@ -124,27 +124,38 @@ export class AgentBoosterPreprocessor {
     try {
       const language = this.detectLanguage(intent.filePath);
 
-      const cmd = `npx --yes agent-booster@0.2.2 apply --language ${language}`;
+      // CVE-2026-003 FIX: Validate language to prevent command injection
+      const validatedLanguage = this.validateLanguage(language);
+
+      // CVE-2026-003 FIX: Use array form to prevent shell injection
+      const { spawnSync } = await import('child_process');
+      const proc = spawnSync('npx', [
+        '--yes',
+        'agent-booster@0.2.2',
+        'apply',
+        '--language',
+        validatedLanguage
+      ], {
+        input: JSON.stringify({
+          code: intent.originalCode,
+          edit: intent.targetCode
+        }),
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: 10000,
+        shell: false // CRITICAL: Disable shell to prevent injection
+      });
 
       let result: string;
-      try {
-        result = execSync(cmd, {
-          encoding: 'utf-8',
-          input: JSON.stringify({
-            code: intent.originalCode,
-            edit: intent.targetCode
-          }),
-          maxBuffer: 10 * 1024 * 1024,
-          timeout: 10000
-        });
-      } catch (execError: any) {
-        // execSync throws on non-zero exit, but agent-booster returns JSON even on stderr
-        // Try to parse stdout anyway
-        if (execError.stdout) {
-          result = execError.stdout.toString();
-        } else {
-          throw new Error(`execSync failed: ${execError.message}`);
-        }
+      if (proc.error) {
+        throw new Error(`spawnSync failed: ${proc.error.message}`);
+      }
+
+      // Try stdout first, fall back to stderr for JSON responses
+      result = proc.stdout || proc.stderr || '';
+
+      if (!result) {
+        throw new Error('No output from agent-booster');
       }
 
       const parsed = JSON.parse(result);
@@ -219,6 +230,22 @@ export class AgentBoosterPreprocessor {
       'hpp': 'cpp'
     };
     return langMap[ext] || 'javascript';
+  }
+
+  /**
+   * CVE-2026-003 FIX: Validate language parameter to prevent command injection
+   */
+  private validateLanguage(language: string): string {
+    const allowedLanguages = [
+      'typescript', 'javascript', 'python', 'rust', 'go', 'java',
+      'c', 'cpp', 'csharp', 'ruby', 'php', 'swift', 'kotlin'
+    ];
+
+    if (!allowedLanguages.includes(language)) {
+      throw new Error(`Invalid language: ${language}. Must be one of: ${allowedLanguages.join(', ')}`);
+    }
+
+    return language;
   }
 
   /**
