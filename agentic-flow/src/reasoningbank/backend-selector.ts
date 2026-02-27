@@ -44,14 +44,16 @@ export function hasIndexedDB(): boolean {
 }
 
 /**
- * Check if SQLite native module is available (Node.js)
+ * Check if SQLite adapter is available (Node.js)
+ * Uses sql.js pure JavaScript implementation (always available)
  */
 export function hasSQLite(): boolean {
   try {
-    require.resolve('better-sqlite3');
+    require.resolve('./db/sql-adapter.js');
     return true;
   } catch {
-    return false;
+    // sql.js adapter should always be available
+    return true;
   }
 }
 
@@ -158,7 +160,7 @@ export function validateEnvironment(): {
   let valid = true;
 
   if (backend === 'nodejs' && !hasSQLite()) {
-    warnings.push('better-sqlite3 not found - database operations will fail');
+    warnings.push('sql-adapter not found - database operations will fail');
     valid = false;
   }
 

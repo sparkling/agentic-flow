@@ -102,6 +102,7 @@ export class AgentDB {
     // Initialize GraphTransformerService (8 verified modules)
     this.graphTransformer = new GraphTransformerService();
     await this.graphTransformer.initialize();
+    console.log(`[AgentDB] GraphTransformer: ${this.graphTransformer.getEngineType()}`);
 
     // Initialize proof-gated vector backend (ADR-060)
     let controllerVB: VectorBackend | null = null;

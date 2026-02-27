@@ -26,13 +26,14 @@ export interface RouteConfig {
 export class SemanticRouter {
   private router: any = null;
   private available: boolean = false;
+  private engineType: 'native' | 'js' = 'js';
   private routes: Map<string, RouteConfig> = new Map();
 
   /**
    * Initialize the semantic router
    *
-   * Attempts to load @ruvector/router for embedding-based routing.
-   * If unavailable, falls back to keyword matching.
+   * ADR-062 Phase 2: Tries native @ruvector/router (NAPI-RS) first,
+   * falls back to keyword matching. Reports engine type for monitoring.
    *
    * @returns true if @ruvector/router was loaded, false if using fallback
    */
@@ -43,14 +44,25 @@ export class SemanticRouter {
       if (Router) {
         this.router = typeof Router === 'function' ? new Router() : Router;
         this.available = true;
+        this.engineType = 'native';
+        console.log('[SemanticRouter] Using native @ruvector/router');
         return true;
       }
       this.available = false;
+      this.engineType = 'js';
       return false;
     } catch {
       this.available = false;
+      this.engineType = 'js';
       return false;
     }
+  }
+
+  /**
+   * Get the active engine type: 'native' or 'js'
+   */
+  getEngineType(): string {
+    return this.engineType;
   }
 
   /**

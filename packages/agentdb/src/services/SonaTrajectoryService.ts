@@ -42,16 +42,74 @@ export interface SonaStats {
   agentTypes: string[];
 }
 
+export interface PolicyGradientConfig {
+  learningRate: number;
+  gamma: number; // discount factor
+  epsilon: number; // exploration rate
+  entropyCoeff: number; // entropy regularization
+}
+
+export interface ValueFunctionConfig {
+  learningRate: number;
+  gamma: number;
+  lambda: number; // GAE parameter
+}
+
+export interface ExperienceReplayConfig {
+  bufferSize: number;
+  batchSize: number;
+  priorityAlpha: number;
+  priorityBeta: number;
+}
+
+export interface RLMetrics {
+  episodeReward: number;
+  avgReward: number;
+  loss: number;
+  epsilon: number;
+  iterationCount: number;
+}
+
 export class SonaTrajectoryService {
   private sona: any = null;
   private available: boolean = false;
+  private engineType: 'native' | 'js' = 'js';
   private trajectories: Map<string, StoredTrajectory[]> = new Map();
+
+  // RL Training state
+  private policyConfig: PolicyGradientConfig = {
+    learningRate: 0.001,
+    gamma: 0.99,
+    epsilon: 0.1,
+    entropyCoeff: 0.01
+  };
+  private valueConfig: ValueFunctionConfig = {
+    learningRate: 0.001,
+    gamma: 0.99,
+    lambda: 0.95
+  };
+  private replayConfig: ExperienceReplayConfig = {
+    bufferSize: 10000,
+    batchSize: 32,
+    priorityAlpha: 0.6,
+    priorityBeta: 0.4
+  };
+  private experienceBuffer: Array<{ state: any; action: string; reward: number; nextState: any; priority: number }> = [];
+  private metrics: RLMetrics = {
+    episodeReward: 0,
+    avgReward: 0,
+    loss: 0,
+    epsilon: 0.1,
+    iterationCount: 0
+  };
+  private policyWeights: Map<string, number[]> = new Map();
+  private valueWeights: Map<string, number> = new Map();
 
   /**
    * Initialize the trajectory service
    *
-   * Attempts to load @ruvector/sona for RL-based trajectory learning.
-   * If unavailable, falls back to in-memory trajectory storage.
+   * ADR-062 Phase 2: Tries native @ruvector/sona (NAPI-RS) first,
+   * falls back to in-memory trajectory storage. Reports engine type.
    *
    * @returns true if @ruvector/sona was loaded, false if using fallback
    */
@@ -65,20 +123,32 @@ export class SonaTrajectoryService {
       if (SONA && typeof SONA === 'function') {
         this.sona = new SONA();
         this.available = true;
+        this.engineType = 'native';
+        console.log('[SonaTrajectoryService] Using native @ruvector/sona');
         return true;
       } else if (SONA && typeof SONA === 'object') {
-        // Already an instance
         this.sona = SONA;
         this.available = true;
+        this.engineType = 'native';
+        console.log('[SonaTrajectoryService] Using native @ruvector/sona');
         return true;
       }
 
       this.available = false;
+      this.engineType = 'js';
       return false;
     } catch {
       this.available = false;
+      this.engineType = 'js';
       return false;
     }
+  }
+
+  /**
+   * Get the active engine type: 'native' or 'js'
+   */
+  getEngineType(): string {
+    return this.engineType;
   }
 
   /**
@@ -260,5 +330,338 @@ export class SonaTrajectoryService {
     const confidence = Math.min(0.95, bestCount / Math.max(totalActions, 1));
 
     return { action: bestAction, confidence };
+  }
+
+  // ==================== RL Training Methods ====================
+
+  /**
+   * Train policy using Policy Gradient (REINFORCE with baseline)
+   *
+   * @param episodes - Array of trajectories to learn from
+   * @param config - Optional policy gradient configuration
+   * @returns Training loss
+   */
+  async trainPolicy(episodes: StoredTrajectory[], config?: Partial<PolicyGradientConfig>): Promise<number> {
+    if (config) {
+      this.policyConfig = { ...this.policyConfig, ...config };
+    }
+
+    let totalLoss = 0;
+    let episodeCount = 0;
+
+    for (const episode of episodes) {
+      const returns: number[] = [];
+      let G = 0;
+
+      // Calculate returns (backwards)
+      for (let t = episode.steps.length - 1; t >= 0; t--) {
+        G = episode.steps[t].reward + this.policyConfig.gamma * G;
+        returns.unshift(G);
+      }
+
+      // Calculate baseline (average return)
+      const baseline = returns.reduce((a, b) => a + b, 0) / returns.length;
+
+      // Update policy for each step
+      for (let t = 0; t < episode.steps.length; t++) {
+        const step = episode.steps[t];
+        const advantage = returns[t] - baseline;
+
+        // Get or initialize policy weights for this action
+        const actionKey = step.action;
+        if (!this.policyWeights.has(actionKey)) {
+          this.policyWeights.set(actionKey, [0]);
+        }
+
+        const weights = this.policyWeights.get(actionKey)!;
+        const gradient = advantage * this.policyConfig.learningRate;
+        weights[0] += gradient;
+
+        totalLoss += Math.abs(advantage);
+      }
+
+      episodeCount++;
+    }
+
+    // Update metrics
+    this.metrics.loss = totalLoss / Math.max(episodeCount, 1);
+    this.metrics.iterationCount++;
+
+    // Decay epsilon (exploration rate)
+    this.metrics.epsilon = Math.max(0.01, this.policyConfig.epsilon * 0.995);
+    this.policyConfig.epsilon = this.metrics.epsilon;
+
+    return this.metrics.loss;
+  }
+
+  /**
+   * Estimate value function using TD learning
+   *
+   * @param state - State to estimate value for
+   * @param reward - Observed reward
+   * @param nextState - Next state
+   * @param config - Optional value function configuration
+   * @returns Estimated value
+   */
+  async estimateValue(state: any, reward: number, nextState: any, config?: Partial<ValueFunctionConfig>): Promise<number> {
+    if (config) {
+      this.valueConfig = { ...this.valueConfig, ...config };
+    }
+
+    const stateKey = JSON.stringify(state);
+    const nextStateKey = JSON.stringify(nextState);
+
+    // Get or initialize value estimates
+    const currentValue = this.valueWeights.get(stateKey) || 0;
+    const nextValue = this.valueWeights.get(nextStateKey) || 0;
+
+    // TD error: δ = r + γV(s') - V(s)
+    const tdError = reward + this.valueConfig.gamma * nextValue - currentValue;
+
+    // Update value function: V(s) ← V(s) + α·δ
+    const newValue = currentValue + this.valueConfig.learningRate * tdError;
+    this.valueWeights.set(stateKey, newValue);
+
+    return newValue;
+  }
+
+  /**
+   * Add experience to replay buffer with priority sampling
+   *
+   * @param state - Current state
+   * @param action - Action taken
+   * @param reward - Reward received
+   * @param nextState - Resulting state
+   * @param priority - Experience priority (default: 1.0)
+   */
+  addExperience(state: any, action: string, reward: number, nextState: any, priority: number = 1.0): void {
+    // Add to buffer
+    this.experienceBuffer.push({ state, action, reward, nextState, priority });
+
+    // Maintain buffer size
+    if (this.experienceBuffer.length > this.replayConfig.bufferSize) {
+      this.experienceBuffer.shift();
+    }
+  }
+
+  /**
+   * Sample batch from experience replay buffer with priority sampling
+   *
+   * @param batchSize - Optional batch size (default: from config)
+   * @returns Batch of experiences
+   */
+  sampleExperience(batchSize?: number): Array<{ state: any; action: string; reward: number; nextState: any }> {
+    const size = batchSize || this.replayConfig.batchSize;
+
+    if (this.experienceBuffer.length === 0) {
+      return [];
+    }
+
+    // Calculate probability distribution based on priorities
+    const totalPriority = this.experienceBuffer.reduce((sum, exp) => sum + Math.pow(exp.priority, this.replayConfig.priorityAlpha), 0);
+
+    const batch: Array<{ state: any; action: string; reward: number; nextState: any }> = [];
+
+    for (let i = 0; i < Math.min(size, this.experienceBuffer.length); i++) {
+      // Priority sampling
+      let rand = Math.random() * totalPriority;
+      let selectedExp = this.experienceBuffer[0];
+
+      for (const exp of this.experienceBuffer) {
+        rand -= Math.pow(exp.priority, this.replayConfig.priorityAlpha);
+        if (rand <= 0) {
+          selectedExp = exp;
+          break;
+        }
+      }
+
+      batch.push({
+        state: selectedExp.state,
+        action: selectedExp.action,
+        reward: selectedExp.reward,
+        nextState: selectedExp.nextState
+      });
+    }
+
+    return batch;
+  }
+
+  /**
+   * Multi-agent reinforcement learning coordination
+   *
+   * @param agentStates - Map of agent IDs to their states
+   * @param jointAction - Joint action taken by all agents
+   * @param jointReward - Shared reward
+   * @returns Individual rewards for each agent
+   */
+  async multiAgentLearn(
+    agentStates: Map<string, any>,
+    jointAction: Map<string, string>,
+    jointReward: number
+  ): Promise<Map<string, number>> {
+    const individualRewards = new Map<string, number>();
+
+    // Distribute reward based on contribution (simplified)
+    const numAgents = agentStates.size;
+    const baseReward = jointReward / numAgents;
+
+    for (const [agentId, state] of agentStates) {
+      const action = jointAction.get(agentId) || 'default';
+
+      // Calculate individual contribution
+      const contribution = this.calculateContribution(agentId, state, action);
+      const reward = baseReward * (0.5 + contribution * 0.5);
+
+      individualRewards.set(agentId, reward);
+
+      // Record for learning
+      await this.recordTrajectory(agentId, [{
+        state,
+        action,
+        reward
+      }]);
+    }
+
+    return individualRewards;
+  }
+
+  /**
+   * Transfer learning: apply knowledge from source task to target task
+   *
+   * @param sourceAgent - Agent type to transfer from
+   * @param targetAgent - Agent type to transfer to
+   * @param transferRatio - How much knowledge to transfer (0-1)
+   * @returns Success indicator
+   */
+  async transferLearning(sourceAgent: string, targetAgent: string, transferRatio: number = 0.7): Promise<boolean> {
+    const sourcePatterns = await this.getPatterns(sourceAgent);
+
+    if (sourcePatterns.length === 0) {
+      return false;
+    }
+
+    // Transfer policy weights
+    for (const [actionKey, weights] of this.policyWeights) {
+      if (actionKey.startsWith(sourceAgent)) {
+        const targetKey = actionKey.replace(sourceAgent, targetAgent);
+        const targetWeights = this.policyWeights.get(targetKey) || [0];
+
+        // Blend weights
+        for (let i = 0; i < Math.min(weights.length, targetWeights.length); i++) {
+          targetWeights[i] = transferRatio * weights[i] + (1 - transferRatio) * targetWeights[i];
+        }
+
+        this.policyWeights.set(targetKey, targetWeights);
+      }
+    }
+
+    // Transfer value estimates
+    for (const [stateKey, value] of this.valueWeights) {
+      const state = JSON.parse(stateKey);
+      if (state.agentType === sourceAgent) {
+        const targetState = { ...state, agentType: targetAgent };
+        const targetKey = JSON.stringify(targetState);
+        const targetValue = this.valueWeights.get(targetKey) || 0;
+
+        this.valueWeights.set(targetKey, transferRatio * value + (1 - transferRatio) * targetValue);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Continuous learning: update model with new experience
+   *
+   * @param state - Current state
+   * @param action - Action taken
+   * @param reward - Reward received
+   * @param nextState - Resulting state
+   * @returns Updated value estimate
+   */
+  async continuousLearn(state: any, action: string, reward: number, nextState: any): Promise<number> {
+    // Add to experience replay
+    const tdError = Math.abs(reward - (this.valueWeights.get(JSON.stringify(state)) || 0));
+    this.addExperience(state, action, reward, nextState, tdError + 1);
+
+    // Update value function
+    const value = await this.estimateValue(state, reward, nextState);
+
+    // Update policy if we have enough experiences
+    if (this.experienceBuffer.length >= this.replayConfig.batchSize) {
+      const batch = this.sampleExperience();
+
+      // Create mini-episode from batch
+      const miniEpisode: StoredTrajectory = {
+        steps: batch.map(exp => ({
+          state: exp.state,
+          action: exp.action,
+          reward: exp.reward
+        })),
+        reward: batch.reduce((sum, exp) => sum + exp.reward, 0) / batch.length
+      };
+
+      await this.trainPolicy([miniEpisode]);
+    }
+
+    // Update metrics
+    this.metrics.episodeReward += reward;
+    this.metrics.avgReward = (this.metrics.avgReward * this.metrics.iterationCount + reward) / (this.metrics.iterationCount + 1);
+
+    return value;
+  }
+
+  /**
+   * Get current RL metrics
+   */
+  getRLMetrics(): RLMetrics {
+    return { ...this.metrics };
+  }
+
+  /**
+   * Reset RL state (for new training session)
+   */
+  resetRL(): void {
+    this.policyWeights.clear();
+    this.valueWeights.clear();
+    this.experienceBuffer = [];
+    this.metrics = {
+      episodeReward: 0,
+      avgReward: 0,
+      loss: 0,
+      epsilon: this.policyConfig.epsilon,
+      iterationCount: 0
+    };
+  }
+
+  /**
+   * Configure RL parameters
+   */
+  configureRL(config: {
+    policy?: Partial<PolicyGradientConfig>;
+    value?: Partial<ValueFunctionConfig>;
+    replay?: Partial<ExperienceReplayConfig>;
+  }): void {
+    if (config.policy) {
+      this.policyConfig = { ...this.policyConfig, ...config.policy };
+    }
+    if (config.value) {
+      this.valueConfig = { ...this.valueConfig, ...config.value };
+    }
+    if (config.replay) {
+      this.replayConfig = { ...this.replayConfig, ...config.replay };
+    }
+  }
+
+  /**
+   * Calculate agent contribution to joint reward (simplified)
+   */
+  private calculateContribution(agentId: string, state: any, action: string): number {
+    // Simple heuristic: higher value states = higher contribution
+    const stateKey = JSON.stringify(state);
+    const stateValue = this.valueWeights.get(stateKey) || 0;
+
+    // Normalize to [0, 1]
+    return Math.max(0, Math.min(1, (stateValue + 1) / 2));
   }
 }

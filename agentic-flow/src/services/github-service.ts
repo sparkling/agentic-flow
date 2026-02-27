@@ -1,48 +1,129 @@
-import { execFileSync } from 'child_process';
+import { Octokit } from '@octokit/rest';
+
+export interface GitHubConfig {
+  token?: string;
+  owner?: string;
+  repo?: string;
+}
+
+export interface PullRequestParams {
+  title: string;
+  body: string;
+  head: string;
+  base: string;
+  draft?: boolean;
+}
+
+export interface IssueParams {
+  title: string;
+  body: string;
+  labels?: string[];
+  assignees?: string[];
+}
 
 export interface PRInfo {
+  id: number;
   number: number;
-  title: string;
-  state: string;
   url: string;
-  author: string;
+  state: string;
+  title: string;
   body?: string;
+  head?: string;
+  base?: string;
+  mergeable?: boolean | null;
+  merged?: boolean;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface IssueInfo {
+  id: number;
   number: number;
-  title: string;
-  state: string;
   url: string;
-  labels: string[];
+  state: string;
+  title: string;
   body?: string;
+  labels: string[];
+  assignees?: string[];
+  created_at: string;
+  updated_at?: string;
 }
 
-export interface RepoInfo {
-  name: string;
-  description: string;
-  defaultBranch: string;
-  url: string;
+export interface RepoMetrics {
   stars: number;
-  language: string;
+  forks: number;
+  watchers: number;
+  openIssues: number;
+  openPRs: number;
+  size: number;
+  language: string | null;
+  updated_at: string | null;
+}
+
+export interface ReleaseInfo {
+  id: number;
+  url: string;
+  tag_name: string;
+  name: string | null;
+  draft: boolean;
+  prerelease: boolean;
+  created_at: string;
+}
+
+export interface ReviewInfo {
+  id: number;
+  state: string;
+  body: string | null;
+  submitted_at: string | null;
+}
+
+export interface MergeResult {
+  merged: boolean;
+  sha: string;
+  message: string;
 }
 
 export interface WorkflowRun {
   id: number;
   name: string;
-  status: string;
-  conclusion: string;
+  status: string | null;
+  conclusion: string | null;
   url: string;
+}
+
+function resolveOwnerRepo(
+  owner: string | undefined,
+  repo: string | undefined,
+  defaultOwner: string | undefined,
+  defaultRepo: string | undefined,
+): { owner: string; repo: string } {
+  const finalOwner = owner || defaultOwner;
+  const finalRepo = repo || defaultRepo;
+  if (!finalOwner || !finalRepo) {
+    throw new Error('Owner and repo must be specified via constructor config, environment variables (GITHUB_OWNER, GITHUB_REPO), or method parameters.');
+  }
+  return { owner: finalOwner, repo: finalRepo };
 }
 
 export class GitHubService {
   private static instance: GitHubService | null = null;
+  private octokit: Octokit;
+  private defaultOwner?: string;
+  private defaultRepo?: string;
 
-  private constructor() {}
+  constructor(config: GitHubConfig = {}) {
+    const token = config.token || process.env.GITHUB_TOKEN;
+    if (!token) {
+      console.warn('[GitHubService] No GitHub token provided. Some operations may fail.');
+    }
+    this.octokit = new Octokit({ auth: token });
+    this.defaultOwner = config.owner || process.env.GITHUB_OWNER;
+    this.defaultRepo = config.repo || process.env.GITHUB_REPO;
+  }
 
-  static getInstance(): GitHubService {
+  static getInstance(config?: GitHubConfig): GitHubService {
     if (!GitHubService.instance) {
-      GitHubService.instance = new GitHubService();
+      GitHubService.instance = new GitHubService(config);
     }
     return GitHubService.instance;
   }
@@ -51,153 +132,315 @@ export class GitHubService {
     GitHubService.instance = null;
   }
 
-  private execGh(args: string[]): string {
+  async createPullRequest(
+    params: PullRequestParams,
+    owner?: string,
+    repo?: string,
+  ): Promise<PRInfo> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
     try {
-      return execFileSync('gh', args, {
-        encoding: 'utf-8',
-        maxBuffer: 10 * 1024 * 1024,
-        timeout: 30000,
+      const response = await this.octokit.pulls.create({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        title: params.title,
+        body: params.body,
+        head: params.head,
+        base: params.base,
+        draft: params.draft || false,
       });
+      return {
+        id: response.data.id,
+        number: response.data.number,
+        url: response.data.html_url,
+        state: response.data.state,
+        title: response.data.title,
+        created_at: response.data.created_at,
+      };
     } catch (error: any) {
-      const stderr = error.stderr?.toString() || '';
-      if (stderr.includes('gh: command not found') || error.code === 'ENOENT') {
-        throw new Error('GitHub CLI (gh) is not installed. Install from https://cli.github.com/');
-      }
-      if (stderr.includes('not logged in')) {
-        throw new Error('Not authenticated with GitHub CLI. Run: gh auth login');
-      }
-      throw new Error(`gh command failed: ${stderr || error.message}`);
+      throw new Error(`Failed to create PR: ${error.message}`);
     }
   }
 
-  private execGhJson(args: string[]): any {
-    const result = this.execGh([...args, '--json']);
+  async getPullRequest(
+    prNumber: number,
+    owner?: string,
+    repo?: string,
+  ): Promise<PRInfo> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
     try {
-      return JSON.parse(result);
-    } catch {
-      return result;
+      const response = await this.octokit.pulls.get({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        pull_number: prNumber,
+      });
+      return {
+        id: response.data.id,
+        number: response.data.number,
+        url: response.data.html_url,
+        state: response.data.state,
+        title: response.data.title,
+        body: response.data.body ?? undefined,
+        head: response.data.head.ref,
+        base: response.data.base.ref,
+        mergeable: response.data.mergeable,
+        merged: response.data.merged,
+        created_at: response.data.created_at,
+        updated_at: response.data.updated_at,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get PR #${prNumber}: ${error.message}`);
     }
   }
 
-  createPR(params: { title: string; body: string; base?: string; head?: string }): PRInfo {
-    const args = ['pr', 'create', '--title', params.title, '--body', params.body];
-    if (params.base) args.push('--base', params.base);
-    if (params.head) args.push('--head', params.head);
-    const result = this.execGh(args);
-    // gh pr create returns the PR URL
-    const url = result.trim();
-    const match = url.match(/\/pull\/(\d+)/);
-    return {
-      number: match ? parseInt(match[1], 10) : 0,
-      title: params.title,
-      state: 'open',
-      url,
-      author: 'current-user',
-      body: params.body,
-    };
-  }
-
-  listPRs(params: { state?: string; limit?: number }): PRInfo[] {
-    const args = ['pr', 'list', '--json', 'number,title,state,url,author'];
-    if (params.state) args.push('--state', params.state);
-    if (params.limit) args.push('--limit', String(params.limit));
-    const result = this.execGh(args);
+  async listPullRequests(
+    state: 'open' | 'closed' | 'all' = 'open',
+    owner?: string,
+    repo?: string,
+    limit = 100,
+  ): Promise<PRInfo[]> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
     try {
-      const prs = JSON.parse(result);
-      return prs.map((pr: any) => ({
+      const response = await this.octokit.pulls.list({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        state,
+        per_page: Math.min(limit, 100),
+      });
+      return response.data.map(pr => ({
+        id: pr.id,
         number: pr.number,
-        title: pr.title,
+        url: pr.html_url,
         state: pr.state,
-        url: pr.url,
-        author: pr.author?.login || '',
+        title: pr.title,
+        created_at: pr.created_at,
+        updated_at: pr.updated_at,
       }));
-    } catch {
-      return [];
+    } catch (error: any) {
+      throw new Error(`Failed to list PRs: ${error.message}`);
     }
   }
 
-  reviewPR(params: { number: number; body: string; event?: string }): { success: boolean; message: string } {
-    const args = ['pr', 'review', String(params.number), '--body', params.body];
-    if (params.event) args.push(`--${params.event}`);
-    this.execGh(args);
-    return { success: true, message: `Review added to PR #${params.number}` };
-  }
-
-  mergePR(params: { number: number; method?: string }): { success: boolean; message: string } {
-    const args = ['pr', 'merge', String(params.number), '--auto'];
-    if (params.method === 'squash') args.push('--squash');
-    else if (params.method === 'rebase') args.push('--rebase');
-    else args.push('--merge');
-    this.execGh(args);
-    return { success: true, message: `PR #${params.number} merged` };
-  }
-
-  createIssue(params: { title: string; body: string; labels?: string[] }): IssueInfo {
-    const args = ['issue', 'create', '--title', params.title, '--body', params.body];
-    if (params.labels && params.labels.length > 0) {
-      args.push('--label', params.labels.join(','));
-    }
-    const result = this.execGh(args);
-    const url = result.trim();
-    const match = url.match(/\/issues\/(\d+)/);
-    return {
-      number: match ? parseInt(match[1], 10) : 0,
-      title: params.title,
-      state: 'open',
-      url,
-      labels: params.labels || [],
-      body: params.body,
-    };
-  }
-
-  listIssues(params: { state?: string; labels?: string[]; limit?: number }): IssueInfo[] {
-    const args = ['issue', 'list', '--json', 'number,title,state,url,labels'];
-    if (params.state) args.push('--state', params.state);
-    if (params.labels && params.labels.length > 0) args.push('--label', params.labels.join(','));
-    if (params.limit) args.push('--limit', String(params.limit));
-    const result = this.execGh(args);
+  async mergePullRequest(
+    prNumber: number,
+    mergeMethod: 'merge' | 'squash' | 'rebase' = 'merge',
+    owner?: string,
+    repo?: string,
+  ): Promise<MergeResult> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
     try {
-      const issues = JSON.parse(result);
-      return issues.map((i: any) => ({
-        number: i.number,
-        title: i.title,
-        state: i.state,
-        url: i.url,
-        labels: (i.labels || []).map((l: any) => l.name || l),
-      }));
-    } catch {
-      return [];
+      const response = await this.octokit.pulls.merge({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        pull_number: prNumber,
+        merge_method: mergeMethod,
+      });
+      return {
+        merged: response.data.merged,
+        sha: response.data.sha,
+        message: response.data.message,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to merge PR #${prNumber}: ${error.message}`);
     }
   }
 
-  getRepoInfo(): RepoInfo {
-    const result = this.execGh(['repo', 'view', '--json', 'name,description,defaultBranchRef,url,stargazerCount,primaryLanguage']);
-    const data = JSON.parse(result);
-    return {
-      name: data.name || '',
-      description: data.description || '',
-      defaultBranch: data.defaultBranchRef?.name || 'main',
-      url: data.url || '',
-      stars: data.stargazerCount || 0,
-      language: data.primaryLanguage?.name || '',
-    };
+  async createReview(
+    prNumber: number,
+    event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+    body?: string,
+    comments?: Array<{ path: string; line: number; body: string }>,
+    owner?: string,
+    repo?: string,
+  ): Promise<ReviewInfo> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
+    try {
+      const response = await this.octokit.pulls.createReview({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        pull_number: prNumber,
+        event,
+        body,
+        comments,
+      });
+      return {
+        id: response.data.id,
+        state: response.data.state,
+        body: response.data.body,
+        submitted_at: response.data.submitted_at ?? null,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to create review on PR #${prNumber}: ${error.message}`);
+    }
   }
 
-  getWorkflowStatus(params?: { limit?: number }): WorkflowRun[] {
-    const args = ['run', 'list', '--json', 'databaseId,name,status,conclusion,url'];
-    if (params?.limit) args.push('--limit', String(params.limit));
-    const result = this.execGh(args);
+  async createIssue(
+    params: IssueParams,
+    owner?: string,
+    repo?: string,
+  ): Promise<IssueInfo> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
     try {
-      const runs = JSON.parse(result);
-      return runs.map((r: any) => ({
-        id: r.databaseId || 0,
-        name: r.name || '',
-        status: r.status || '',
-        conclusion: r.conclusion || '',
-        url: r.url || '',
+      const response = await this.octokit.issues.create({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        title: params.title,
+        body: params.body,
+        labels: params.labels,
+        assignees: params.assignees,
+      });
+      return {
+        id: response.data.id,
+        number: response.data.number,
+        url: response.data.html_url,
+        state: response.data.state as string,
+        title: response.data.title,
+        labels: response.data.labels.map((l: any) => (typeof l === 'string' ? l : l.name ?? '')),
+        created_at: response.data.created_at,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to create issue: ${error.message}`);
+    }
+  }
+
+  async getIssue(
+    issueNumber: number,
+    owner?: string,
+    repo?: string,
+  ): Promise<IssueInfo> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
+    try {
+      const response = await this.octokit.issues.get({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        issue_number: issueNumber,
+      });
+      return {
+        id: response.data.id,
+        number: response.data.number,
+        url: response.data.html_url,
+        state: response.data.state as string,
+        title: response.data.title,
+        body: response.data.body ?? undefined,
+        labels: response.data.labels.map((l: any) => (typeof l === 'string' ? l : l.name ?? '')),
+        assignees: response.data.assignees?.map((a: any) => a.login) || [],
+        created_at: response.data.created_at,
+        updated_at: response.data.updated_at,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get issue #${issueNumber}: ${error.message}`);
+    }
+  }
+
+  async listIssues(
+    state: 'open' | 'closed' | 'all' = 'open',
+    labels?: string[],
+    owner?: string,
+    repo?: string,
+    limit = 100,
+  ): Promise<IssueInfo[]> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
+    try {
+      const response = await this.octokit.issues.listForRepo({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        state,
+        labels: labels?.join(','),
+        per_page: Math.min(limit, 100),
+      });
+      return response.data
+        .filter(issue => !issue.pull_request)
+        .map(issue => ({
+          id: issue.id,
+          number: issue.number,
+          url: issue.html_url,
+          state: issue.state as string,
+          title: issue.title,
+          labels: issue.labels.map((l: any) => (typeof l === 'string' ? l : l.name ?? '')),
+          created_at: issue.created_at,
+          updated_at: issue.updated_at,
+        }));
+    } catch (error: any) {
+      throw new Error(`Failed to list issues: ${error.message}`);
+    }
+  }
+
+  async createRelease(
+    tagName: string,
+    name: string,
+    body: string,
+    draft = false,
+    prerelease = false,
+    owner?: string,
+    repo?: string,
+  ): Promise<ReleaseInfo> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
+    try {
+      const response = await this.octokit.repos.createRelease({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        tag_name: tagName,
+        name,
+        body,
+        draft,
+        prerelease,
+      });
+      return {
+        id: response.data.id,
+        url: response.data.html_url,
+        tag_name: response.data.tag_name,
+        name: response.data.name,
+        draft: response.data.draft,
+        prerelease: response.data.prerelease,
+        created_at: response.data.created_at,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to create release: ${error.message}`);
+    }
+  }
+
+  async getMetrics(owner?: string, repo?: string): Promise<RepoMetrics> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
+    try {
+      const [repoResponse, prsResponse] = await Promise.all([
+        this.octokit.repos.get({ owner: resolved.owner, repo: resolved.repo }),
+        this.octokit.pulls.list({ owner: resolved.owner, repo: resolved.repo, state: 'open', per_page: 1 }),
+      ]);
+      return {
+        stars: repoResponse.data.stargazers_count,
+        forks: repoResponse.data.forks_count,
+        watchers: repoResponse.data.watchers_count,
+        openIssues: repoResponse.data.open_issues_count,
+        openPRs: prsResponse.data.length,
+        size: repoResponse.data.size,
+        language: repoResponse.data.language,
+        updated_at: repoResponse.data.updated_at,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get metrics: ${error.message}`);
+    }
+  }
+
+  async getWorkflowRuns(
+    limit = 10,
+    owner?: string,
+    repo?: string,
+  ): Promise<WorkflowRun[]> {
+    const resolved = resolveOwnerRepo(owner, repo, this.defaultOwner, this.defaultRepo);
+    try {
+      const response = await this.octokit.actions.listWorkflowRunsForRepo({
+        owner: resolved.owner,
+        repo: resolved.repo,
+        per_page: Math.min(limit, 100),
+      });
+      return response.data.workflow_runs.map(run => ({
+        id: run.id,
+        name: run.name ?? '',
+        status: run.status,
+        conclusion: run.conclusion,
+        url: run.html_url,
       }));
-    } catch {
-      return [];
+    } catch (error: any) {
+      throw new Error(`Failed to get workflow runs: ${error.message}`);
     }
   }
 }

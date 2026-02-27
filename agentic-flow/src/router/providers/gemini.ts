@@ -1,5 +1,8 @@
 // Google Gemini provider implementation
-import { GoogleGenAI } from '@google/genai';
+// DISABLED: @google/genai deprecated (use @ai-sdk/google instead)
+// This provider is temporarily disabled to eliminate npm deprecation warnings.
+// To re-enable: migrate to @ai-sdk/google (see ADR-XXX for migration plan)
+// import { GoogleGenAI } from '@google/genai';
 import {
   LLMProvider,
   ChatParams,
@@ -17,7 +20,8 @@ export class GeminiProvider implements LLMProvider {
   supportsTools = false;
   supportsMCP = false;
 
-  private client: GoogleGenAI;
+  // DISABLED: Provider temporarily unavailable pending migration to @ai-sdk/google
+  private client: any; // GoogleGenAI;
   private config: ProviderConfig;
 
   constructor(config: ProviderConfig) {
@@ -27,7 +31,9 @@ export class GeminiProvider implements LLMProvider {
       throw new Error('Google Gemini API key is required');
     }
 
-    this.client = new GoogleGenAI({ apiKey: config.apiKey });
+    // DISABLED: Uncomment after migrating to @ai-sdk/google
+    // this.client = new GoogleGenAI({ apiKey: config.apiKey });
+    throw new Error('Gemini provider temporarily disabled - migrate to @ai-sdk/google to re-enable');
   }
 
   validateCapabilities(features: string[]): boolean {

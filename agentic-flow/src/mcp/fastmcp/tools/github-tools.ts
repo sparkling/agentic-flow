@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { GitHubService } from '../../../services/github-service.js';
 
 export function registerGitHubTools(server: any): void {
+  const githubService = GitHubService.getInstance();
+
   // Tool: github_pr_create
   server.addTool({
     name: 'github_pr_create',
@@ -9,13 +11,13 @@ export function registerGitHubTools(server: any): void {
     parameters: z.object({
       title: z.string().min(1).describe('PR title'),
       body: z.string().describe('PR description/body'),
-      base: z.string().optional().describe('Base branch (defaults to default branch)'),
-      head: z.string().optional().describe('Head branch (defaults to current branch)'),
+      head: z.string().describe('Head branch (source branch with changes)'),
+      base: z.string().describe('Base branch (target branch to merge into)'),
+      draft: z.boolean().optional().default(false).describe('Create as draft PR'),
     }),
-    execute: async ({ title, body, base, head }: { title: string; body: string; base?: string; head?: string }) => {
+    execute: async ({ title, body, head, base, draft }: { title: string; body: string; head: string; base: string; draft: boolean }) => {
       try {
-        const svc = GitHubService.getInstance();
-        const pr = svc.createPR({ title, body, base, head });
+        const pr = await githubService.createPullRequest({ title, body, head, base, draft });
         return JSON.stringify({ success: true, data: pr, timestamp: new Date().toISOString() }, null, 2);
       } catch (error: any) {
         return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
@@ -28,13 +30,12 @@ export function registerGitHubTools(server: any): void {
     name: 'github_pr_list',
     description: 'List pull requests on the current repository',
     parameters: z.object({
-      state: z.enum(['open', 'closed', 'merged', 'all']).optional().default('open').describe('PR state filter'),
+      state: z.enum(['open', 'closed', 'all']).optional().default('open').describe('PR state filter'),
       limit: z.number().positive().optional().default(10).describe('Maximum PRs to return'),
     }),
-    execute: async ({ state, limit }: { state: string; limit: number }) => {
+    execute: async ({ state, limit }: { state: 'open' | 'closed' | 'all'; limit: number }) => {
       try {
-        const svc = GitHubService.getInstance();
-        const prs = svc.listPRs({ state, limit });
+        const prs = await githubService.listPullRequests(state, undefined, undefined, limit);
         return JSON.stringify({ success: true, data: { prs, count: prs.length }, timestamp: new Date().toISOString() }, null, 2);
       } catch (error: any) {
         return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
@@ -45,16 +46,15 @@ export function registerGitHubTools(server: any): void {
   // Tool: github_pr_review
   server.addTool({
     name: 'github_pr_review',
-    description: 'Add a review comment to a pull request',
+    description: 'Add a review to a pull request',
     parameters: z.object({
       number: z.number().positive().describe('PR number'),
       body: z.string().min(1).describe('Review comment body'),
-      event: z.enum(['approve', 'request-changes', 'comment']).optional().default('comment').describe('Review event type'),
+      event: z.enum(['APPROVE', 'REQUEST_CHANGES', 'COMMENT']).optional().default('COMMENT').describe('Review event type'),
     }),
-    execute: async ({ number, body, event }: { number: number; body: string; event: string }) => {
+    execute: async ({ number, body, event }: { number: number; body: string; event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT' }) => {
       try {
-        const svc = GitHubService.getInstance();
-        const result = svc.reviewPR({ number, body, event });
+        const result = await githubService.createReview(number, event, body);
         return JSON.stringify({ success: true, data: result, timestamp: new Date().toISOString() }, null, 2);
       } catch (error: any) {
         return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
@@ -70,10 +70,9 @@ export function registerGitHubTools(server: any): void {
       number: z.number().positive().describe('PR number to merge'),
       method: z.enum(['merge', 'squash', 'rebase']).optional().default('merge').describe('Merge method'),
     }),
-    execute: async ({ number, method }: { number: number; method: string }) => {
+    execute: async ({ number, method }: { number: number; method: 'merge' | 'squash' | 'rebase' }) => {
       try {
-        const svc = GitHubService.getInstance();
-        const result = svc.mergePR({ number, method });
+        const result = await githubService.mergePullRequest(number, method);
         return JSON.stringify({ success: true, data: result, timestamp: new Date().toISOString() }, null, 2);
       } catch (error: any) {
         return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
@@ -89,11 +88,11 @@ export function registerGitHubTools(server: any): void {
       title: z.string().min(1).describe('Issue title'),
       body: z.string().describe('Issue body/description'),
       labels: z.array(z.string()).optional().describe('Labels to add'),
+      assignees: z.array(z.string()).optional().describe('GitHub usernames to assign'),
     }),
-    execute: async ({ title, body, labels }: { title: string; body: string; labels?: string[] }) => {
+    execute: async ({ title, body, labels, assignees }: { title: string; body: string; labels?: string[]; assignees?: string[] }) => {
       try {
-        const svc = GitHubService.getInstance();
-        const issue = svc.createIssue({ title, body, labels });
+        const issue = await githubService.createIssue({ title, body, labels, assignees });
         return JSON.stringify({ success: true, data: issue, timestamp: new Date().toISOString() }, null, 2);
       } catch (error: any) {
         return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
@@ -110,10 +109,9 @@ export function registerGitHubTools(server: any): void {
       labels: z.array(z.string()).optional().describe('Filter by labels'),
       limit: z.number().positive().optional().default(10).describe('Maximum issues to return'),
     }),
-    execute: async ({ state, labels, limit }: { state: string; labels?: string[]; limit: number }) => {
+    execute: async ({ state, labels, limit }: { state: 'open' | 'closed' | 'all'; labels?: string[]; limit: number }) => {
       try {
-        const svc = GitHubService.getInstance();
-        const issues = svc.listIssues({ state, labels, limit });
+        const issues = await githubService.listIssues(state, labels, undefined, undefined, limit);
         return JSON.stringify({ success: true, data: { issues, count: issues.length }, timestamp: new Date().toISOString() }, null, 2);
       } catch (error: any) {
         return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
@@ -124,13 +122,12 @@ export function registerGitHubTools(server: any): void {
   // Tool: github_repo_info
   server.addTool({
     name: 'github_repo_info',
-    description: 'Get information about the current repository',
+    description: 'Get repository metrics and information',
     parameters: z.object({}),
     execute: async () => {
       try {
-        const svc = GitHubService.getInstance();
-        const info = svc.getRepoInfo();
-        return JSON.stringify({ success: true, data: info, timestamp: new Date().toISOString() }, null, 2);
+        const metrics = await githubService.getMetrics();
+        return JSON.stringify({ success: true, data: metrics, timestamp: new Date().toISOString() }, null, 2);
       } catch (error: any) {
         return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
       }
@@ -146,8 +143,7 @@ export function registerGitHubTools(server: any): void {
     }),
     execute: async ({ limit }: { limit: number }) => {
       try {
-        const svc = GitHubService.getInstance();
-        const runs = svc.getWorkflowStatus({ limit });
+        const runs = await githubService.getWorkflowRuns(limit);
         return JSON.stringify({ success: true, data: { runs, count: runs.length }, timestamp: new Date().toISOString() }, null, 2);
       } catch (error: any) {
         return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);

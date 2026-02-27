@@ -16,6 +16,7 @@ import type { LearningBackend } from '../backends/LearningBackend.js';
 import type { GraphBackend, GraphNode } from '../backends/GraphBackend.js';
 import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
 import { NodeIdMapper } from '../utils/NodeIdMapper.js';
+import { cosineSimilarity } from '../utils/vector-math.js';
 
 export interface Episode {
   id?: number;
@@ -131,10 +132,12 @@ export class ReflexionMemory {
 
       // Store embedding using vectorBackend if available
       if (this.vectorBackend && taskEmbedding) {
-        this.vectorBackend.insert(nodeId, taskEmbedding, {
-          type: 'episode',
-          sessionId: episode.sessionId
-        });
+        try {
+          this.vectorBackend.insert(nodeId, taskEmbedding, {
+            type: 'episode',
+            sessionId: episode.sessionId
+          });
+        } catch { /* vectorBackend insert failed — graph node still created */ }
       }
 
       // Return a numeric ID (parse from string ID)
@@ -179,7 +182,9 @@ export class ReflexionMemory {
 
     // Use vector backend if available (150x faster retrieval)
     if (this.vectorBackend) {
-      this.vectorBackend.insert(episodeId.toString(), embedding);
+      try {
+        this.vectorBackend.insert(episodeId.toString(), embedding);
+      } catch { /* vectorBackend insert failed — SQL fallback used */ }
     }
 
     // Also store in SQL for fallback
@@ -313,6 +318,7 @@ export class ReflexionMemory {
 
     // Use optimized vector backend if available (150x faster)
     if (this.vectorBackend) {
+      try {
       // Get candidates from vector backend
       const searchResults = this.vectorBackend.search(queryEmbedding, k * 3, {
         threshold: 0.0
@@ -367,6 +373,7 @@ export class ReflexionMemory {
       }
 
       return episodes;
+      } catch { /* vectorBackend search failed — fall through to SQL */ }
     }
 
     // Fallback to SQL-based similarity search
@@ -408,7 +415,7 @@ export class ReflexionMemory {
     // Calculate similarities manually
     const episodes: EpisodeWithEmbedding[] = rows.map(row => {
       const embedding = this.deserializeEmbedding(row.embedding);
-      const similarity = this.cosineSimilarity(queryEmbedding, embedding);
+      const similarity = cosineSimilarity(queryEmbedding, embedding);
 
       return {
         id: row.id,
@@ -627,20 +634,6 @@ export class ReflexionMemory {
     return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.length / 4);
   }
 
-  private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-  }
-
   // ========================================================================
   // GNN and Graph Integration Methods
   // ========================================================================
@@ -681,7 +674,7 @@ export class ReflexionMemory {
           similar.id,
           'SIMILAR_TO',
           {
-            similarity: this.cosineSimilarity(
+            similarity: cosineSimilarity(
               embedding,
               similar.embedding || new Float32Array()
             ),

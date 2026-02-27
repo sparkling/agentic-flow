@@ -8,7 +8,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import { logger } from '../utils/logger.js';
-import Database from 'better-sqlite3';
+import Database from '../db/sql-adapter.js';
 // AgentDB is optional - federation works with SQLite only
 type AgentDB = any;
 

@@ -3,7 +3,7 @@
  * Operates on Claude Flow's memory.db at .swarm/memory.db
  */
 
-import Database from 'better-sqlite3';
+import Database from '../../db/sql-adapter.js';
 import { existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import type { ReasoningMemory, PatternEmbedding, TaskTrajectory, MattsRun } from './schema.js';

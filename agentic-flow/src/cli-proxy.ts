@@ -68,7 +68,7 @@ class AgenticFlowCLI {
     }
 
     // If no mode and no agent specified, show help
-    if (!options.agent && options.mode !== 'list' && !['config', 'agent-manager', 'mcp-manager', 'proxy', 'quic', 'claude-code', 'mcp', 'reasoningbank', 'federation', 'daemon', 'hive-mind', 'hivemind', 'hooks', 'session', 'swarm', 'memory', 'task', 'doctor'].includes(options.mode)) {
+    if (!options.agent && options.mode !== 'list' && !['config', 'agent-manager', 'mcp-manager', 'proxy', 'quic', 'claude-code', 'mcp', 'reasoningbank', 'federation', 'daemon', 'hive-mind', 'hivemind', 'hooks', 'session', 'swarm', 'memory', 'task', 'doctor', 'autopilot'].includes(options.mode)) {
       this.printHelp();
       process.exit(0);
     }
@@ -232,6 +232,12 @@ class AgenticFlowCLI {
     if (options.mode === 'doctor') {
       const { handleDoctorCommand } = await import('./cli/doctor-cli.js');
       await handleDoctorCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'autopilot') {
+      const { handleAutopilotCommand } = await import('./cli/autopilot-cli.js');
+      await handleAutopilotCommand(process.argv.slice(3));
       process.exit(0);
     }
 

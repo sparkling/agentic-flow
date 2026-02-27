@@ -8,9 +8,9 @@
  * - Memory persistence after agent destruction
  */
 
-// AgentDB is optional - use better-sqlite3 fallback
+// AgentDB is optional - use sql.js adapter fallback
 type AgentDB = any;
-import Database from 'better-sqlite3';
+import Database from '../db/sql-adapter.js';
 import { FederationHub } from './FederationHub.js';
 import { SecurityManager } from './SecurityManager.js';
 import { logger } from '../utils/logger.js';
@@ -76,7 +76,7 @@ export class EphemeralAgent {
 
     // Initialize local database instance
     const memoryPath = this.config.memoryPath || `:memory:`;
-    // Use better-sqlite3 for now (AgentDB integration planned)
+    // Use sql.js adapter for pure JavaScript SQLite (no native dependencies)
     const db = new Database(memoryPath) as any;
 
     // Create JWT token for authentication

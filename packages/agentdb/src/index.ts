@@ -11,8 +11,6 @@
 
 // Main AgentDB class
 export { AgentDB } from './core/AgentDB.js';
-import { AgentDB as AgentDBClass } from './core/AgentDB.js';
-export default AgentDBClass;
 
 // Core controllers
 export { CausalMemoryGraph } from './controllers/CausalMemoryGraph.js';
@@ -41,6 +39,7 @@ export { createDatabase } from './db-fallback.js';
 // Optimizations
 export { BatchOperations } from './optimizations/BatchOperations.js';
 export { QueryOptimizer } from './optimizations/QueryOptimizer.js';
+export { RVFOptimizer } from './optimizations/RVFOptimizer.js';
 
 // Security
 export {
@@ -56,11 +55,19 @@ export {
 export { SemanticRouter } from './services/SemanticRouter.js';
 export { SonaTrajectoryService } from './services/SonaTrajectoryService.js';
 export { LLMRouter } from './services/LLMRouter.js';
+export { GraphTransformerService } from './services/GraphTransformerService.js';
+export { GNNService } from './services/GNNService.js';
 
 // Re-export service types for convenience
 export type { RouteResult, RouteConfig } from './services/SemanticRouter.js';
 export type { TrajectoryStep, StoredTrajectory, PredictionResult, SonaStats } from './services/SonaTrajectoryService.js';
 export type { LLMConfig, LLMResponse } from './services/LLMRouter.js';
+export type { GraphTransformerStats } from './services/GraphTransformerService.js';
+export type { GNNConfig, IntentResult } from './services/GNNService.js';
+export type { RVFConfig } from './optimizations/RVFOptimizer.js';
+
+// Vector math utilities
+export { cosineSimilarity, batchCosineSimilarity, distanceToSimilarity, serializeEmbedding, deserializeEmbedding } from './utils/vector-math.js';
 
 // Re-export all controllers for convenience
 export * from './controllers/index.js';

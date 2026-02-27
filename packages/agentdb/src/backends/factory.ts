@@ -15,6 +15,9 @@
 import type { VectorBackend, VectorConfig } from './VectorBackend.js';
 import { RuVectorBackend } from './ruvector/RuVectorBackend.js';
 import { HNSWLibBackend } from './hnswlib/HNSWLibBackend.js';
+import { GuardedVectorBackend, ProofDeniedError } from './ruvector/GuardedVectorBackend.js';
+import { MutationGuard } from '../security/MutationGuard.js';
+import { AttestationLog } from '../security/AttestationLog.js';
 
 export type BackendType = 'auto' | 'ruvector' | 'hnswlib';
 
@@ -25,6 +28,7 @@ export interface BackendDetection {
     gnn: boolean;
     graph: boolean;
     native: boolean;
+    graphTransformer: boolean;
   };
   hnswlib: boolean;
 }
@@ -39,26 +43,44 @@ export async function detectBackends(): Promise<BackendDetection> {
       core: false,
       gnn: false,
       graph: false,
-      native: false
+      native: false,
+      graphTransformer: false,
     },
     hnswlib: false
   };
 
   // Check RuVector packages (main package or scoped packages)
   try {
-    // Try main ruvector package first
+    // Try main ruvector package first (v0.1.99+)
     const ruvector = await import('ruvector');
     result.ruvector.core = true;
     result.ruvector.gnn = true; // Main package includes GNN
     result.ruvector.graph = true; // Main package includes Graph
-    result.ruvector.native = ruvector.isNative?.() ?? false;
+
+    // Check for native backend availability (0.1.99+ API)
+    if (typeof (ruvector as any).isNative === 'function') {
+      result.ruvector.native = (ruvector as any).isNative();
+    } else if (typeof (ruvector as any).backend === 'function') {
+      // Legacy API check
+      const backend = (ruvector as any).backend();
+      result.ruvector.native = backend === 'native' || backend === 'napi';
+    }
+
     result.available = 'ruvector';
   } catch {
     // Try scoped packages as fallback
     try {
       const core = await import('@ruvector/core');
       result.ruvector.core = true;
-      result.ruvector.native = core.isNative?.() ?? false;
+
+      // Check for native backend (scoped packages)
+      if (typeof (core as any).isNative === 'function') {
+        result.ruvector.native = (core as any).isNative();
+      } else if (typeof (core as any).backend === 'function') {
+        const backend = (core as any).backend();
+        result.ruvector.native = backend === 'native' || backend === 'napi';
+      }
+
       result.available = 'ruvector';
 
       // Check optional packages
@@ -75,8 +97,31 @@ export async function detectBackends(): Promise<BackendDetection> {
       } catch {
         // Graph not installed - this is optional
       }
+
+      try {
+        await import('@ruvector/graph-transformer' as string);
+        result.ruvector.graphTransformer = true;
+      } catch {
+        // graph-transformer not installed - optional
+      }
     } catch {
       // RuVector not installed - will try fallback
+    }
+  }
+
+  // Check @ruvector/graph-transformer independently (may exist without core)
+  if (!result.ruvector.graphTransformer) {
+    try {
+      await import('@ruvector/graph-transformer' as string);
+      result.ruvector.graphTransformer = true;
+    } catch {
+      // Try WASM version
+      try {
+        await import('ruvector-graph-transformer-wasm' as string);
+        result.ruvector.graphTransformer = true;
+      } catch {
+        // graph-transformer not installed in any form
+      }
     }
   }
 
@@ -133,9 +178,11 @@ export async function createBackend(
     // Auto-detect best available backend
     if (detection.ruvector.core) {
       backend = new RuVectorBackend(config);
-      console.log(
-        `[AgentDB] Using RuVector backend (${detection.ruvector.native ? 'native' : 'WASM'})`
-      );
+      const backendType = detection.ruvector.native ? 'native NAPI-RS' : 'WASM';
+      const proofStatus = detection.ruvector.graphTransformer
+        ? '+ graph-transformer proofs'
+        : '(no proof engine)';
+      console.log(`[AgentDB] Using RuVector backend (${backendType}) ${proofStatus}`);
 
       // Try to initialize RuVector, fallback to HNSWLib if it fails
       try {
@@ -163,7 +210,8 @@ export async function createBackend(
       throw new Error(
         'No vector backend available.\n' +
         'Install one of:\n' +
-        '  - npm install @ruvector/core (recommended)\n' +
+        '  - npm install ruvector@0.1.99+ (recommended, includes native NAPI-RS)\n' +
+        '  - npm install @ruvector/core (alternative)\n' +
         '  - npm install hnswlib-node (fallback)'
       );
     }
@@ -218,4 +266,49 @@ export function getInstallCommand(backend: 'ruvector' | 'hnswlib'): string {
   return backend === 'ruvector'
     ? 'npm install ruvector'
     : 'npm install hnswlib-node';
+}
+
+// Re-export proof-gated types (ADR-060)
+export { GuardedVectorBackend, ProofDeniedError };
+
+/**
+ * Create a proof-gated vector backend (ADR-060)
+ *
+ * Wraps a standard VectorBackend with MutationGuard to require
+ * cryptographic proofs for all mutating operations. Optionally
+ * attaches an AttestationLog when a database handle is provided.
+ *
+ * @param type - Backend type: 'auto', 'ruvector', or 'hnswlib'
+ * @param config - Vector configuration with optional database handle
+ * @returns Object containing the guarded backend, guard, and optional log
+ */
+export async function createGuardedBackend(
+  type: BackendType,
+  config: VectorConfig & { database?: any; enableProofs?: boolean }
+): Promise<{ backend: GuardedVectorBackend; guard: MutationGuard; log: AttestationLog | null }> {
+  const detection = await detectBackends();
+  const inner = await createBackend(type, config);
+
+  // Enable proofs if graph-transformer is available or explicitly requested
+  const enableWasmProofs = config.enableProofs ?? detection.ruvector.graphTransformer ?? true;
+
+  const guard = new MutationGuard({
+    dimension: config.dimension ?? config.dimensions ?? 384,
+    maxElements: config.maxElements ?? 10000,
+    enableWasmProofs,
+    enableAttestationLog: true,
+    defaultNamespace: 'default',
+  });
+  await guard.initialize();
+
+  // Log the proof engine status
+  const stats = guard.getStats();
+  console.log(`[GuardedBackend] Proof engine: ${stats.engineType}, WASM available: ${stats.wasmAvailable}`);
+
+  let log: AttestationLog | null = null;
+  if (config.database) {
+    log = new AttestationLog(config.database);
+  }
+
+  return { backend: new GuardedVectorBackend(inner, guard, log ?? undefined), guard, log };
 }

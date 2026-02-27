@@ -25,6 +25,7 @@ import { ReflexionMemory } from './ReflexionMemory.js';
 import { SkillLibrary } from './SkillLibrary.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import { AttentionService, type FlashAttentionConfig } from '../utils/LegacyAttentionAdapter.js';
+import { cosineSimilarity } from '../utils/vector-math.js';
 
 export interface LearnerConfig {
   minSimilarity: number; // Min similarity to consider for causal edge (default: 0.7)
@@ -273,7 +274,7 @@ export class NightlyLearner {
         if (i === j) continue;
 
         const keyEmb = consolidatedEmbeddings.slice(j * dim, (j + 1) * dim);
-        const score = this.cosineSimilarity(queryEmb, keyEmb);
+        const score = cosineSimilarity(queryEmb, keyEmb);
 
         if (score >= this.config.minSimilarity) {
           similarities.push({ idx: j, score });
@@ -317,24 +318,6 @@ export class NightlyLearner {
       episodesProcessed: episodes.length,
       metrics: attentionResult.metrics,
     };
-  }
-
-  /**
-   * Helper: Cosine similarity between two vectors
-   */
-  private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denom = Math.sqrt(normA) * Math.sqrt(normB);
-    return denom === 0 ? 0 : dotProduct / denom;
   }
 
   private async discoverCausalEdges(): Promise<number> {

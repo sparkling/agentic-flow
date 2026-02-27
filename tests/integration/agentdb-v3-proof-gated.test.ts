@@ -324,10 +324,10 @@ describe('createGuardedBackend factory', () => {
 // ===========================================================================
 
 describe('Package metadata', () => {
-  it('version is 3.0.0-alpha.5', async () => {
+  it('version is 3.0.0-alpha.7', async () => {
     const pkg = await import('../../packages/agentdb/package.json', { with: { type: 'json' } });
     const data = pkg.default ?? pkg;
-    expect(data.version).toBe('3.0.0-alpha.5');
+    expect(data.version).toBe('3.0.0-alpha.7');
   });
 
   it('has proof-gated keywords', async () => {

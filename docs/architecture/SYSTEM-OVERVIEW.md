@@ -1,0 +1,386 @@
+# System Architecture Overview
+
+## High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Agentic Flow System                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                    User Interface Layer                           │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │  • CLI (agentic-flow, agentdb)                                    │  │
+│  │  • MCP Protocol (85+ tools)                                       │  │
+│  │  • REST API (optional)                                            │  │
+│  │  • Claude Code Integration                                        │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                   ▼                                      │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                  Orchestration Layer                              │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │  ┌────────────┐  ┌────────────┐  ┌──────────────┐                │  │
+│  │  │   Swarm    │  │   Agent    │  │     Task     │                │  │
+│  │  │ Coordinator│  │  Manager   │  │ Orchestrator │                │  │
+│  │  └────────────┘  └────────────┘  └──────────────┘                │  │
+│  │       │                │                  │                        │  │
+│  │       │                │                  │                        │  │
+│  │       └────────────────┴──────────────────┘                        │  │
+│  │                         ▼                                          │  │
+│  │          ┌──────────────────────────────┐                          │  │
+│  │          │   Topology Management        │                          │  │
+│  │          │  (Hierarchical/Mesh/Adaptive)│                          │  │
+│  │          └──────────────────────────────┘                          │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                   ▼                                      │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                    Agent Execution Layer                          │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────┐  │  │
+│  │  │  Coder  │ │Researcher│ │ Tester  │ │ Reviewer │ │ Planner  │  │  │
+│  │  └─────────┘ └─────────┘ └─────────┘ └──────────┘ └──────────┘  │  │
+│  │                                                                    │  │
+│  │  60+ specialized agent types with role-specific capabilities      │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                   ▼                                      │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                    Memory & Learning Layer                        │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │                         AgentDB v3.0                              │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │  │
+│  │  │ ReasoningBank│  │  Reflexion   │  │     Skill    │            │  │
+│  │  │   Patterns   │  │    Memory    │  │   Library    │            │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘            │  │
+│  │                                                                    │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │  │
+│  │  │    Causal    │  │  Explainable │  │   Learning   │            │  │
+│  │  │    Memory    │  │    Recall    │  │    System    │            │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘            │  │
+│  │                                                                    │  │
+│  │  • 21 active controllers                                          │  │
+│  │  • Proof-gated mutations (v3.0)                                   │  │
+│  │  • 8 graph-transformer modules                                    │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                   ▼                                      │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                    Vector Search Layer                            │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐   │  │
+│  │  │ RuVector │    │ HNSWLib  │    │  SQLite  │    │  sql.js  │   │  │
+│  │  │ (150x)   │ →  │  (100x)  │ →  │ (Native) │ →  │  (WASM)  │   │  │
+│  │  └──────────┘    └──────────┘    └──────────┘    └──────────┘   │  │
+│  │                                                                    │  │
+│  │  Auto-selection: Fastest available backend with fallback chain    │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                   ▼                                      │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                    Storage & Persistence                          │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │  • SQLite database (local)                                        │  │
+│  │  • PostgreSQL (distributed, optional)                             │  │
+│  │  • Attestation logs (v3.0)                                        │  │
+│  │  • Session state persistence                                      │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                           │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+## Component Interaction Flow
+
+```
+User Request
+     │
+     ▼
+[CLI / MCP Tool]
+     │
+     ▼
+┌─────────────────────┐
+│ Swarm Orchestrator  │
+│  - Topology: Tree   │
+│  - Max Agents: 8    │
+│  - Memory: Hybrid   │
+└─────────────────────┘
+     │
+     ├──────────────────────────────────┐
+     │                                  │
+     ▼                                  ▼
+┌──────────────┐                ┌──────────────┐
+│ Coordinator  │                │  Agent Pool  │
+│  (Leader)    │                │              │
+└──────────────┘                └──────────────┘
+     │                                  │
+     │  Delegate Tasks                  │
+     ├──────────────────────────────────┤
+     │                                  │
+     ▼                                  ▼
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
+│  Agent 1 │  │  Agent 2 │  │  Agent 3 │  │  Agent 4 │
+│  (Coder) │  │ (Tester) │  │(Reviewer)│  │(Planner) │
+└──────────┘  └──────────┘  └──────────┘  └──────────┘
+     │             │             │             │
+     └─────────────┴─────────────┴─────────────┘
+                   │
+                   ▼
+         ┌──────────────────┐
+         │     AgentDB      │
+         │   (Shared Memory)│
+         └──────────────────┘
+                   │
+                   ▼
+         ┌──────────────────┐
+         │  RuVector Backend│
+         │  (Vector Search) │
+         └──────────────────┘
+                   │
+                   ▼
+         ┌──────────────────┐
+         │  SQLite Storage  │
+         │  (Persistence)   │
+         └──────────────────┘
+```
+
+## Data Flow Diagram
+
+```
+┌────────────┐
+│    User    │
+│   Input    │
+└─────┬──────┘
+      │
+      ▼
+┌──────────────────────────────┐
+│   Input Validation           │
+│   (XSS, SQL injection check) │
+└──────────────┬───────────────┘
+               │
+               ▼
+      ┌────────────────┐
+      │  Cache Check   │
+      └────────┬───────┘
+               │
+        ┌──────┴──────┐
+        │             │
+   Cache Hit     Cache Miss
+        │             │
+        │             ▼
+        │    ┌─────────────────┐
+        │    │ Embedding Service│
+        │    │ (Transformers.js)│
+        │    └────────┬─────────┘
+        │             │
+        │             ▼
+        │    ┌─────────────────┐
+        │    │ Vector Backend  │
+        │    │  (RuVector/HNSW)│
+        │    └────────┬─────────┘
+        │             │
+        │             ▼
+        │    ┌─────────────────┐
+        │    │   Controllers   │
+        │    │ (ReasoningBank, │
+        │    │  Reflexion, etc)│
+        │    └────────┬─────────┘
+        │             │
+        └─────────────┤
+                      │
+                      ▼
+            ┌──────────────────┐
+            │  Result + Proof  │
+            │  (v3.0 Mutation  │
+            │  Attestation)    │
+            └────────┬─────────┘
+                     │
+                     ▼
+            ┌──────────────────┐
+            │  Cache Result    │
+            │  (TTL-based)     │
+            └────────┬─────────┘
+                     │
+                     ▼
+            ┌──────────────────┐
+            │  Return to User  │
+            └──────────────────┘
+```
+
+## Memory Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      AgentDB v3.0 Architecture                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                  Controller Layer (21 Controllers)        │  │
+│  ├──────────────────────────────────────────────────────────┤  │
+│  │                                                            │  │
+│  │  Cognitive Memory:                                         │  │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐      │  │
+│  │  │ReasoningBank │ │  Reflexion   │ │ SkillLibrary │      │  │
+│  │  │  32.6M ops/s │ │   957 ops/s  │ │   694 ops/s  │      │  │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘      │  │
+│  │                                                            │  │
+│  │  Causal & Explainable:                                     │  │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐      │  │
+│  │  │CausalMemory  │ │ExplainableRL │ │NightlyLearner│      │  │
+│  │  │  Graph       │ │  Recall      │ │ (Background) │      │  │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘      │  │
+│  │                                                            │  │
+│  │  Learning & Coordination:                                  │  │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐      │  │
+│  │  │LearningSystem│ │  QUIC Server │ │SyncCoordinator│     │  │
+│  │  │  (9 RL Algos)│ │  (0-RTT)     │ │ (Distributed)│      │  │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘      │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                              ▼                                   │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │           Security Layer (v3.0 - Proof-Gated)            │  │
+│  ├──────────────────────────────────────────────────────────┤  │
+│  │  ┌──────────────┐        ┌──────────────────┐            │  │
+│  │  │MutationGuard │  ───▶  │ AttestationLog   │            │  │
+│  │  │ • Generate   │        │ (Append-only)    │            │  │
+│  │  │ • Validate   │        │ • Cryptographic  │            │  │
+│  │  │ • Enforce    │        │ • Auditable      │            │  │
+│  │  └──────────────┘        └──────────────────┘            │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                              ▼                                   │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │              Vector Backend Layer                         │  │
+│  ├──────────────────────────────────────────────────────────┤  │
+│  │                                                            │  │
+│  │  Backend Auto-Selection:                                   │  │
+│  │  RuVector (150x) → HNSWLib (100x) → SQLite → sql.js       │  │
+│  │                                                            │  │
+│  │  ┌──────────────────────────────────────────────────┐    │  │
+│  │  │           RuVector Backend (Active)              │    │  │
+│  │  ├──────────────────────────────────────────────────┤    │  │
+│  │  │  • Rust + SIMD acceleration                      │    │  │
+│  │  │  • HNSW graph: 61µs p50 latency                  │    │  │
+│  │  │  • 96.8% recall@10                               │    │  │
+│  │  │  • 8 graph-transformer modules                   │    │  │
+│  │  │  • Proof verification: <1ms                      │    │  │
+│  │  └──────────────────────────────────────────────────┘    │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                              ▼                                   │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                 Persistence Layer                         │  │
+│  ├──────────────────────────────────────────────────────────┤  │
+│  │  SQLite                                                    │  │
+│  │  ┌────────────┐ ┌────────────┐ ┌────────────┐            │  │
+│  │  │  Episodes  │ │  Patterns  │ │   Skills   │            │  │
+│  │  └────────────┘ └────────────┘ └────────────┘            │  │
+│  │                                                            │  │
+│  │  ┌────────────┐ ┌────────────┐ ┌────────────┐            │  │
+│  │  │   Vectors  │ │  Metadata  │ │ Attestations│           │  │
+│  │  └────────────┘ └────────────┘ └────────────┘            │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Distributed Deployment Architecture
+
+```
+                    ┌───────────────────────┐
+                    │    Load Balancer      │
+                    │       (Nginx)         │
+                    └───────────┬───────────┘
+                                │
+                ┌───────────────┼───────────────┐
+                │               │               │
+                ▼               ▼               ▼
+        ┌────────────┐  ┌────────────┐  ┌────────────┐
+        │  Region 1  │  │  Region 2  │  │  Region 3  │
+        │  (US-East) │  │  (EU-West) │  │ (AP-South) │
+        └─────┬──────┘  └─────┬──────┘  └─────┬──────┘
+              │               │               │
+              ▼               ▼               ▼
+    ┌─────────────────┐ ┌─────────────┐ ┌─────────────┐
+    │  Coordinator    │ │ Coordinator │ │ Coordinator │
+    │    Node         │ │    Node     │ │    Node     │
+    └────────┬────────┘ └──────┬──────┘ └──────┬──────┘
+             │                 │                │
+       ┌─────┴─────┐     ┌─────┴─────┐    ┌─────┴─────┐
+       │           │     │           │    │           │
+       ▼           ▼     ▼           ▼    ▼           ▼
+   ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+   │Worker 1│ │Worker 2│ │Worker 3│ │Worker 4│ │Worker 5│
+   └────────┘ └────────┘ └────────┘ └────────┘ └────────┘
+       │           │          │           │          │
+       └───────────┴──────────┴───────────┴──────────┘
+                             │
+                             ▼
+                   ┌──────────────────┐
+                   │  Shared AgentDB  │
+                   │   (PostgreSQL)   │
+                   │  Multi-Master    │
+                   │  Replication     │
+                   └──────────────────┘
+```
+
+## Technology Stack
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Technology Stack                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  Runtime & Languages:                                         │
+│  • Node.js 18+ (Primary runtime)                             │
+│  • TypeScript 5.x (Type safety)                              │
+│  • Rust (Native addons via NAPI-RS)                          │
+│  • WebAssembly (Browser support)                             │
+│                                                               │
+│  Core Dependencies:                                           │
+│  • @anthropic-ai/sdk (LLM integration)                       │
+│  • transformers.js (Local embeddings)                        │
+│  • better-sqlite3 (Native SQL)                               │
+│  • hnswlib-node (C++ vector search)                          │
+│                                                               │
+│  Native Performance:                                          │
+│  • RuVector (Rust vector backend)                            │
+│  • @ruvector/gnn (Graph neural networks)                     │
+│  • @ruvector/attention (5 attention mechanisms)              │
+│  • @ruvector/graph-transformer (8 modules)                   │
+│                                                               │
+│  Optional Integrations:                                       │
+│  • PostgreSQL (Distributed storage)                          │
+│  • Redis (Distributed cache)                                 │
+│  • Kubernetes (Container orchestration)                      │
+│  • Docker (Containerization)                                 │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Performance Characteristics
+
+```
+Component                  Latency       Throughput      Memory
+─────────────────────────────────────────────────────────────────
+RuVector Search           61µs          150x faster     Medium
+HNSWLib Search            ~100µs        100x faster     Low
+Pattern Search (cached)   <1ms          32.6M ops/s     Low
+Pattern Storage           <1ms          388K ops/s      Low
+Episode Retrieval         <10ms         957 ops/s       Medium
+Skill Search              <10ms         694 ops/s       Low
+Swarm Orchestration       <1s           2.8-4.4x faster High
+MCP Tool Dispatch         <5ms          N/A             Low
+Proof Generation (v3.0)   <1ms          N/A             Low
+─────────────────────────────────────────────────────────────────
+```
+
+---
+
+For SVG visualizations, use tools like:
+- **Mermaid**: Convert diagrams to SVG with `mermaid-cli`
+- **PlantUML**: Generate architecture diagrams
+- **Graphviz**: Create graph visualizations
+- **D3.js**: Interactive web-based diagrams
+
+Example command to generate SVG:
+```bash
+# Using Mermaid
+mmdc -i SYSTEM-OVERVIEW.md -o system-overview.svg
+
+# Using PlantUML
+plantuml -tsvg architecture.puml
+```
