@@ -8,8 +8,31 @@
  * - Cluster management
  */
 
-import { RaftConsensus, type RaftConfig, type LogEntry } from 'agentdb';
 import { EventEmitter } from 'events';
+
+// Local type definitions until agentdb@3.x is published
+export interface RaftConfig {
+  nodeId: string;
+  nodes: string[];
+  electionTimeout?: number;
+  heartbeatInterval?: number;
+}
+
+export interface LogEntry {
+  term: number;
+  index: number;
+  command: any;
+}
+
+// Stub for RaftConsensus - will be replaced when agentdb@3.x is available
+class RaftConsensusStub extends EventEmitter {
+  async initialize(config: RaftConfig): Promise<void> {}
+  async appendEntry(entry: LogEntry): Promise<boolean> { return true; }
+  async getState(): Promise<any> { return { term: 0, state: 'follower' }; }
+  async shutdown(): Promise<void> {}
+}
+
+const RaftConsensus = RaftConsensusStub;
 
 export interface ConsensusConfig {
   enabled: boolean;

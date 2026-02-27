@@ -10,7 +10,20 @@
  * ADR-065 Phase P1-1 Implementation
  */
 
-import { GNNService } from 'agentdb';
+// Stub for GNNService - will be replaced when agentdb@3.x is available
+class GNNServiceStub {
+  async classifyIntent(embedding: Float32Array): Promise<any> {
+    return { intent: 'unknown', confidence: 0 };
+  }
+  async predictLink(nodeA: string, nodeB: string): Promise<number> {
+    return 0.5;
+  }
+  async getNodeEmbedding(nodeId: string): Promise<Float32Array> {
+    return new Float32Array(768);
+  }
+}
+
+const GNNService = GNNServiceStub;
 
 export interface SkillNode {
   name: string;

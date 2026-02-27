@@ -26,7 +26,34 @@
  *   await trainer.learnFromExecution(state, action, reward, nextState);
  */
 
-import { SonaTrajectoryService, type StoredTrajectory } from 'agentdb';
+// Local type definitions until agentdb@3.x is published
+export interface StoredTrajectory {
+  trajectoryId: string;
+  state: any;
+  action: any;
+  reward: number;
+  nextState: any;
+  done: boolean;
+  timestamp: number;
+}
+
+// Stub for SonaTrajectoryService - will be replaced when agentdb@3.x is available
+class SonaTrajectoryServiceStub {
+  async storePolicyGradient(config: any): Promise<any> {
+    return { success: true };
+  }
+  async storeValueFunction(config: any): Promise<any> {
+    return { success: true };
+  }
+  async storeExperienceReplay(config: any): Promise<any> {
+    return { success: true };
+  }
+  async getRLMetrics(): Promise<any> {
+    return {};
+  }
+}
+
+const SonaTrajectoryService = SonaTrajectoryServiceStub;
 
 // Types that may not be exported yet - define locally if needed
 export interface PolicyGradientConfig {
