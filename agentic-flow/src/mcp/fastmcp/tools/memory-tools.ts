@@ -7,7 +7,7 @@
  * ADR-066 Phase P2-3
  */
 
-import { FastMCP } from '../../fastmcp-fixes.js';
+import { FastMCP } from 'fastmcp';
 import { getAgentDBService } from '../../../services/agentdb-service.js';
 
 /**

@@ -51,6 +51,10 @@ export interface RLMetrics {
   avgReward?: number;
   avgLoss?: number;
   episodeCount?: number;
+  episodeReward?: number;
+  loss?: number;
+  epsilon?: number;
+  iterationCount?: number;
 }
 
 export type RLAlgorithm = 'reinforce' | 'ppo' | 'a3c' | 'q-learning';

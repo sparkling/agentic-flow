@@ -1664,3 +1664,14 @@ export class AgentDBService {
     AgentDBService.instance = null;
   }
 }
+
+/**
+ * Get or create the singleton AgentDBService instance
+ */
+export async function getAgentDBService(): Promise<AgentDBService> {
+  const service = new AgentDBService();
+  if (!service['initialized']) {
+    await service.initialize();
+  }
+  return service;
+}
