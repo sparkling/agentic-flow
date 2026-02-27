@@ -41,6 +41,8 @@ export { SonaTrajectoryService } from './services/SonaTrajectoryService.js';
 export { LLMRouter } from './services/LLMRouter.js';
 export { GraphTransformerService } from './services/GraphTransformerService.js';
 export { GNNService } from './services/GNNService.js';
+// Consensus - Distributed coordination
+export { RaftConsensus } from './consensus/RaftConsensus.js';
 // Vector math utilities
 export { cosineSimilarity, batchCosineSimilarity, distanceToSimilarity, serializeEmbedding, deserializeEmbedding } from './utils/vector-math.js';
 // Re-export all controllers for convenience

@@ -12,6 +12,7 @@
     ".": "./dist/index.js",
     "./orchestration": "./dist/orchestration/index.js",
     "./sdk": "./dist/sdk/index.js",
+    "./security": "./dist/security/index.js",
     "./reasoningbank": {
       "node": "./dist/reasoningbank/index.js",
       "browser": "./dist/reasoningbank/wasm-adapter.js",

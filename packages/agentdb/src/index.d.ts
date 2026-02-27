@@ -32,6 +32,8 @@ export { SonaTrajectoryService } from './services/SonaTrajectoryService.js';
 export { LLMRouter } from './services/LLMRouter.js';
 export { GraphTransformerService } from './services/GraphTransformerService.js';
 export { GNNService } from './services/GNNService.js';
+export { RaftConsensus } from './consensus/RaftConsensus.js';
+export type { RaftConfig, LogEntry, RaftState } from './consensus/RaftConsensus.js';
 export type { RouteResult, RouteConfig } from './services/SemanticRouter.js';
 export type { TrajectoryStep, StoredTrajectory, PredictionResult, SonaStats } from './services/SonaTrajectoryService.js';
 export type { LLMConfig, LLMResponse } from './services/LLMRouter.js';
