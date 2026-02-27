@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import { validateReadPath, validateWritePath, validateDirPath } from '../security/path-validator.js';
 
 export interface SessionInfo {
   id: string;
@@ -48,11 +49,19 @@ export class SessionService {
   }
 
   restoreSession(id: string): SessionInfo | null {
+    // CVE-2026-004 FIX: Validate path before reading
     const filePath = path.join(this.sessionsDir, `${id}.json`);
-    if (!fs.existsSync(filePath)) return null;
-    const session = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as SessionInfo;
-    this.currentSession = session;
-    return session;
+
+    try {
+      const safePath = validateReadPath(filePath, this.sessionsDir);
+      if (!fs.existsSync(safePath)) return null;
+      const session = JSON.parse(fs.readFileSync(safePath, 'utf-8')) as SessionInfo;
+      this.currentSession = session;
+      return session;
+    } catch (error) {
+      // Path validation failed
+      return null;
+    }
   }
 
   endSession(): SessionInfo | null {
@@ -89,7 +98,9 @@ export class SessionService {
   }
 
   private saveSession(session: SessionInfo): void {
+    // CVE-2026-004 FIX: Validate path before writing
     const filePath = path.join(this.sessionsDir, `${session.id}.json`);
-    fs.writeFileSync(filePath, JSON.stringify(session, null, 2), 'utf-8');
+    const safePath = validateWritePath(filePath, this.sessionsDir);
+    fs.writeFileSync(safePath, JSON.stringify(session, null, 2), 'utf-8');
   }
 }
