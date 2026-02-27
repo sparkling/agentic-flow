@@ -1,6 +1,6 @@
 {
   "name": "agentdb",
-  "version": "3.0.0-alpha.9",
+  "version": "3.0.0-alpha.10",
   "description": "AgentDB v3 — Proof-gated graph intelligence for AI agents. Every state mutation requires cryptographic proof. Native Rust performance via @ruvector/graph-transformer with 8 verified graph modules, HNSW search, causal reasoning, and reflexion memory.",
   "type": "module",
   "main": "dist/src/index.js",
