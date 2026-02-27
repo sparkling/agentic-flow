@@ -60,7 +60,7 @@ export function registerStreamingTools(server: any): void {
         return JSON.stringify({
           success: true,
           data: {
-            chunks: chunks.length,
+            chunkCount: chunks.length,
             latency: `${latency}ms`,
             averageChunkTime: `${Math.round(latency / chunks.length)}ms`,
             chunks: enableProgress ? chunks : undefined,

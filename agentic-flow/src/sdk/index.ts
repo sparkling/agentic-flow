@@ -56,7 +56,8 @@ export {
   validateString,
   validateLanguage,
   validateRunId,
-  validateMemoryEntry,
+  validateMemoryKey,
+  validateMemoryValue,
   type ValidationOptions,
 } from '../security/input-validation.js';
 
