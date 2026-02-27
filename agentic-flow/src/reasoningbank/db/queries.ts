@@ -14,7 +14,7 @@ const logger = {
   error: (msg: string, data?: any) => console.error(`[ERROR] ${msg}`, data || '')
 };
 
-let dbInstance: Database.Database | null = null;
+let dbInstance: Database | null = null;
 
 /**
  * Run database migrations (create tables)
@@ -123,7 +123,7 @@ export async function runMigrations(): Promise<void> {
 /**
  * Get database connection (singleton)
  */
-export function getDb(): Database.Database {
+export function getDb(): Database {
   if (dbInstance) return dbInstance;
 
   const dbPath = process.env.CLAUDE_FLOW_DB_PATH || join(process.cwd(), '.swarm', 'memory.db');

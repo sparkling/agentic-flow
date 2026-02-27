@@ -35,54 +35,47 @@ export const sonaTrainPolicyTool: Tool = {
   name: 'sona_train_policy',
   description: 'Train reinforcement learning policy on episode trajectories. Supports REINFORCE, PPO, A3C, Q-Learning. Returns learning curve and improvement metrics.',
   inputSchema: {
-    type: 'object',
-    properties: {
-      episodes: {
-        type: 'array',
-        description: 'Training episodes (trajectories)',
-        items: {
-          type: 'object',
-          properties: {
-            steps: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  state: { type: 'object', description: 'State representation' },
-                  action: { type: 'string', description: 'Action taken' },
-                  reward: { type: 'number', description: 'Reward received' }
-                },
-                required: ['state', 'action', 'reward']
+    episodes: {
+      type: 'array',
+      description: 'Training episodes (trajectories)',
+      required: true,
+      items: {
+        properties: {
+          steps: {
+            type: 'array',
+            items: {
+              properties: {
+                state: { type: 'object', description: 'State representation' },
+                action: { type: 'string', description: 'Action taken' },
+                reward: { type: 'number', description: 'Reward received' }
               }
-            },
-            reward: { type: 'number', description: 'Total episode reward' }
+            }
           },
-          required: ['steps', 'reward']
+          reward: { type: 'number', description: 'Total episode reward' }
         }
-      },
-      algorithm: {
-        type: 'string',
-        enum: ['reinforce', 'ppo', 'a3c', 'q-learning'],
-        description: 'RL algorithm to use',
-        default: 'reinforce'
-      },
-      epochs: {
-        type: 'number',
-        description: 'Number of training epochs',
-        default: 100
-      },
-      learningRate: {
-        type: 'number',
-        description: 'Learning rate',
-        default: 0.001
-      },
-      gamma: {
-        type: 'number',
-        description: 'Discount factor',
-        default: 0.99
       }
     },
-    required: ['episodes']
+    algorithm: {
+      type: 'string',
+      enum: ['reinforce', 'ppo', 'a3c', 'q-learning'],
+      description: 'RL algorithm to use',
+      required: false,
+    },
+    epochs: {
+      type: 'number',
+      description: 'Number of training epochs',
+      required: false,
+    },
+    learningRate: {
+      type: 'number',
+      description: 'Learning rate',
+      required: false,
+    },
+    gamma: {
+      type: 'number',
+      description: 'Discount factor',
+      required: false,
+    }
   }
 };
 
@@ -136,32 +129,29 @@ export const sonaEstimateValueTool: Tool = {
   name: 'sona_estimate_value',
   description: 'Estimate value function for a given state using TD learning. Returns estimated value.',
   inputSchema: {
-    type: 'object',
-    properties: {
-      state: {
-        type: 'object',
-        description: 'Current state to estimate value for'
-      },
-      reward: {
-        type: 'number',
-        description: 'Observed reward'
-      },
-      nextState: {
-        type: 'object',
-        description: 'Next state'
-      },
-      learningRate: {
-        type: 'number',
-        description: 'Learning rate for value update',
-        default: 0.001
-      },
-      gamma: {
-        type: 'number',
-        description: 'Discount factor',
-        default: 0.99
-      }
+    state: {
+      description: 'Current state to estimate value for',
+      required: true,
     },
-    required: ['state', 'reward', 'nextState']
+    reward: {
+      type: 'number',
+      description: 'Observed reward',
+      required: true,
+    },
+    nextState: {
+      description: 'Next state',
+      required: true,
+    },
+    learningRate: {
+      type: 'number',
+      description: 'Learning rate for value update',
+      required: false,
+    },
+    gamma: {
+      type: 'number',
+      description: 'Discount factor',
+      required: false,
+    }
   }
 };
 
@@ -200,41 +190,40 @@ export const sonaReplayExperienceTool: Tool = {
   name: 'sona_replay_experience',
   description: 'Add experience to replay buffer or sample batch for training. Supports priority sampling.',
   inputSchema: {
-    type: 'object',
-    properties: {
-      operation: {
-        type: 'string',
-        enum: ['add', 'sample'],
-        description: 'Operation: add experience or sample batch'
-      },
-      state: {
-        type: 'object',
-        description: 'Current state (for add operation)'
-      },
-      action: {
-        type: 'string',
-        description: 'Action taken (for add operation)'
-      },
-      reward: {
-        type: 'number',
-        description: 'Reward received (for add operation)'
-      },
-      nextState: {
-        type: 'object',
-        description: 'Next state (for add operation)'
-      },
-      priority: {
-        type: 'number',
-        description: 'Experience priority (for add operation)',
-        default: 1.0
-      },
-      batchSize: {
-        type: 'number',
-        description: 'Batch size (for sample operation)',
-        default: 32
-      }
+    operation: {
+      type: 'string',
+      enum: ['add', 'sample'],
+      description: 'Operation: add experience or sample batch',
+      required: true,
     },
-    required: ['operation']
+    state: {
+      description: 'Current state (for add operation)',
+      required: false,
+    },
+    action: {
+      type: 'string',
+      description: 'Action taken (for add operation)',
+      required: false,
+    },
+    reward: {
+      type: 'number',
+      description: 'Reward received (for add operation)',
+      required: false,
+    },
+    nextState: {
+      description: 'Next state (for add operation)',
+      required: false,
+    },
+    priority: {
+      type: 'number',
+      description: 'Experience priority (for add operation)',
+      required: false,
+    },
+    batchSize: {
+      type: 'number',
+      description: 'Batch size (for sample operation)',
+      required: false,
+    }
   }
 };
 
@@ -293,28 +282,26 @@ export const sonaTransferLearningTool: Tool = {
   name: 'sona_transfer_learning',
   description: 'Transfer learned knowledge from source task to target task. Supports fine-tuning.',
   inputSchema: {
-    type: 'object',
-    properties: {
-      sourceTask: {
-        type: 'string',
-        description: 'Source task/agent type to transfer from'
-      },
-      targetTask: {
-        type: 'string',
-        description: 'Target task/agent type to transfer to'
-      },
-      transferRatio: {
-        type: 'number',
-        description: 'How much knowledge to transfer (0-1)',
-        default: 0.7
-      },
-      finetuneEpochs: {
-        type: 'number',
-        description: 'Number of fine-tuning epochs',
-        default: 20
-      }
+    sourceTask: {
+      type: 'string',
+      description: 'Source task/agent type to transfer from',
+      required: true,
     },
-    required: ['sourceTask', 'targetTask']
+    targetTask: {
+      type: 'string',
+      description: 'Target task/agent type to transfer to',
+      required: true,
+    },
+    transferRatio: {
+      type: 'number',
+      description: 'How much knowledge to transfer (0-1)',
+      required: false,
+    },
+    finetuneEpochs: {
+      type: 'number',
+      description: 'Number of fine-tuning epochs',
+      required: false,
+    }
   }
 };
 
@@ -353,40 +340,31 @@ export const sonaMultiAgentTool: Tool = {
   name: 'sona_multi_agent',
   description: 'Multi-agent reinforcement learning coordination. Returns individual rewards for each agent.',
   inputSchema: {
-    type: 'object',
-    properties: {
-      agentStates: {
-        type: 'object',
-        description: 'Map of agent IDs to their states',
-        additionalProperties: {
-          type: 'object'
-        }
-      },
-      agentActions: {
-        type: 'object',
-        description: 'Map of agent IDs to their actions',
-        additionalProperties: {
-          type: 'string'
-        }
-      },
-      jointReward: {
-        type: 'number',
-        description: 'Shared reward for all agents'
-      },
-      coordinationStrategy: {
-        type: 'string',
-        enum: ['centralized', 'decentralized', 'hybrid'],
-        description: 'Coordination strategy',
-        default: 'hybrid'
-      },
-      rewardSharing: {
-        type: 'string',
-        enum: ['equal', 'contribution', 'competitive'],
-        description: 'Reward sharing method',
-        default: 'contribution'
-      }
+    agentStates: {
+      description: 'Map of agent IDs to their states',
+      required: true,
     },
-    required: ['agentStates', 'agentActions', 'jointReward']
+    agentActions: {
+      description: 'Map of agent IDs to their actions',
+      required: true,
+    },
+    jointReward: {
+      type: 'number',
+      description: 'Shared reward for all agents',
+      required: true,
+    },
+    coordinationStrategy: {
+      type: 'string',
+      enum: ['centralized', 'decentralized', 'hybrid'],
+      description: 'Coordination strategy',
+      required: false,
+    },
+    rewardSharing: {
+      type: 'string',
+      enum: ['equal', 'contribution', 'competitive'],
+      description: 'Reward sharing method',
+      required: false,
+    }
   }
 };
 
@@ -442,26 +420,24 @@ export const sonaContinuousLearnTool: Tool = {
   name: 'sona_continuous_learn',
   description: 'Continuous learning from single execution step. Updates policy and value function incrementally.',
   inputSchema: {
-    type: 'object',
-    properties: {
-      state: {
-        type: 'object',
-        description: 'Current state'
-      },
-      action: {
-        type: 'string',
-        description: 'Action taken'
-      },
-      reward: {
-        type: 'number',
-        description: 'Reward received'
-      },
-      nextState: {
-        type: 'object',
-        description: 'Resulting state'
-      }
+    state: {
+      description: 'Current state',
+      required: true,
     },
-    required: ['state', 'action', 'reward', 'nextState']
+    action: {
+      type: 'string',
+      description: 'Action taken',
+      required: true,
+    },
+    reward: {
+      type: 'number',
+      description: 'Reward received',
+      required: true,
+    },
+    nextState: {
+      description: 'Resulting state',
+      required: true,
+    }
   }
 };
 
@@ -503,13 +479,10 @@ export const sonaGetMetricsTool: Tool = {
   name: 'sona_get_metrics',
   description: 'Get current RL training metrics including rewards, loss, and training history.',
   inputSchema: {
-    type: 'object',
-    properties: {
-      includeHistory: {
-        type: 'boolean',
-        description: 'Include full training history',
-        default: false
-      }
+    includeHistory: {
+      type: 'boolean',
+      description: 'Include full training history',
+      required: false,
     }
   }
 };
@@ -558,13 +531,10 @@ export const sonaResetTool: Tool = {
   name: 'sona_reset',
   description: 'Reset RL training state (policy, value function, experience replay). Use for new training session.',
   inputSchema: {
-    type: 'object',
-    properties: {
-      clearTrajectories: {
-        type: 'boolean',
-        description: 'Also clear stored trajectories',
-        default: false
-      }
+    clearTrajectories: {
+      type: 'boolean',
+      description: 'Also clear stored trajectories',
+      required: false,
     }
   }
 };

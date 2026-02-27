@@ -29,7 +29,7 @@ export class AttentionCoordinator {
    */
   async initialize(): Promise<boolean> {
     try {
-      const { AttentionService } = await import('agentdb');
+      const { AttentionService } = await import('../../../packages/agentdb/src/controllers/AttentionService.js');
       if (AttentionService) {
         this.attentionService = AttentionService;
         this.available = true;

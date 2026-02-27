@@ -336,7 +336,7 @@ const causal = await agentDB.causalGraph.query('cause', 'effect');
 </details>
 
 <details>
-<summary><b>🌐 168+ MCP Tools — Most Comprehensive Toolkit (14 categories)</b></summary>
+<summary><b>🌐 184+ MCP Tools — Most Comprehensive Toolkit (14 categories)</b></summary>
 
 ### What are MCP Tools?
 MCP (Model Context Protocol) tools give AI agents **superpowers** by providing access to specialized capabilities through a standardized interface. Agentic Flow provides the **most comprehensive MCP toolkit** available.
@@ -396,7 +396,7 @@ npx agentic-flow mcp bottleneck_analyze --workflow="api-calls"
 LangChain:        ~20 tools   (basic coverage)
 AutoGPT:          ~10 tools   (limited)
 CrewAI:           ~15 tools   (minimal)
-Agentic Flow:     168+ tools  (comprehensive) ✅
+Agentic Flow:     184+ tools  (comprehensive) ✅
 ```
 
 **Coverage breakdown:**
@@ -579,7 +579,7 @@ sequenceDiagram
 
 ---
 
-## 🎭 Agent Types (60+ Total)
+## 🎭 Agent Types (66 Total)
 
 <details>
 <summary><b>Core Development (5 agents)</b></summary>
@@ -863,7 +863,7 @@ graph LR
 | **Batching** | Sequential (slow) | Parallel 32x (RVF) | ✅ 10-100x throughput |
 | **Caching** | None | LRU cache (RVF) | ✅ Sub-ms retrieval |
 | **Pruning** | Manual | Automatic (RVF) | ✅ Self-maintaining |
-| **MCP Tools** | 10-20 tools | 168+ tools | ✅ Most comprehensive |
+| **MCP Tools** | 10-20 tools | 184+ tools | ✅ Most comprehensive |
 | **Native Performance** | JavaScript | Rust (NAPI-RS) | ✅ 150x faster |
 | **Proof Validation** | None | Cryptographic proofs | ✅ Secure by design |
 

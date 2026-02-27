@@ -7,6 +7,7 @@
  * ADR-066 Phase P2-3
  */
 
+import { z } from 'zod';
 import { FastMCP } from 'fastmcp';
 import { getAgentDBService } from '../../../services/agentdb-service.js';
 
@@ -17,33 +18,13 @@ export function registerMemoryStore(mcp: FastMCP): void {
   mcp.addTool({
     name: 'memory_hierarchical_store',
     description: 'Store a memory in the 3-tier hierarchical memory system (working/episodic/semantic)',
-    parameters: {
-      content: {
-        type: 'string',
-        description: 'Memory content to store',
-        required: true,
-      },
-      importance: {
-        type: 'number',
-        description: 'Importance score (0-1, higher = more important)',
-        required: false,
-      },
-      tier: {
-        type: 'string',
-        description: 'Memory tier: working (default), episodic, or semantic',
-        required: false,
-      },
-      tags: {
-        type: 'string',
-        description: 'Comma-separated tags for categorization',
-        required: false,
-      },
-      context: {
-        type: 'string',
-        description: 'JSON string of contextual metadata',
-        required: false,
-      },
-    },
+    parameters: z.object({
+      content: z.string().describe('Memory content to store'),
+      importance: z.number().min(0).max(1).optional().describe('Importance score (0-1, higher = more important)'),
+      tier: z.string().optional().describe('Memory tier: working (default), episodic, or semantic'),
+      tags: z.string().optional().describe('Comma-separated tags for categorization'),
+      context: z.string().optional().describe('JSON string of contextual metadata'),
+    }),
     execute: async (args: any) => {
       try {
         const agentdb = await getAgentDBService();
@@ -92,38 +73,14 @@ export function registerMemoryRecall(mcp: FastMCP): void {
   mcp.addTool({
     name: 'memory_hierarchical_recall',
     description: 'Recall memories from the hierarchical system with context-dependent retrieval',
-    parameters: {
-      query: {
-        type: 'string',
-        description: 'Query to search for memories',
-        required: true,
-      },
-      tier: {
-        type: 'string',
-        description: 'Tier to search: working, episodic, semantic, or "all" (default)',
-        required: false,
-      },
-      k: {
-        type: 'number',
-        description: 'Number of memories to retrieve (default: 10)',
-        required: false,
-      },
-      threshold: {
-        type: 'number',
-        description: 'Similarity threshold (0-1, default: 0.5)',
-        required: false,
-      },
-      context: {
-        type: 'string',
-        description: 'JSON string of context for context-dependent recall',
-        required: false,
-      },
-      includeDecayed: {
-        type: 'boolean',
-        description: 'Include memories below retention threshold (default: false)',
-        required: false,
-      },
-    },
+    parameters: z.object({
+      query: z.string().describe('Query to search for memories'),
+      tier: z.string().optional().describe('Tier to search: working, episodic, semantic, or "all" (default)'),
+      k: z.number().optional().default(10).describe('Number of memories to retrieve (default: 10)'),
+      threshold: z.number().min(0).max(1).optional().default(0.5).describe('Similarity threshold (0-1, default: 0.5)'),
+      context: z.string().optional().describe('JSON string of context for context-dependent recall'),
+      includeDecayed: z.boolean().optional().default(false).describe('Include memories below retention threshold (default: false)'),
+    }),
     execute: async (args: any) => {
       try {
         const agentdb = await getAgentDBService();
@@ -182,13 +139,9 @@ export function registerMemoryPromote(mcp: FastMCP): void {
   mcp.addTool({
     name: 'memory_hierarchical_promote',
     description: 'Promote a memory to a higher tier (working → episodic → semantic)',
-    parameters: {
-      memoryId: {
-        type: 'string',
-        description: 'Memory ID to promote',
-        required: true,
-      },
-    },
+    parameters: z.object({
+      memoryId: z.string().describe('Memory ID to promote'),
+    }),
     execute: async (args: any) => {
       try {
         const agentdb = await getAgentDBService();
@@ -227,13 +180,9 @@ export function registerMemoryRehearse(mcp: FastMCP): void {
   mcp.addTool({
     name: 'memory_hierarchical_rehearse',
     description: 'Rehearse a memory to strengthen retention and delay forgetting',
-    parameters: {
-      memoryId: {
-        type: 'string',
-        description: 'Memory ID to rehearse',
-        required: true,
-      },
-    },
+    parameters: z.object({
+      memoryId: z.string().describe('Memory ID to rehearse'),
+    }),
     execute: async (args: any) => {
       try {
         const agentdb = await getAgentDBService();
@@ -270,7 +219,7 @@ export function registerMemoryStats(mcp: FastMCP): void {
   mcp.addTool({
     name: 'memory_hierarchical_stats',
     description: 'Get statistics about the hierarchical memory system',
-    parameters: {},
+    parameters: z.object({}),
     execute: async () => {
       try {
         const agentdb = await getAgentDBService();
@@ -328,7 +277,7 @@ export function registerMemoryConsolidate(mcp: FastMCP): void {
   mcp.addTool({
     name: 'memory_hierarchical_consolidate',
     description: 'Run nightly memory consolidation (episodic → semantic) with spaced repetition',
-    parameters: {},
+    parameters: z.object({}),
     execute: async () => {
       try {
         const agentdb = await getAgentDBService();

@@ -114,17 +114,13 @@
   "homepage": "https://agentdb.ruv.io",
   "peerDependencies": {
     "@xenova/transformers": "^2.17.2",
-    "better-sqlite3": "^11.8.1",
-    "sqlite3": "^5.1.7"
+    "better-sqlite3": "^11.8.1"
   },
   "peerDependenciesMeta": {
     "@xenova/transformers": {
       "optional": true
     },
     "better-sqlite3": {
-      "optional": true
-    },
-    "sqlite3": {
       "optional": true
     }
   },
@@ -160,7 +156,7 @@
     "esbuild": "^0.25.11",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18.0.0"

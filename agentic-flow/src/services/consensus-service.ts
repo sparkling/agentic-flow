@@ -142,7 +142,6 @@ export class ConsensusService extends EventEmitter {
     const raftConfig: RaftConfig = {
       nodeId: this.config.nodeId,
       nodes: this.config.nodes,
-      byzantineTolerance: this.config.byzantineTolerance,
     };
 
     this.raft = new RaftConsensus(raftConfig);

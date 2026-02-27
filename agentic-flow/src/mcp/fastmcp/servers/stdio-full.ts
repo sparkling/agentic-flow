@@ -50,7 +50,7 @@ let directBridge: DirectCallBridge | null = null;
   try {
     const agentDB = await AgentDBService.getInstance();
     const hooks = new HookService(agentDB);
-    const swarm = new SwarmService(agentDB, hooks);
+    const swarm = new SwarmService(hooks, agentDB);
     directBridge = new DirectCallBridge(agentDB, swarm);
     console.error('[DirectCallBridge] Initialized (100-200x faster than CLI spawning)');
   } catch (err) {
@@ -202,7 +202,7 @@ server.addTool({
       let synthesized: any;
       try {
         const { ContextSynthesizer } = await import(
-          /* webpackIgnore: true */ '../../../../packages/agentdb/src/controllers/ContextSynthesizer.js'
+          /* webpackIgnore: true */ '../../../../packages/agentdb/dist/src/controllers/ContextSynthesizer.js'
         );
         synthesized = ContextSynthesizer.synthesize(
           episodes.map((ep: any) => ({

@@ -44,7 +44,7 @@ export class FederationHubServer {
   private wss?: WebSocketServer;
   private server?: ReturnType<typeof createServer>;
   private connections: Map<string, AgentConnection> = new Map();
-  private db: Database.Database;
+  private db: Database;
   private agentDB: AgentDB;
   private globalVectorClock: Record<string, number> = {};
 

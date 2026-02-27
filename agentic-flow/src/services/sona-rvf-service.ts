@@ -71,7 +71,7 @@ export class SonaRvfService {
   private async initialize(): Promise<void> {
     if (this.initialized) return;
     try {
-      this.sonaModule = await import(/* webpackIgnore: true */ '@ruvector/sona');
+      this.sonaModule = await import(/* webpackIgnore: true */ '@ruvector/sona') as any; // Optional dependency
       this.sonaAvailable = true;
     } catch {
       this.sonaAvailable = false;

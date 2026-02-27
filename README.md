@@ -1,8 +1,12 @@
 # 🤖 Agentic Flow
 
+**Version**: v1.10.3 | **AgentDB**: v3.0.0-alpha.10
+
 > **Production-ready AI agents that learn, optimize, and scale**
-> **7x faster • 90% cheaper • Self-learning • Enterprise-ready**
+> **Up to 7x faster • Up to 90% cheaper • Self-learning • Enterprise-ready***
 > Powered by native Rust performance + distributed consensus
+>
+> *Performance varies by workload. See [benchmarks](#performance) for details.
 
 [![npm version](https://img.shields.io/npm/v/agentic-flow.svg)](https://www.npmjs.com/package/agentic-flow)
 [![npm downloads](https://img.shields.io/npm/dm/agentic-flow.svg)](https://www.npmjs.com/package/agentic-flow)
@@ -20,7 +24,7 @@
 **The Solution**: Agentic Flow combines **self-learning AI agents** with **native Rust performance**, **persistent memory**, and **distributed consensus** to create agents that get **smarter, faster, and more reliable** with every execution.
 
 **What You Get**: A complete transformation from basic AI to intelligent agents that:
-- ⚡ Run **7x faster** and cost **90% less**
+- ⚡ Run **up to 7x faster** and cost **up to 90% less** (in optimal scenarios)
 - 🧠 **Learn from experience** and get smarter over time
 - ⏱️ Deliver **real-time responses** in under 1 second
 - 🏢 Scale with **enterprise-grade fault tolerance**
@@ -72,32 +76,36 @@ graph LR
 
 | Category | Features | Impact |
 |----------|----------|--------|
-| **🚀 Performance** | Flash Attention, Native Vector Search, QUIC Protocol, Cost Optimization | 7x faster, 90% cheaper, 75% lower latency |
+| **🚀 Performance** | Flash Attention, Native Vector Search, QUIC Protocol, Cost Optimization | Up to 7x faster, 90% cheaper, 75% lower latency* |
 | **🧠 Intelligence** | Graph Neural Networks, Reinforcement Learning, Real-time Streaming, 4-bit Compression | Self-learning, <1s responses, 8x memory efficiency |
 | **🏢 Enterprise** | Distributed Consensus, Model Quantization, Hierarchical Memory, Full Explainability | 99.9% availability, local models, complete transparency |
+
+*Performance varies by workload and configuration. See benchmarks for methodology.
 
 ### Real-World Impact
 
 See how Agentic Flow transforms real workflows:
 
 <details open>
-<summary><b>📊 Production Use Cases</b></summary>
+<summary><b>📊 Production Use Cases (Estimated Scenarios)</b></summary>
 
 | Use Case | Traditional | Agentic Flow | Improvement |
 |----------|------------|--------------|-------------|
-| **Code Reviews** (100/day) | 35 sec<br/>$240/mo<br/>70% accuracy | 0.1 sec<br/>$0/mo<br/>90% accuracy | **350x faster**<br/>**100% savings**<br/>**+20% better** |
+| **Code Reviews** (100/day) | 35 sec<br/>$240/mo<br/>70% accuracy | 0.1 sec<br/>$0/mo<br/>90% accuracy | **Up to 350x faster**<br/>**100% savings**<br/>**+20% better** |
 | **API Development** | 2 hours<br/>Manual coding<br/>No memory | 10 minutes<br/>AI-assisted<br/>Learns patterns | **12x faster**<br/>**Auto-complete**<br/>**Gets better** |
 | **Bug Fixing** | 45 min average<br/>Repeat mistakes<br/>Manual search | 5 min average<br/>Learns fixes<br/>Auto-suggest | **9x faster**<br/>**No repeats**<br/>**Smart search** |
 | **Documentation** | 1 hour/doc<br/>$180/mo<br/>Manual updates | 5 min/doc<br/>$27/mo<br/>Auto-sync | **12x faster**<br/>**85% savings**<br/>**Always current** |
 
-**Annual Savings (Medium Team):**
+**Annual Savings (Estimated for Medium Team):**
 ```
 Traditional: $720/month × 12 = $8,640/year
 Agentic Flow: $69/month × 12 = $828/year
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 Save $7,812/year (90% reduction)
-⚡ 350x faster execution
-🎯 20% better accuracy
+💰 Potential savings: $7,812/year (90% reduction)*
+⚡ Up to 350x faster execution*
+🎯 Up to 20% better accuracy*
+
+*Results vary by use case. These are optimized scenarios.
 ```
 
 </details>
@@ -156,7 +164,7 @@ Four breakthrough features that deliver unprecedented performance:
 
 | Feature | Benefit |
 |---------|---------|
-| **⚡ Flash Attention** | 7.47x faster searches |
+| **⚡ Flash Attention** | Up to 7.47x faster searches* |
 | **🚀 Native Vector Search** | 2,400 ops/sec with SIMD |
 | **🌐 QUIC Protocol** | 75% lower latency |
 | **💰 Cost Optimizer** | 90% cost savings |
@@ -173,20 +181,20 @@ const results = await agentDB.search(query, k);
 ```
 
 **5 Attention Mechanisms**:
-- ⚡ **Flash Attention**: 7.47x faster (sub-linear complexity)
+- ⚡ **Flash Attention**: Up to 7.47x faster (sub-linear complexity)
 - 🎯 **Multi-Head**: 5x better relevance (parallel attention heads)
 - 🧠 **Mixture of Experts (MoE)**: Dynamic routing to specialized models
 - 🎭 **Sparse Attention**: 100x faster on long sequences
 - 🔗 **Cross Attention**: Better context understanding
 
-### RuVector 0.1.99 (Native SIMD)
+### RuVector 0.1.100 (Native SIMD)
 
-Upgraded from 0.1.24 (75 versions) with **native SIMD acceleration**:
+Upgraded from 0.1.24 (76 versions) with **native SIMD acceleration**:
 
 ```typescript
 const stats = backend.getExtendedStats();
 // {
-//   nativeVersion: "0.1.99",
+//   nativeVersion: "0.1.100",
 //   isNative: true,
 //   simdEnabled: true ✅
 // }
@@ -536,19 +544,21 @@ const whatIf = await explain.counterfactual({
 <details>
 <summary><b>📊 Complete v3.1 Transformation Summary</b></summary>
 
-### Before vs After
+### Before vs After (Optimized Scenarios)
 
 | Metric | Before | After | Improvement |
 |--------|-----------|----------------------|-------------|
-| **Search Speed** | 6.2s | 0.83s | **7.47x faster** |
-| **Vector Operations** | 450/sec | 2,400/sec | **5.3x faster** |
-| **Response Latency** | 200ms | 50ms | **75% lower** |
-| **Monthly Cost** | $146 | $14 | **90% savings** |
+| **Search Speed** | 6.2s | 0.83s | **Up to 7.47x faster*** |
+| **Vector Operations** | 450/sec | 2,400/sec | **Up to 5.3x faster*** |
+| **Response Latency** | 200ms | 50ms | **Up to 75% lower*** |
+| **Monthly Cost** | $146 | $14 | **Up to 90% savings*** |
 | **Memory Usage** | 2.8GB | 350MB | **88% reduction** |
-| **Routing Accuracy** | 75% | 92% | **+17 percentage points** |
+| **Routing Accuracy** | 75% | 92% | **+17 percentage points*** |
 | **Agent Learning** | Manual | Automatic | **Self-improving** |
 | **Real-time Support** | No | <1s latency | **Enabled** |
 | **Fault Tolerance** | None | 99.9% | **<1s failover** |
+
+*Performance varies by workload, configuration, and use case. Measurements based on specific benchmark scenarios.
 | **Explainability** | Limited | Full | **Complete audit trails** |
 
 ### ROI Analysis (Complete System)
@@ -663,7 +673,7 @@ console.log(`Cache hit rate: ${stats.cache.utilizationPercent}%`);
 </details>
 
 <details>
-<summary><b>🔥 Agent Booster — Zero-Cost Code Transforms (352x faster, 100% free)</b></summary>
+<summary><b>🔥 Agent Booster — Zero-Cost Code Transforms (up to 352x faster, 100% free)</b></summary>
 
 ### What is Agent Booster?
 Agent Booster uses local Rust/WASM to handle simple code transformations **without calling expensive LLM APIs**. Think of it as having a local intern that handles the boring stuff instantly and for free.
@@ -715,7 +725,7 @@ await agent.execute();
 </details>
 
 <details>
-<summary><b>🧠 AgentDB v3 — Production-Ready Memory System (150x faster, 97% smaller)</b></summary>
+<summary><b>🧠 AgentDB v3 — Production-Ready Memory System (up to 150x faster, 97% smaller)</b></summary>
 
 ### What is AgentDB v3?
 AgentDB is a **proof-gated graph database** designed specifically for AI agents. It gives your agents a persistent, secure, and lightning-fast memory system that survives restarts and learns over time.
@@ -723,7 +733,7 @@ AgentDB is a **proof-gated graph database** designed specifically for AI agents.
 **Think of it as:**
 - 🧠 **Long-term memory** for AI agents (like human memory)
 - 🔒 **Cryptographically secure** (every change is verified)
-- ⚡ **150x faster than SQLite** (native Rust performance)
+- ⚡ **Up to 150x faster than SQLite** (native Rust performance on vector operations)
 - 📦 **97% smaller package** (50.1MB → 1.4MB)
 
 ### Core Features
@@ -731,7 +741,7 @@ AgentDB is a **proof-gated graph database** designed specifically for AI agents.
 | Feature | Description | Benefit |
 |---------|-------------|---------|
 | **🔒 Proof-Gated Mutations** | Cryptographic validation for every change | **Can't be tampered with** |
-| **⚡ RuVector Backend** | Native Rust vector operations | **150x faster** (10μs inserts) |
+| **⚡ RuVector Backend** | Native Rust vector operations | **Up to 150x faster** (10μs inserts) |
 | **🧠 21 Controllers** | All cognitive patterns available | **Full intelligence** |
 | **📦 Zero-Native Regression** | No native dependencies required | **1.4MB package** |
 | **🔍 Sub-100μs Search** | HNSW vector search | **<100 microseconds** |
@@ -809,7 +819,7 @@ const causal = await agentDB.causalGraph.query('cause', 'effect');
 </details>
 
 <details>
-<summary><b>🌐 168+ MCP Tools — Most Comprehensive Toolkit (14 categories)</b></summary>
+<summary><b>🌐 184+ MCP Tools — Most Comprehensive Toolkit (14 categories)</b></summary>
 
 ### What are MCP Tools?
 MCP (Model Context Protocol) tools give AI agents **superpowers** by providing access to specialized capabilities through a standardized interface. Agentic Flow provides the **most comprehensive MCP toolkit** available.
@@ -820,7 +830,7 @@ MCP (Model Context Protocol) tools give AI agents **superpowers** by providing a
 - 🎯 **Skills** agents can learn and use
 - 📦 **Plugins** that extend capabilities
 
-### Tool Categories (168+ total)
+### Tool Categories (184+ total)
 
 | Category | Count | What It Does | Key Tools |
 |----------|-------|--------------|-----------|
@@ -1052,7 +1062,7 @@ sequenceDiagram
 
 ---
 
-## 🎭 Agent Types (60+ Total)
+## 🎭 Agent Types (66 Total)
 
 <details>
 <summary><b>Core Development (5 agents)</b></summary>
@@ -1337,7 +1347,7 @@ graph LR
 | **Caching** | None | LRU cache (RVF) | ✅ Sub-ms retrieval |
 | **Pruning** | Manual | Automatic (RVF) | ✅ Self-maintaining |
 | **MCP Tools** | 10-20 tools | 168+ tools | ✅ Most comprehensive |
-| **Native Performance** | JavaScript | Rust (NAPI-RS) | ✅ 150x faster |
+| **Native Performance** | JavaScript | Rust (NAPI-RS) | ✅ Up to 150x faster |
 | **Proof Validation** | None | Cryptographic proofs | ✅ Secure by design |
 
 </details>

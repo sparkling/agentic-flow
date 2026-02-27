@@ -21,6 +21,7 @@ export { CausalMemoryGraph } from 'agentdb/controllers/CausalMemoryGraph';
 export { CausalRecall } from 'agentdb/controllers/CausalRecall';
 export { NightlyLearner } from 'agentdb/controllers/NightlyLearner';
 export { EmbeddingService } from 'agentdb/controllers/EmbeddingService';
+export { ReasoningBank } from 'agentdb/controllers/ReasoningBank';
 
 // Original ReasoningBank implementations (backwards compatibility)
 export { retrieveMemories, formatMemoriesForPrompt } from './core/retrieve.js';

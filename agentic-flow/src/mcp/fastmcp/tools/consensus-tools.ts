@@ -4,6 +4,7 @@
  * Provides 12 MCP tools for managing Raft consensus and distributed coordination.
  */
 
+import { z } from 'zod';
 import { FastMCP } from 'fastmcp';
 import { ConsensusService } from '../../../services/consensus-service.js';
 
@@ -33,27 +34,12 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_init',
     description: 'Initialize Raft consensus cluster',
-    parameters: {
-      type: 'object',
-      properties: {
-        nodeId: {
-          type: 'string',
-          description: 'Unique node identifier',
-        },
-        nodes: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of all node IDs in cluster',
-        },
-        byzantineTolerance: {
-          type: 'boolean',
-          description: 'Enable Byzantine fault tolerance',
-          default: false,
-        },
-      },
-      required: ['nodeId', 'nodes'],
-    },
-    handler: async (args: any) => {
+    parameters: z.object({
+      nodeId: z.string().describe('Unique node identifier'),
+      nodes: z.array(z.string()).describe('List of all node IDs in cluster'),
+      byzantineTolerance: z.boolean().optional().default(false).describe('Enable Byzantine fault tolerance'),
+    }),
+    execute: async (args: any) => {
       try {
         const service = new ConsensusService({
           enabled: true,
@@ -82,11 +68,8 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_status',
     description: 'Get current consensus cluster status',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-    handler: async () => {
+    parameters: z.object({}),
+    execute: async () => {
       try {
         const service = getConsensusService();
         const state = service.getClusterState();
@@ -117,22 +100,11 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_replicate',
     description: 'Replicate command across consensus cluster',
-    parameters: {
-      type: 'object',
-      properties: {
-        command: {
-          type: 'object',
-          description: 'Command to replicate',
-        },
-        timeout: {
-          type: 'number',
-          description: 'Replication timeout in milliseconds',
-          default: 5000,
-        },
-      },
-      required: ['command'],
-    },
-    handler: async (args: any) => {
+    parameters: z.object({
+      command: z.unknown().describe('Command to replicate'),
+      timeout: z.number().optional().default(5000).describe('Replication timeout in milliseconds'),
+    }),
+    execute: async (args: any) => {
       try {
         const service = getConsensusService();
         const replicated = await service.replicateCommand(args.command, args.timeout);
@@ -154,25 +126,12 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_crdt_update',
     description: 'Update CRDT state with eventual consistency',
-    parameters: {
-      type: 'object',
-      properties: {
-        key: {
-          type: 'string',
-          description: 'CRDT key',
-        },
-        operation: {
-          type: 'string',
-          enum: ['increment', 'add', 'set'],
-          description: 'CRDT operation',
-        },
-        value: {
-          description: 'Value to apply',
-        },
-      },
-      required: ['key', 'operation', 'value'],
-    },
-    handler: async (args: any) => {
+    parameters: z.object({
+      key: z.string().describe('CRDT key'),
+      operation: z.enum(['increment', 'add', 'set']).describe('CRDT operation'),
+      value: z.unknown().describe('Value to apply'),
+    }),
+    execute: async (args: any) => {
       try {
         const service = getConsensusService();
         service.updateCRDT(args.key, args.operation, args.value);
@@ -194,17 +153,10 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_crdt_get',
     description: 'Get CRDT value',
-    parameters: {
-      type: 'object',
-      properties: {
-        key: {
-          type: 'string',
-          description: 'CRDT key',
-        },
-      },
-      required: ['key'],
-    },
-    handler: async (args: any) => {
+    parameters: z.object({
+      key: z.string().describe('CRDT key'),
+    }),
+    execute: async (args: any) => {
       try {
         const service = getConsensusService();
         const value = service.getCRDT(args.key);
@@ -225,22 +177,11 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_lock_acquire',
     description: 'Acquire distributed lock',
-    parameters: {
-      type: 'object',
-      properties: {
-        key: {
-          type: 'string',
-          description: 'Lock key',
-        },
-        ttl: {
-          type: 'number',
-          description: 'Lock TTL in milliseconds',
-          default: 30000,
-        },
-      },
-      required: ['key'],
-    },
-    handler: async (args: any) => {
+    parameters: z.object({
+      key: z.string().describe('Lock key'),
+      ttl: z.number().optional().default(30000).describe('Lock TTL in milliseconds'),
+    }),
+    execute: async (args: any) => {
       try {
         const service = getConsensusService();
         const acquired = await service.acquireLock(args.key, args.ttl);
@@ -262,17 +203,10 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_lock_release',
     description: 'Release distributed lock',
-    parameters: {
-      type: 'object',
-      properties: {
-        key: {
-          type: 'string',
-          description: 'Lock key',
-        },
-      },
-      required: ['key'],
-    },
-    handler: async (args: any) => {
+    parameters: z.object({
+      key: z.string().describe('Lock key'),
+    }),
+    execute: async (args: any) => {
       try {
         const service = getConsensusService();
         await service.releaseLock(args.key);
@@ -293,11 +227,8 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_deadlock_detect',
     description: 'Detect deadlocks in distributed locks',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-    handler: async () => {
+    parameters: z.object({}),
+    execute: async () => {
       try {
         const service = getConsensusService();
         const deadlocks = service.detectDeadlocks();
@@ -319,22 +250,11 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_partition_create',
     description: 'Create data partition for sharding',
-    parameters: {
-      type: 'object',
-      properties: {
-        partitionId: {
-          type: 'string',
-          description: 'Unique partition identifier',
-        },
-        nodes: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Node IDs to include in partition',
-        },
-      },
-      required: ['partitionId', 'nodes'],
-    },
-    handler: async (args: any) => {
+    parameters: z.object({
+      partitionId: z.string().describe('Unique partition identifier'),
+      nodes: z.array(z.string()).describe('Node IDs to include in partition'),
+    }),
+    execute: async (args: any) => {
       try {
         const service = getConsensusService();
         await service.createPartition(args.partitionId, args.nodes);
@@ -356,11 +276,8 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_metrics',
     description: 'Get consensus performance metrics',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-    handler: async () => {
+    parameters: z.object({}),
+    execute: async () => {
       try {
         const service = getConsensusService();
         const metrics = service.getMetrics();
@@ -389,11 +306,8 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_is_leader',
     description: 'Check if current node is cluster leader',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-    handler: async () => {
+    parameters: z.object({}),
+    execute: async () => {
       try {
         const service = getConsensusService();
         const isLeader = service.isLeader();
@@ -416,11 +330,8 @@ export function registerConsensusTools(server: FastMCP): void {
   server.addTool({
     name: 'consensus_shutdown',
     description: 'Gracefully shutdown consensus cluster',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-    handler: async () => {
+    parameters: z.object({}),
+    execute: async () => {
       try {
         const service = getConsensusService();
         await service.shutdown();

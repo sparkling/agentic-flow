@@ -38,14 +38,11 @@ export const explainabilityTools = [
     name: 'explainability_start_trace',
     description: 'Begin execution trace for debugging and compliance',
     inputSchema: {
-      type: 'object',
-      properties: {
-        traceId: {
-          type: 'string',
-          description: 'Unique trace identifier'
-        }
-      },
-      required: ['traceId']
+      traceId: {
+        type: 'string',
+        description: 'Unique trace identifier',
+        required: true,
+      }
     },
     handler: async (args: { traceId: string }) => {
       const trace = service.startTrace(args.traceId);
@@ -65,30 +62,31 @@ export const explainabilityTools = [
     name: 'explainability_end_trace',
     description: 'Complete execution trace',
     inputSchema: {
-      type: 'object',
-      properties: {
-        traceId: {
-          type: 'string',
-          description: 'Trace identifier'
-        },
-        modelUsed: {
-          type: 'string',
-          description: 'Model used for execution'
-        },
-        totalCost: {
-          type: 'number',
-          description: 'Total cost in USD'
-        },
-        success: {
-          type: 'boolean',
-          description: 'Execution success status'
-        },
-        error: {
-          type: 'string',
-          description: 'Error message if failed'
-        }
+      traceId: {
+        type: 'string',
+        description: 'Trace identifier',
+        required: true,
       },
-      required: ['traceId', 'modelUsed', 'totalCost', 'success']
+      modelUsed: {
+        type: 'string',
+        description: 'Model used for execution',
+        required: true,
+      },
+      totalCost: {
+        type: 'number',
+        description: 'Total cost in USD',
+        required: true,
+      },
+      success: {
+        type: 'boolean',
+        description: 'Execution success status',
+        required: true,
+      },
+      error: {
+        type: 'string',
+        description: 'Error message if failed',
+        required: false,
+      }
     },
     handler: async (args: {
       traceId: string;
@@ -119,14 +117,11 @@ export const explainabilityTools = [
     name: 'explainability_get_trace',
     description: 'Retrieve execution trace for debugging',
     inputSchema: {
-      type: 'object',
-      properties: {
-        traceId: {
-          type: 'string',
-          description: 'Trace identifier'
-        }
-      },
-      required: ['traceId']
+      traceId: {
+        type: 'string',
+        description: 'Trace identifier',
+        required: true,
+      }
     },
     handler: async (args: { traceId: string }) => {
       const trace = service.getTrace(args.traceId);
@@ -167,48 +162,46 @@ export const explainabilityTools = [
     name: 'explainability_capture_attention',
     description: 'Capture attention visualization to see what model focuses on',
     inputSchema: {
-      type: 'object',
-      properties: {
-        traceId: {
-          type: 'string',
-          description: 'Trace identifier'
-        },
-        inputText: {
-          type: 'string',
-          description: 'Input text to the model'
-        },
-        outputText: {
-          type: 'string',
-          description: 'Output text from the model'
-        },
-        heads: {
-          type: 'array',
-          description: 'Attention heads with weights',
-          items: {
-            type: 'object',
-            properties: {
-              headId: { type: 'number' },
-              layer: { type: 'number' },
-              weights: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    token: { type: 'string' },
-                    weight: { type: 'number' },
-                    position: { type: 'number' }
-                  }
+      traceId: {
+        type: 'string',
+        description: 'Trace identifier',
+        required: true,
+      },
+      inputText: {
+        type: 'string',
+        description: 'Input text to the model',
+        required: true,
+      },
+      outputText: {
+        type: 'string',
+        description: 'Output text from the model',
+        required: true,
+      },
+      heads: {
+        type: 'array',
+        description: 'Attention heads with weights',
+        required: true,
+        items: {
+          properties: {
+            headId: { type: 'number' },
+            layer: { type: 'number' },
+            weights: {
+              type: 'array',
+              items: {
+                properties: {
+                  token: { type: 'string' },
+                  weight: { type: 'number' },
+                  position: { type: 'number' }
                 }
-              },
-              topK: {
-                type: 'array',
-                items: { type: 'string' }
               }
+            },
+            topK: {
+              type: 'array',
+              items: { type: 'string' }
             }
           }
         }
-      },
-      required: ['traceId', 'inputText', 'outputText', 'heads']
+      }
     },
     handler: async (args: {
       traceId: string;
@@ -243,40 +236,35 @@ export const explainabilityTools = [
     name: 'explainability_build_decision_tree',
     description: 'Build decision tree to explain routing and model selection',
     inputSchema: {
-      type: 'object',
-      properties: {
-        traceId: {
-          type: 'string',
-          description: 'Trace identifier'
-        },
-        rootNode: {
-          type: 'object',
-          description: 'Root decision node',
-          properties: {
-            nodeId: { type: 'string' },
-            decision: { type: 'string' },
-            reasoning: { type: 'string' },
-            confidence: { type: 'number' },
-            alternatives: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  decision: { type: 'string' },
-                  confidence: { type: 'number' },
-                  reasoning: { type: 'string' }
-                }
+      traceId: {
+        type: 'string',
+        description: 'Trace identifier',
+        required: true,
+      },
+      rootNode: {
+        description: 'Root decision node',
+        required: true,
+        properties: {
+          nodeId: { type: 'string' },
+          decision: { type: 'string' },
+          reasoning: { type: 'string' },
+          confidence: { type: 'number' },
+          alternatives: {
+            type: 'array',
+            items: {
+              properties: {
+                decision: { type: 'string' },
+                confidence: { type: 'number' },
+                reasoning: { type: 'string' }
               }
-            },
-            children: {
-              type: 'array',
-              items: { type: 'object' }
             }
           },
-          required: ['nodeId', 'decision', 'reasoning', 'confidence']
+          children: {
+            type: 'array',
+            items: { type: 'object' }
+          }
         }
-      },
-      required: ['traceId', 'rootNode']
+      }
     },
     handler: async (args: {
       traceId: string;
@@ -316,22 +304,19 @@ export const explainabilityTools = [
     name: 'explainability_generate_counterfactual',
     description: 'Generate counterfactual explanation ("What if we changed X?")',
     inputSchema: {
-      type: 'object',
-      properties: {
-        traceId: {
-          type: 'string',
-          description: 'Trace identifier'
-        },
-        original: {
-          type: 'object',
-          description: 'Original input parameters'
-        },
-        modifications: {
-          type: 'object',
-          description: 'Parameters to modify'
-        }
+      traceId: {
+        type: 'string',
+        description: 'Trace identifier',
+        required: true,
       },
-      required: ['traceId', 'original', 'modifications']
+      original: {
+        description: 'Original input parameters',
+        required: true,
+      },
+      modifications: {
+        description: 'Parameters to modify',
+        required: true,
+      }
     },
     handler: async (args: {
       traceId: string;
@@ -358,22 +343,20 @@ export const explainabilityTools = [
     name: 'explainability_analyze_feature_importance',
     description: 'Analyze feature importance to understand which inputs matter most',
     inputSchema: {
-      type: 'object',
-      properties: {
-        traceId: {
-          type: 'string',
-          description: 'Trace identifier'
-        },
-        inputs: {
-          type: 'object',
-          description: 'Input parameters to analyze'
-        },
-        output: {
-          type: 'string',
-          description: 'Output from the model'
-        }
+      traceId: {
+        type: 'string',
+        description: 'Trace identifier',
+        required: true,
       },
-      required: ['traceId', 'inputs', 'output']
+      inputs: {
+        description: 'Input parameters to analyze',
+        required: true,
+      },
+      output: {
+        type: 'string',
+        description: 'Output from the model',
+        required: true,
+      }
     },
     handler: async (args: {
       traceId: string;
@@ -399,14 +382,11 @@ export const explainabilityTools = [
     name: 'explainability_generate_performance_profile',
     description: 'Generate performance profile to identify hot paths and bottlenecks',
     inputSchema: {
-      type: 'object',
-      properties: {
-        traceId: {
-          type: 'string',
-          description: 'Trace identifier'
-        }
-      },
-      required: ['traceId']
+      traceId: {
+        type: 'string',
+        description: 'Trace identifier',
+        required: true,
+      }
     },
     handler: async (args: { traceId: string }) => {
       const profile = service.generatePerformanceProfile(args.traceId);
@@ -436,13 +416,11 @@ export const explainabilityTools = [
     name: 'explainability_generate_compliance_report',
     description: 'Generate compliance report for audit logs and regulatory requirements',
     inputSchema: {
-      type: 'object',
-      properties: {
-        traceIds: {
-          type: 'array',
-          description: 'Optional array of trace IDs to include (all traces if not provided)',
-          items: { type: 'string' }
-        }
+      traceIds: {
+        type: 'array',
+        description: 'Optional array of trace IDs to include (all traces if not provided)',
+        required: false,
+        items: { type: 'string' }
       }
     },
     handler: async (args: { traceIds?: string[] }) => {
@@ -466,10 +444,7 @@ export const explainabilityTools = [
   {
     name: 'explainability_get_metrics',
     description: 'Get explainability metrics including overhead and storage',
-    inputSchema: {
-      type: 'object',
-      properties: {}
-    },
+    inputSchema: {},
     handler: async () => {
       const metrics = service.getMetrics();
 
