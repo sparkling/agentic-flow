@@ -1,0 +1,3 @@
+# GGUF model files (auto-downloaded)
+.models/
+*.gguf
