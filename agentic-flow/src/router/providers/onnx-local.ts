@@ -170,20 +170,20 @@ export class ONNXLocalProvider implements LLMProvider {
     const numLayers = 32;
     const numKVHeads = 8;
     const headDim = 128; // 3072 / 24 = 128
-    const kvCache: Record<string, ort.Tensor> = {};
+    const kvCache: Record<string, any> = {};
 
     // Initialize empty cache for each layer (key and value)
     for (let i = 0; i < numLayers; i++) {
       // Empty cache: [batch_size, num_kv_heads, 0, head_dim]
       const emptyCache = new Float32Array(0);
 
-      kvCache[`past_key_values.${i}.key`] = new ort.Tensor(
+      kvCache[`past_key_values.${i}.key`] = new (ort.Tensor as any)(
         'float32',
         emptyCache,
         [batchSize, numKVHeads, 0, headDim]
       );
 
-      kvCache[`past_key_values.${i}.value`] = new ort.Tensor(
+      kvCache[`past_key_values.${i}.value`] = new (ort.Tensor as any)(
         'float32',
         emptyCache,
         [batchSize, numKVHeads, 0, headDim]
@@ -226,7 +226,7 @@ export class ONNXLocalProvider implements LLMProvider {
         const currentSeqLen = currentInputIds.length;
 
         // Create input tensor for current step
-        const inputTensor = new ort.Tensor(
+        const inputTensor = new (ort.Tensor as any)(
           'int64',
           BigInt64Array.from(currentInputIds.map(BigInt)),
           [1, currentSeqLen]
@@ -234,14 +234,14 @@ export class ONNXLocalProvider implements LLMProvider {
 
         // Create attention mask for current step
         const totalSeqLen = allTokenIds.length;
-        const attentionMask = new ort.Tensor(
+        const attentionMask = new (ort.Tensor as any)(
           'int64',
           BigInt64Array.from(Array(totalSeqLen).fill(1n)),
           [1, totalSeqLen]
         );
 
         // Build feeds with input, attention mask, and KV cache
-        const feeds: Record<string, ort.Tensor> = {
+        const feeds: Record<string, any> = {
           input_ids: inputTensor,
           attention_mask: attentionMask,
           ...pastKVCache

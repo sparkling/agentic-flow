@@ -24,14 +24,48 @@ export interface LogEntry {
   command: any;
 }
 
-// Stub for RaftConsensus - will be replaced when agentdb@3.x is available
-class RaftConsensusStub extends EventEmitter {
-  async initialize(config: RaftConfig): Promise<void> {}
-  async appendEntry(entry: LogEntry): Promise<boolean> { return true; }
-  async getState(): Promise<any> { return { term: 0, state: 'follower' }; }
-  async shutdown(): Promise<void> {}
+// Interface for RaftConsensus
+interface IRaftConsensus extends EventEmitter {
+  start(): void;
+  stop(): void;
+  replicate(command: any, timeout?: number): Promise<boolean>;
+  getStatus(): any;
+  updateCRDT(key: string, operation: string, value: any): void;
+  getCRDT(key: string): any;
+  acquireLock(key: string, ttlMs?: number): Promise<boolean>;
+  releaseLock(key: string): Promise<void>;
+  detectDeadlocks(): string[][];
 }
 
+// Stub implementation - will be replaced when agentdb@3.x is available
+class RaftConsensusStub extends EventEmitter implements IRaftConsensus {
+  start(): void {}
+  stop(): void {}
+  async replicate(command: any, timeout?: number): Promise<boolean> { return true; }
+  getStatus(): any {
+    return {
+      nodeId: 'node-1',
+      state: 'follower',
+      term: 0,
+      commitIndex: 0,
+      logLength: 0,
+      leaderId: null,
+      peers: [],
+      metrics: {
+        totalElections: 0,
+        avgElectionTimeMs: 0,
+        totalCommittedEntries: 0
+      }
+    };
+  }
+  updateCRDT(key: string, operation: string, value: any): void {}
+  getCRDT(key: string): any { return null; }
+  async acquireLock(key: string, ttlMs?: number): Promise<boolean> { return true; }
+  async releaseLock(key: string): Promise<void> {}
+  detectDeadlocks(): string[][] { return []; }
+}
+
+type RaftConsensus = IRaftConsensus;
 const RaftConsensus = RaftConsensusStub;
 
 export interface ConsensusConfig {

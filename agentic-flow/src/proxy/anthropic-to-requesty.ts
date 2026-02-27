@@ -258,10 +258,14 @@ export class AnthropicToRequestyProxy {
     }
 
     // VERBOSE LOGGING: Log Requesty response status
+    const headerEntries: [string, string][] = [];
+    response.headers.forEach((value: string, key: string) => {
+      headerEntries.push([key, value]);
+    });
     logger.info('=== REQUESTY RESPONSE RECEIVED ===', {
       status: response.status,
       statusText: response.statusText,
-      headers: Object.fromEntries(response.headers.entries())
+      headers: Object.fromEntries(headerEntries)
     });
 
     // Handle streaming vs non-streaming

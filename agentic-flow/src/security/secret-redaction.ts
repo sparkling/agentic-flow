@@ -64,7 +64,7 @@ export class SecretRedactor {
    * Redact secrets from object (deep)
    */
   redactObject<T extends Record<string, any>>(obj: T): T {
-    const redacted = { ...obj };
+    const redacted: any = { ...obj };
 
     for (const [key, value] of Object.entries(redacted)) {
       // Redact known secret keys
@@ -91,7 +91,7 @@ export class SecretRedactor {
       }
     }
 
-    return redacted;
+    return redacted as T;
   }
 
   /**

@@ -27,6 +27,14 @@
  */
 
 // Local type definitions until agentdb@3.x is published
+export interface TrajectoryStep {
+  state: any;
+  action: any;
+  reward: number;
+  nextState?: any;
+  done?: boolean;
+}
+
 export interface StoredTrajectory {
   trajectoryId: string;
   state: any;
@@ -35,10 +43,45 @@ export interface StoredTrajectory {
   nextState: any;
   done: boolean;
   timestamp: number;
+  steps: TrajectoryStep[];
 }
 
-// Stub for SonaTrajectoryService - will be replaced when agentdb@3.x is available
-class SonaTrajectoryServiceStub {
+// Interface for RLMetrics
+export interface RLMetrics {
+  avgReward?: number;
+  avgLoss?: number;
+  episodeCount?: number;
+  episodeReward?: number;
+  loss?: number;
+  epsilon?: number;
+  iterationCount?: number;
+}
+
+// Interface for SonaTrajectoryService
+interface ISonaTrajectoryService {
+  initialize(): Promise<void>;
+  storePolicyGradient(config: any): Promise<any>;
+  storeValueFunction(config: any): Promise<any>;
+  storeExperienceReplay(config: any): Promise<any>;
+  getRLMetrics(): Promise<RLMetrics>;
+  getEngineType(): string;
+  estimateValue(state: any, reward: number, nextState: any, config: any): Promise<number>;
+  trainPolicy(episodes: StoredTrajectory[], config: any): Promise<number>;
+  addExperience(state: any, action: any, reward: number, nextState: any): void;
+  sampleExperience(batchSize: number): any[];
+  continuousLearn(state: any, action: any, reward: number, nextState: any): Promise<RLMetrics>;
+  multiAgentLearn(agentEpisodes: Map<string, StoredTrajectory[]>, config: any): Promise<RLMetrics>;
+  transferLearning(sourceTask: string, targetTask: string, config: any): Promise<any>;
+  getPatterns(minSupport?: number): Promise<any[]>;
+  resetRL(): Promise<void>;
+  configureRL(config: any): void;
+  getStats(): any;
+  clear(): Promise<void>;
+}
+
+// Stub implementation - will be replaced when agentdb@3.x is available
+class SonaTrajectoryServiceStub implements ISonaTrajectoryService {
+  async initialize(): Promise<void> {}
   async storePolicyGradient(config: any): Promise<any> {
     return { success: true };
   }
@@ -48,11 +91,51 @@ class SonaTrajectoryServiceStub {
   async storeExperienceReplay(config: any): Promise<any> {
     return { success: true };
   }
-  async getRLMetrics(): Promise<any> {
-    return {};
+  async getRLMetrics(): Promise<RLMetrics> {
+    return {
+      avgReward: 0,
+      avgLoss: 0,
+      episodeCount: 0,
+      episodeReward: 0,
+      loss: 0,
+      epsilon: 0.1,
+      iterationCount: 0
+    };
   }
+  getEngineType(): string {
+    return 'stub';
+  }
+  async estimateValue(state: any, reward: number, nextState: any, config: any): Promise<number> {
+    return 0;
+  }
+  async trainPolicy(episodes: StoredTrajectory[], config: any): Promise<number> {
+    return 0;
+  }
+  addExperience(state: any, action: any, reward: number, nextState: any): void {}
+  sampleExperience(batchSize: number): any[] {
+    return [];
+  }
+  async continuousLearn(state: any, action: any, reward: number, nextState: any): Promise<RLMetrics> {
+    return await this.getRLMetrics();
+  }
+  async multiAgentLearn(agentEpisodes: Map<string, StoredTrajectory[]>, config: any): Promise<RLMetrics> {
+    return await this.getRLMetrics();
+  }
+  async transferLearning(sourceTask: string, targetTask: string, config: any): Promise<any> {
+    return { success: true };
+  }
+  async getPatterns(minSupport?: number): Promise<any[]> {
+    return [];
+  }
+  async resetRL(): Promise<void> {}
+  configureRL(config: any): void {}
+  getStats(): any {
+    return { totalExperiences: 0, avgReward: 0 };
+  }
+  async clear(): Promise<void> {}
 }
 
+type SonaTrajectoryService = ISonaTrajectoryService;
 const SonaTrajectoryService = SonaTrajectoryServiceStub;
 
 // Types that may not be exported yet - define locally if needed
@@ -220,18 +303,18 @@ export class RLTrainingService {
           break;
       }
 
-      const metrics = this.sona.getRLMetrics();
+      const metrics = await this.sona.getRLMetrics();
 
       // Track learning curve
       learningCurve.push({
         iteration: epoch,
-        reward: metrics.avgReward,
+        reward: metrics.avgReward || 0,
         loss
       });
 
       // Check for improvement
-      if (metrics.avgReward > bestReward) {
-        bestReward = metrics.avgReward;
+      if ((metrics.avgReward || 0) > bestReward) {
+        bestReward = metrics.avgReward || 0;
         improvementCount++;
 
         // Check for convergence (no improvement for 20 epochs)
@@ -242,19 +325,19 @@ export class RLTrainingService {
 
       // Log progress every 10 epochs
       if (epoch % 10 === 0) {
-        console.log(`[RLTrainingService] Epoch ${epoch}: Loss=${loss.toFixed(4)}, AvgReward=${metrics.avgReward.toFixed(4)}, Epsilon=${metrics.epsilon.toFixed(4)}`);
+        console.log(`[RLTrainingService] Epoch ${epoch}: Loss=${loss.toFixed(4)}, AvgReward=${(metrics.avgReward || 0).toFixed(4)}, Epsilon=${(metrics.epsilon || 0).toFixed(4)}`);
       }
     }
 
-    const finalMetrics = this.sona.getRLMetrics();
+    const finalMetrics = await this.sona.getRLMetrics();
     const initialReward = learningCurve[0]?.reward || 0;
-    const finalReward = finalMetrics.avgReward;
+    const finalReward = finalMetrics.avgReward || 0;
     const improvementRate = initialReward === 0 ? 0 : ((finalReward - initialReward) / Math.abs(initialReward)) * 100;
 
     const result: TrainingResult = {
       algorithm: fullConfig.algorithm,
       epochs: fullConfig.epochs,
-      finalLoss: finalMetrics.loss,
+      finalLoss: finalMetrics.loss || 0,
       avgReward: finalReward,
       improvementRate,
       convergenceIteration,
@@ -406,9 +489,30 @@ export class RLTrainingService {
 
     console.log(`[RLTrainingService] Multi-agent training: ${fullConfig.agentTypes.length} agents, ${fullConfig.rewardSharing} reward sharing`);
 
-    // Use SONA's multi-agent learning
-    const individualRewards = await this.sona.multiAgentLearn(agentStates, agentActions, jointReward);
+    // Convert to episodes format for multiAgentLearn
+    const agentEpisodes = new Map<string, StoredTrajectory[]>();
+    for (const [agentId, state] of agentStates) {
+      const action = agentActions.get(agentId);
+      agentEpisodes.set(agentId, [{
+        trajectoryId: agentId,
+        state,
+        action: action || '',
+        reward: jointReward / agentStates.size,
+        nextState: null,
+        done: false,
+        timestamp: Date.now(),
+        steps: []
+      }]);
+    }
 
+    // Use SONA's multi-agent learning
+    await this.sona.multiAgentLearn(agentEpisodes, fullConfig);
+
+    // Return individual rewards (stub implementation)
+    const individualRewards = new Map<string, number>();
+    for (const agentId of agentStates.keys()) {
+      individualRewards.set(agentId, jointReward / agentStates.size);
+    }
     return individualRewards;
   }
 
@@ -434,7 +538,8 @@ export class RLTrainingService {
     }
 
     // Fine-tune on target task if we have data
-    const targetPatterns = await this.sona.getPatterns(config.targetTask);
+    // TODO: Filter patterns by task when available
+    const targetPatterns = await this.sona.getPatterns();
 
     if (targetPatterns.length > 0 && config.finetuneEpochs > 0) {
       console.log(`[RLTrainingService] Fine-tuning on ${targetPatterns.length} target patterns`);
@@ -461,15 +566,15 @@ export class RLTrainingService {
   /**
    * Get current RL metrics
    */
-  getMetrics(): RLMetrics {
-    return this.sona.getRLMetrics();
+  async getMetrics(): Promise<RLMetrics> {
+    return await this.sona.getRLMetrics();
   }
 
   /**
    * Reset training state
    */
-  reset(): void {
-    this.sona.resetRL();
+  async reset(): Promise<void> {
+    await this.sona.resetRL();
     this.trainingHistory = [];
   }
 

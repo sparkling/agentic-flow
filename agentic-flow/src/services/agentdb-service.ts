@@ -206,7 +206,7 @@ export class AgentDBService {
       const agentdb = await import(
         /* webpackIgnore: true */ '../../../packages/agentdb/src/index.js'
       );
-      const AgentDB = agentdb.AgentDB ?? agentdb.default;
+      const AgentDB = agentdb.AgentDB;
       this.db = new AgentDB({ dbPath });
       await this.db.initialize();
 
@@ -225,7 +225,9 @@ export class AgentDBService {
           compression: {
             enabled: true,
             quantizeBits: 8,  // 4x memory reduction, minimal quality loss
-            deduplicationThreshold: 0.98  // 98% similarity = duplicate
+            deduplicationThreshold: 0.98,  // 98% similarity = duplicate
+            adaptive: true,
+            progressive: true
           },
           pruning: {
             enabled: true,
@@ -240,7 +242,8 @@ export class AgentDBService {
           caching: {
             enabled: true,
             maxSize: 10000,  // 10K embeddings cached
-            ttl: 60 * 60 * 1000  // 1 hour TTL
+            ttl: 60 * 60 * 1000,  // 1 hour TTL
+            multiLevel: true
           }
         });
         console.log('[AgentDBService] RVFOptimizer initialized (2-100x performance improvement)');
@@ -335,6 +338,9 @@ export class AgentDBService {
         const { MemoryConsolidation } = await import(
           /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/MemoryConsolidation.js'
         );
+
+        // TODO: Initialize graphBackend when graph-node integration is ready
+        const graphBackend: any = null;
 
         this.hierarchicalMemory = new HierarchicalMemory(
           database,
@@ -1669,9 +1675,5 @@ export class AgentDBService {
  * Get or create the singleton AgentDBService instance
  */
 export async function getAgentDBService(): Promise<AgentDBService> {
-  const service = new AgentDBService();
-  if (!service['initialized']) {
-    await service.initialize();
-  }
-  return service;
+  return await AgentDBService.getInstance();
 }

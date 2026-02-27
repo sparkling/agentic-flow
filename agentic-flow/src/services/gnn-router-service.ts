@@ -10,19 +10,64 @@
  * ADR-065 Phase P1-1 Implementation
  */
 
-// Stub for GNNService - will be replaced when agentdb@3.x is available
-class GNNServiceStub {
-  async classifyIntent(embedding: Float32Array): Promise<any> {
+// Interface for GNNService
+interface IGNNService {
+  initialize?(): Promise<void>;
+  classifyIntent(embedding: Float32Array): Promise<{ intent: string; confidence: number }>;
+  classifyNode(embedding: Float32Array): Promise<{ category: string; confidence: number }>;
+  predictLink(nodeA: string, nodeB: string): Promise<number>;
+  predictLinks?(nodes: string[]): Promise<number[][]>;
+  getNodeEmbedding(nodeId: string): Promise<Float32Array>;
+  understandContextGAT(embedding: Float32Array, contextNodes: Float32Array[]): Promise<{
+    attentionWeights: Record<string, number>;
+    aggregatedContext: Float32Array;
+  }>;
+  processHeterogeneousGraph?(graph: any): Promise<any>;
+  getEngineType?(): string;
+  matchSkillsGCN?(taskEmbedding: Float32Array, skillNodes: any[]): Promise<any>;
+}
+
+// Stub implementation - will be replaced when agentdb@3.x is available
+class GNNServiceStub implements IGNNService {
+  constructor(config?: any) {}
+
+  async initialize(): Promise<void> {}
+  async classifyIntent(embedding: Float32Array): Promise<{ intent: string; confidence: number }> {
     return { intent: 'unknown', confidence: 0 };
+  }
+  async classifyNode(embedding: Float32Array): Promise<{ category: string; confidence: number }> {
+    return { category: 'unknown', confidence: 0 };
   }
   async predictLink(nodeA: string, nodeB: string): Promise<number> {
     return 0.5;
   }
+  async predictLinks(nodes: string[]): Promise<number[][]> {
+    return nodes.map(() => nodes.map(() => 0.5));
+  }
   async getNodeEmbedding(nodeId: string): Promise<Float32Array> {
     return new Float32Array(768);
   }
+  async understandContextGAT(embedding: Float32Array, contextNodes: Float32Array[]): Promise<{
+    attentionWeights: Record<string, number>;
+    aggregatedContext: Float32Array;
+  }> {
+    return {
+      attentionWeights: {},
+      aggregatedContext: new Float32Array(embedding.length)
+    };
+  }
+  async processHeterogeneousGraph(graph: any): Promise<any> {
+    return { nodes: [], edges: [] };
+  }
+  getEngineType(): string {
+    return 'stub';
+  }
+  async matchSkillsGCN(taskEmbedding: Float32Array, skillNodes: any[]): Promise<any> {
+    return { matches: [], scores: [] };
+  }
 }
 
+type GNNService = IGNNService;
 const GNNService = GNNServiceStub;
 
 export interface SkillNode {
