@@ -1,6 +1,6 @@
 {
   "name": "agentdb-onnx",
-  "version": "1.0.0-patch.53",
+  "version": "1.0.0-patch.54",
   "description": "AgentDB with optimized ONNX embeddings - 100% local, GPU-accelerated AI agent memory",
   "type": "module",
   "main": "dist/index.js",
