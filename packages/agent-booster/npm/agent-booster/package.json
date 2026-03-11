@@ -1,6 +1,6 @@
 {
   "name": "agent-booster",
-  "version": "0.2.2-patch.49",
+  "version": "0.2.2-patch.50",
   "description": "High-performance prompt optimization with automatic native/WASM binding detection",
   "main": "index.js",
   "types": "index.d.ts",
