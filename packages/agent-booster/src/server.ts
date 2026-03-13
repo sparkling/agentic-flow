@@ -9,7 +9,7 @@
  * - POST /v1/apply (Morph LLM format)
  */
 
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { AgentBooster, MorphApplyRequest, MorphApplyResponse } from './index';
 
 const app = express();
@@ -46,7 +46,7 @@ function parseMorphMessage(content: string): { instruction: string; code: string
  * Morph LLM-compatible chat completions endpoint
  * Supports the same request/response format as Morph LLM
  */
-app.post('/v1/chat/completions', async (req, res) => {
+app.post('/v1/chat/completions', async (req: Request, res: Response) => {
   try {
     const { model, messages, stream } = req.body;
 
@@ -134,7 +134,7 @@ app.post('/v1/chat/completions', async (req, res) => {
  *
  * Direct apply endpoint (simpler than chat completions)
  */
-app.post('/v1/apply', async (req, res) => {
+app.post('/v1/apply', async (req: Request, res: Response) => {
   try {
     const { code, edit, language } = req.body;
 
@@ -170,7 +170,7 @@ app.post('/v1/apply', async (req, res) => {
  *
  * Batch apply endpoint for processing multiple edits
  */
-app.post('/v1/batch', async (req, res) => {
+app.post('/v1/batch', async (req: Request, res: Response) => {
   try {
     const { requests } = req.body;
 
@@ -206,7 +206,7 @@ app.post('/v1/batch', async (req, res) => {
  *
  * Health check endpoint
  */
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     version: require('../package.json').version,
@@ -219,7 +219,7 @@ app.get('/health', (req, res) => {
  *
  * API documentation endpoint
  */
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
   res.json({
     name: 'Agent Booster API',
     version: require('../package.json').version,
