@@ -1,6 +1,6 @@
 {
   "name": "agentdb",
-  "version": "3.0.0-alpha.3-patch.6",
+  "version": "3.0.0-alpha.3-patch.7",
   "description": "AgentDB v3 - Intelligent agentic vector database with RVF native format, RuVector-powered graph DB, Cypher queries, ACID persistence. 150x faster than SQLite with self-learning GNN, 6 cognitive memory patterns, semantic routing, COW branching, and comprehensive MCP integration. Runs anywhere: Node.js, browsers, edge, offline.",
   "type": "module",
   "main": "dist/src/index.js",
