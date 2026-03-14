@@ -95,7 +95,7 @@ program
         k: parseInt(options.topK),
         threshold: parseFloat(options.threshold),
         filters: options.taskType ? { taskType: options.taskType } : undefined
-      });
+      } as any);
 
       console.log(chalk.blue(`\nFound ${results.length} patterns:\n`));
 

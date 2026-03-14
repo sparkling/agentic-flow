@@ -196,7 +196,7 @@ async function main() {
         await agentdb.reasoningBank.searchPatterns({
           task: 'search approach',
           k: 10
-        });
+        } as any);
       }
     ));
 
