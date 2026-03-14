@@ -1,6 +1,6 @@
 {
   "name": "agentic-flow",
-  "version": "2.0.2-alpha-patch.8",
+  "version": "2.0.2-alpha-patch.9",
   "description": "Production-ready AI agent orchestration platform with 66 specialized agents, 213 MCP tools, ReasoningBank learning memory, and autonomous multi-agent swarms. Built by @ruvnet with Claude Agent SDK, neural networks, memory persistence, GitHub integration, and distributed consensus protocols.",
   "type": "module",
   "main": "dist/index.js",
@@ -177,7 +177,7 @@
     "@rollup/rollup-darwin-arm64": "^4.59.0",
     "@ruvector/attention": "^0.1.4",
     "@ruvector/sona": "^0.1.4",
-    "agentdb": "3.0.0-alpha.3-patch.8",
+    "agentdb": "3.0.0-alpha.3-patch.9",
     "better-sqlite3": "^11.10.0",
     "onnxruntime-node": "^1.23.2",
     "sharp": "^0.32.6",
