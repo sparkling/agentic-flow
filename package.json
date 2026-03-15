@@ -32,6 +32,7 @@
     "./transport/quic": "./agentic-flow/dist/transport/quic.js",
     "./agentdb": "./agentic-flow/dist/agentdb/index.js",
     "./billing": "./agentic-flow/dist/billing/index.js",
+    "./embeddings": "./agentic-flow/dist/embeddings/index.js",
     "./agentic-jujutsu": {
       "require": "./packages/agentic-jujutsu/index.js",
       "import": "./packages/agentic-jujutsu/index.js",
