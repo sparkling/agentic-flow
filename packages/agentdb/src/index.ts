@@ -132,6 +132,10 @@ export {
 // Re-export all controllers for convenience
 export * from './controllers/index.js';
 
+// Thompson Sampling bandit (RVF backend)
+export { SolverBandit } from './backends/rvf/SolverBandit.js';
+export type { BanditArmStats, BanditConfig, BanditStats, BanditState } from './backends/rvf/SolverBandit.js';
+
 // LLM Router - Multi-provider LLM integration with RuvLLM support
 export {
   LLMRouter,
