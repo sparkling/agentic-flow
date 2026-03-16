@@ -52,6 +52,9 @@ export { BatchOperations } from './optimizations/BatchOperations.js';
 export { QueryOptimizer } from './optimizations/QueryOptimizer.js';
 export { RVFOptimizer } from './optimizations/RVFOptimizer.js';
 
+// Metadata filtering (ADR-0043)
+export { MetadataFilter } from './controllers/MetadataFilter.js';
+
 // Security
 export {
   validateTableName,
