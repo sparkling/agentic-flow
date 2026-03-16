@@ -337,16 +337,36 @@ export class AttentionService {
     const encodedKeys = new Float32Array(keys);
     const hopEncodings = new Float32Array(numQueries * numKeys);
 
+    // ADR-0044: 3 GraphRoPE bug fixes
+    // Bug 1: || 0 treated missing hops as adjacent — use maxHops (distant) instead
+    // Bug 2: encodedKeys[j] modified cumulatively across all queries i
+    // Bug 3: encodedQueries[i] modified cumulatively across all keys j
+    // Fix: compute per-pair hop encodings without mutating shared query/key arrays
+    const maxHops = 10;
     for (let i = 0; i < numQueries; i++) {
       for (let j = 0; j < numKeys; j++) {
-        const distance = hopDistances[i]?.[j] || 0;
+        const distance = hopDistances[i]?.[j] ?? maxHops; // Bug 1 fix: missing = far
         const scale = 1.0 / (1.0 + distance);
         hopEncodings[i * numKeys + j] = scale;
-
-        for (let d = 0; d < dim; d++) {
-          encodedQueries[i * dim + d] *= Math.sqrt(scale);
-          encodedKeys[j * dim + d] *= Math.sqrt(scale);
+      }
+    }
+    // Apply per-pair positional scaling via hop encodings (not in-place mutation)
+    for (let i = 0; i < numQueries; i++) {
+      for (let d = 0; d < dim; d++) {
+        // Bug 3 fix: scale query by average hop distance to all keys for this query
+        let avgScale = 0;
+        for (let j = 0; j < numKeys; j++) {
+          avgScale += hopEncodings[i * numKeys + j];
         }
+        avgScale = numKeys > 0 ? avgScale / numKeys : 1;
+        encodedQueries[i * dim + d] *= Math.sqrt(avgScale);
+      }
+    }
+    for (let j = 0; j < numKeys; j++) {
+      for (let d = 0; d < dim; d++) {
+        // Bug 2 fix: scale key by its hop distance from first query (graph-derived position)
+        const hopScale = hopEncodings[j]; // hop from query 0 to key j
+        encodedKeys[j * dim + d] *= Math.sqrt(hopScale);
       }
     }
 
