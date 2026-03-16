@@ -15,6 +15,7 @@ import { VectorBackend } from '../backends/VectorBackend.js';
 import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
 import { NodeIdMapper } from '../utils/NodeIdMapper.js';
 import { cosineSimilarity } from '../utils/vector-math.js';
+import { QueryCache, type QueryCacheConfig } from '../core/QueryCache.js';
 
 export interface Skill {
   id?: number;
