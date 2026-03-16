@@ -14,6 +14,9 @@
 
 import { cosineSimilarity as sharedCosineSimilarity } from '../utils/vector-math.js';
 import type { AttentionService } from './AttentionService.js';
+import { resolve, dirname, join } from 'path';
+import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
 
 // Database type from db-fallback
 type Database = any;
@@ -80,6 +83,29 @@ export class WASMVectorSearch {
    */
   setAttentionService(svc: AttentionService): void {
     this.attentionService = svc;
+  }
+
+  /**
+   * Get search paths for WASM module resolution.
+   */
+  private getWASMSearchPaths(): string[] {
+    const paths: string[] = [];
+    try {
+      const thisDir = dirname(fileURLToPath(import.meta.url));
+      paths.push(
+        join(thisDir, '..', '..', 'wasm', 'reasoning_bank_bg.wasm'),
+        join(thisDir, '..', 'wasm', 'reasoning_bank_bg.wasm'),
+        join(thisDir, 'reasoning_bank_bg.wasm'),
+      );
+    } catch {
+      // import.meta.url unavailable in some contexts
+    }
+    // Check node_modules paths
+    paths.push(
+      resolve('node_modules', '@sparkleideas', 'agentdb', 'wasm', 'reasoning_bank_bg.wasm'),
+      resolve('node_modules', 'agentdb', 'wasm', 'reasoning_bank_bg.wasm'),
+    );
+    return paths;
   }
 
   /**
