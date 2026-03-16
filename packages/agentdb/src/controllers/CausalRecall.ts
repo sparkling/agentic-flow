@@ -68,13 +68,16 @@ export class CausalRecall {
       beta: 0.2,
       gamma: 0.1,
       minConfidence: 0.6
-    }
+    },
+    causalGraph?: CausalMemoryGraph,
+    explainableRecall?: ExplainableRecall,
   ) {
     this.db = db;
     this.embedder = embedder;
     this.vectorBackend = vectorBackend;
-    this.causalGraph = new CausalMemoryGraph(db);
-    this.explainableRecall = new ExplainableRecall(db);
+    // ADR-0040: accept pre-created singletons to avoid duplicate instances
+    this.causalGraph = causalGraph || new CausalMemoryGraph(db);
+    this.explainableRecall = explainableRecall || new ExplainableRecall(db);
   }
 
   /**

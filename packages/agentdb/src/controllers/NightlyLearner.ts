@@ -76,13 +76,17 @@ export class NightlyLearner {
       autoExperiments: true,
       experimentBudget: 10,
       ENABLE_FLASH_CONSOLIDATION: false,
-    }
+    },
+    causalGraph?: CausalMemoryGraph,
+    reflexion?: ReflexionMemory,
+    skillLibrary?: SkillLibrary,
   ) {
     this.db = db;
     this.embedder = embedder;
-    this.causalGraph = new CausalMemoryGraph(db);
-    this.reflexion = new ReflexionMemory(db, embedder);
-    this.skillLibrary = new SkillLibrary(db, embedder);
+    // ADR-0040: accept pre-created singletons to avoid duplicate instances
+    this.causalGraph = causalGraph || new CausalMemoryGraph(db);
+    this.reflexion = reflexion || new ReflexionMemory(db, embedder);
+    this.skillLibrary = skillLibrary || new SkillLibrary(db, embedder);
 
     // Initialize AttentionService if FlashAttention enabled
     if (this.config.ENABLE_FLASH_CONSOLIDATION) {
