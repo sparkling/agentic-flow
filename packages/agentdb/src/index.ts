@@ -95,9 +95,5 @@ export { SolverBandit } from './backends/rvf/SolverBandit.js';
 export type { BanditArmStats, BanditConfig, BanditStats, BanditState } from './backends/rvf/SolverBandit.js';
 
 // LLM Router - Multi-provider LLM integration with RuvLLM support
-export {
-  LLMRouter,
-  isRuvLLMInstalled,
-  type LLMConfig,
-  type LLMResponse,
-} from './services/LLMRouter.js';
+// LLMRouter, LLMConfig, LLMResponse already exported above (lines 68, 79)
+export { isRuvLLMInstalled } from './services/LLMRouter.js';
