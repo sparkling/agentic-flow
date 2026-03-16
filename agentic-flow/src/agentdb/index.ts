@@ -17,14 +17,24 @@
  * ```
  */
 
-// Import from agentdb package - using direct package imports for bundler moduleResolution
-export { ReflexionMemory } from 'agentdb';
-export { SkillLibrary } from 'agentdb';
-export { EmbeddingService } from 'agentdb';
-export { CausalMemoryGraph } from 'agentdb';
-export { CausalRecall } from 'agentdb';
-export { NightlyLearner } from 'agentdb';
-export { ExplainableRecall } from 'agentdb';
+// Re-export from main agentdb package entry (avoids moduleResolution issues with subpath imports)
+export {
+  ReflexionMemory,
+  SkillLibrary,
+  EmbeddingService,
+  CausalMemoryGraph,
+  CausalRecall,
+  NightlyLearner,
+  ExplainableRecall,
+} from 'agentdb';
+
+// RuVector service integrations (ADR-054/ADR-056)
+// These exports require agentdb v2.0.0-alpha+ (packages/agentdb).
+// Currently node_modules has agentdb v1.6.1 which lacks these services.
+// Uncomment after upgrading the installed agentdb dependency:
+// export { SemanticRouter } from 'agentdb';
+// export { SonaTrajectoryService } from 'agentdb';
+// export { LLMRouter } from 'agentdb';
 
 // Note: These are custom types not exported from agentdb v1.3.9
 // Users should import from agentdb directly if needed

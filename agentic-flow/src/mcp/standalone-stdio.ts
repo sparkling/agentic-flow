@@ -4,6 +4,7 @@ import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import { execSync } from 'child_process';
 import { resolve } from 'path';
+import { validateWritePath } from '../security/path-validator.js';
 
 // Suppress FastMCP internal warnings for cleaner output
 const originalConsoleWarn = console.warn;
@@ -361,20 +362,40 @@ server.addTool({
         language = langMap[ext] || 'javascript';
       }
 
-      // Apply edit using agent-booster@0.2.2 CLI (automatically installs from npm if not available)
-      const cmd = `npx --yes agent-booster@0.2.2 apply --language ${language}`;
-      const result = execSync(cmd, {
+      // CVE-2026-003 FIX: Use spawnSync with array args to prevent command injection
+      const { spawnSync } = await import('child_process');
+
+      // Validate language parameter
+      const allowedLanguages = ['typescript', 'javascript', 'python', 'rust', 'go', 'java', 'c', 'cpp'];
+      if (!allowedLanguages.includes(language)) {
+        throw new Error(`Invalid language: ${language}. Must be one of: ${allowedLanguages.join(', ')}`);
+      }
+
+      const result = spawnSync('npx', ['--yes', 'agent-booster@0.2.2', 'apply', '--language', language], {
         encoding: 'utf-8',
         input: JSON.stringify({ code: originalCode, edit: code_edit }),
         maxBuffer: 10 * 1024 * 1024,
-        timeout: 30000  // Allow time for npx to download package on first run
+        timeout: 30000,
+        shell: false // Prevent shell injection
       });
 
-      const parsed = JSON.parse(result);
+      if (result.error) {
+        throw result.error;
+      }
+
+      if (result.status !== 0) {
+        throw new Error(`Agent Booster failed: ${result.stderr || result.stdout}`);
+      }
+
+      const resultStr = result.stdout;
+
+      const parsed = JSON.parse(resultStr);
 
       if (parsed.success && parsed.confidence >= 0.7) {
         // High confidence - use Agent Booster result
-        fs.writeFileSync(target_filepath, parsed.output);
+        // CVE-2026-004 FIX: Validate write path
+        const safeWritePath = validateWritePath(target_filepath);
+        fs.writeFileSync(safeWritePath, parsed.output);
 
         return JSON.stringify({
           success: true,
@@ -432,8 +453,23 @@ server.addTool({
       let totalLatency = 0;
 
       for (const edit of edits) {
-        const originalCode = fs.existsSync(edit.target_filepath)
-          ? fs.readFileSync(edit.target_filepath, 'utf-8')
+        // CVE-2026-004 FIX: Validate file paths
+        let safePath: string;
+        try {
+          safePath = validateWritePath(edit.target_filepath);
+        } catch (error: any) {
+          results.push({
+            file: edit.target_filepath,
+            success: false,
+            confidence: '0%',
+            latency_ms: 0,
+            reason: `Path validation failed: ${error.message}`
+          });
+          continue;
+        }
+
+        const originalCode = fs.existsSync(safePath)
+          ? fs.readFileSync(safePath, 'utf-8')
           : '';
 
         // Detect language
@@ -448,20 +484,46 @@ server.addTool({
           language = langMap[ext] || 'javascript';
         }
 
-        // Apply edit
-        const cmd = `npx --yes agent-booster@0.2.2 apply --language ${language}`;
-        const result = execSync(cmd, {
+        // CVE-2026-003 FIX: Use spawnSync with array args
+        const { spawnSync } = await import('child_process');
+
+        const allowedLanguages = ['typescript', 'javascript', 'python', 'rust', 'go', 'java', 'c', 'cpp'];
+        if (!allowedLanguages.includes(language)) {
+          results.push({
+            file: edit.target_filepath,
+            success: false,
+            confidence: '0%',
+            latency_ms: 0,
+            reason: `Invalid language: ${language}`
+          });
+          continue;
+        }
+
+        const result = spawnSync('npx', ['--yes', 'agent-booster@0.2.2', 'apply', '--language', language], {
           encoding: 'utf-8',
           input: JSON.stringify({ code: originalCode, edit: edit.code_edit }),
           maxBuffer: 10 * 1024 * 1024,
-          timeout: 5000
+          timeout: 5000,
+          shell: false
         });
 
-        const parsed = JSON.parse(result);
+        if (result.error || result.status !== 0) {
+          results.push({
+            file: edit.target_filepath,
+            success: false,
+            confidence: '0%',
+            latency_ms: 0,
+            reason: result.error?.message || result.stderr || 'Agent Booster failed'
+          });
+          continue;
+        }
+
+        const resultStr = result.stdout;
+        const parsed = JSON.parse(resultStr);
         totalLatency += parsed.latency;
 
         if (parsed.success && parsed.confidence >= 0.7) {
-          fs.writeFileSync(edit.target_filepath, parsed.output);
+          fs.writeFileSync(safePath, parsed.output);
           results.push({
             file: edit.target_filepath,
             success: true,
@@ -532,8 +594,21 @@ server.addTool({
       let totalLatency = 0;
 
       for (const edit of edits) {
-        const originalCode = fs.existsSync(edit.target_filepath)
-          ? fs.readFileSync(edit.target_filepath, 'utf-8')
+        // CVE-2026-004 FIX: Validate file paths
+        let safePath: string;
+        try {
+          safePath = validateWritePath(edit.target_filepath);
+        } catch (error: any) {
+          results.push({
+            file: edit.target_filepath,
+            success: false,
+            confidence: '0%'
+          });
+          continue;
+        }
+
+        const originalCode = fs.existsSync(safePath)
+          ? fs.readFileSync(safePath, 'utf-8')
           : '';
 
         let language = edit.language;
@@ -547,19 +622,42 @@ server.addTool({
           language = langMap[ext] || 'javascript';
         }
 
-        const cmd = `npx --yes agent-booster@0.2.2 apply --language ${language}`;
-        const result = execSync(cmd, {
+        // CVE-2026-003 FIX: Use spawnSync with array args
+        const { spawnSync } = await import('child_process');
+
+        const allowedLanguages = ['typescript', 'javascript', 'python', 'rust', 'go', 'java', 'c', 'cpp'];
+        if (!allowedLanguages.includes(language)) {
+          results.push({
+            file: edit.target_filepath,
+            success: false,
+            confidence: '0%'
+          });
+          continue;
+        }
+
+        const result = spawnSync('npx', ['--yes', 'agent-booster@0.2.2', 'apply', '--language', language], {
           encoding: 'utf-8',
           input: JSON.stringify({ code: originalCode, edit: edit.code_edit }),
           maxBuffer: 10 * 1024 * 1024,
-          timeout: 5000
+          timeout: 5000,
+          shell: false
         });
 
-        const parsed = JSON.parse(result);
+        if (result.error || result.status !== 0) {
+          results.push({
+            file: edit.target_filepath,
+            success: false,
+            confidence: '0%'
+          });
+          continue;
+        }
+
+        const resultStr = result.stdout;
+        const parsed = JSON.parse(resultStr);
         totalLatency += parsed.latency;
 
         if (parsed.success && parsed.confidence >= 0.7) {
-          fs.writeFileSync(edit.target_filepath, parsed.output);
+          fs.writeFileSync(safePath, parsed.output);
           results.push({
             file: edit.target_filepath,
             instruction: edit.instructions,

@@ -6,11 +6,9 @@ description: ❓Ask - You are a task-formulation guide that helps users navigate
 # ❓Ask
 
 ## Role Definition
-
 You are a task-formulation guide that helps users navigate, ask, and delegate tasks to the correct SPARC modes.
 
 ## Custom Instructions
-
 Guide users to ask questions using SPARC methodology:
 
 • 📋 `spec-pseudocode` – logic plans, pseudocode, flow outlines
@@ -32,13 +30,11 @@ Help users craft `new_task` messages to delegate effectively, and always remind 
 ✅ Use `attempt_completion`
 
 ## Available Tools
-
 - **read**: File reading and viewing
 
 ## Usage
 
 ### Option 1: Using MCP Tools (Preferred in Claude Code)
-
 ```javascript
 mcp__claude-flow__sparc_mode {
   mode: "ask",
@@ -51,7 +47,6 @@ mcp__claude-flow__sparc_mode {
 ```
 
 ### Option 2: Using NPX CLI (Fallback when MCP not available)
-
 ```bash
 # Use when running from terminal or MCP tools unavailable
 npx claude-flow sparc run ask "help me choose the right mode"
@@ -67,7 +62,6 @@ npx claude-flow sparc run ask "your task" --non-interactive
 ```
 
 ### Option 3: Local Installation
-
 ```bash
 # If claude-flow is installed locally
 ./claude-flow sparc run ask "help me choose the right mode"
@@ -76,7 +70,6 @@ npx claude-flow sparc run ask "your task" --non-interactive
 ## Memory Integration
 
 ### Using MCP Tools (Preferred)
-
 ```javascript
 // Store mode-specific context
 mcp__claude-flow__memory_usage {
@@ -95,7 +88,6 @@ mcp__claude-flow__memory_search {
 ```
 
 ### Using NPX CLI (Fallback)
-
 ```bash
 # Store mode-specific context
 npx claude-flow memory store "ask_context" "important decisions" --namespace ask

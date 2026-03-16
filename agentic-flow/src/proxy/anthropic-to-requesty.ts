@@ -22,6 +22,23 @@ interface AnthropicTool {
   };
 }
 
+interface OpenAIResponse {
+  id?: string;
+  model?: string;
+  choices?: Array<{
+    finish_reason?: string;
+    message?: {
+      content?: string;
+      tool_calls?: Array<{ function: { name: string; arguments: string } }>;
+    };
+  }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
 interface AnthropicRequest {
   model?: string;
   messages: AnthropicMessage[];
@@ -241,10 +258,14 @@ export class AnthropicToRequestyProxy {
     }
 
     // VERBOSE LOGGING: Log Requesty response status
+    const headerEntries: [string, string][] = [];
+    response.headers.forEach((value: string, key: string) => {
+      headerEntries.push([key, value]);
+    });
     logger.info('=== REQUESTY RESPONSE RECEIVED ===', {
       status: response.status,
       statusText: response.statusText,
-      headers: Object.fromEntries((response.headers as any).entries())
+      headers: Object.fromEntries(headerEntries)
     });
 
     // Handle streaming vs non-streaming
@@ -275,7 +296,7 @@ export class AnthropicToRequestyProxy {
     } else {
       logger.info('Handling non-streaming response...');
       // Non-streaming response
-      const openaiRes = await response.json();
+      const openaiRes = await response.json() as OpenAIResponse;
 
       // VERBOSE LOGGING: Log raw OpenAI response
       logger.info('=== RAW OPENAI RESPONSE ===', {

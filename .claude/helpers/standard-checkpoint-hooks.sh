@@ -24,11 +24,11 @@ pre_edit_checkpoint() {
         mkdir -p .claude/checkpoints
         cat > ".claude/checkpoints/$(date +%s).json" <<EOF
 {
-  "branch": "$checkpoint_branch",
-  "file": "$file",
+  "branch": "${checkpoint_branch}",
+  "file": "${file}",
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "type": "pre-edit",
-  "original_branch": "$current_branch"
+  "original_branch": "${current_branch}"
 }
 EOF
         
@@ -78,15 +78,16 @@ Automatic checkpoint created by Claude
                 
                 # Store metadata
                 mkdir -p .claude/checkpoints
-                local diff_stats=$(git diff HEAD~1 --stat | tr '\n' ' ' | sed 's/"/\"/g')
+                local diff_stats
+                diff_stats=$(git diff HEAD~1 --stat | tr '\n' ' ' | sed 's/"/\\"/g')
                 cat > ".claude/checkpoints/$(date +%s).json" <<EOF
 {
-  "tag": "$tag_name",
-  "file": "$file",
+  "tag": "${tag_name}",
+  "file": "${file}",
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "type": "post-edit",
-  "branch": "$current_branch",
-  "diff_summary": "$diff_stats"
+  "branch": "${current_branch}",
+  "diff_summary": "${diff_stats}"
 }
 EOF
                 
@@ -114,8 +115,8 @@ task_checkpoint() {
         mkdir -p .claude/checkpoints
         cat > ".claude/checkpoints/task-$(date +%s).json" <<EOF
 {
-  "checkpoint": "$checkpoint_name",
-  "task": "$task",
+  "checkpoint": "${checkpoint_name}",
+  "task": "${task}",
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "commit": "$(git rev-parse HEAD)"
 }

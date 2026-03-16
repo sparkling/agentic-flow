@@ -12,6 +12,7 @@ const { AgenticJujutsu } = require('../../index.js');
 const assert = require('assert');
 const { performance } = require('perf_hooks');
 const crypto = require('crypto');
+const fs = require('fs');
 
 describe('Quantum Fingerprints', function() {
   this.timeout(10000);
@@ -20,8 +21,8 @@ describe('Quantum Fingerprints', function() {
   const testRepoPath = '/tmp/quantum-fingerprint-test';
 
   beforeEach(async function() {
-    require('child_process').execSync(`rm -rf ${testRepoPath}`, { stdio: 'ignore' });
-    require('child_process').execSync(`mkdir -p ${testRepoPath}`, { stdio: 'ignore' });
+    try { fs.rmSync(testRepoPath, { recursive: true, force: true }); } catch(e) {}
+    fs.mkdirSync(testRepoPath, { recursive: true });
 
     jj = new AgenticJujutsu();
     await jj.initialize(testRepoPath);
@@ -31,7 +32,7 @@ describe('Quantum Fingerprints', function() {
     if (jj) {
       await jj.cleanup();
     }
-    require('child_process').execSync(`rm -rf ${testRepoPath}`, { stdio: 'ignore' });
+    try { fs.rmSync(testRepoPath, { recursive: true, force: true }); } catch(e) {}
   });
 
   describe('Fingerprint Generation', function() {

@@ -11,8 +11,6 @@
 
 // Main AgentDB class
 export { AgentDB } from './core/AgentDB.js';
-import { AgentDB as AgentDBClass } from './core/AgentDB.js';
-export default AgentDBClass;
 
 // Core controllers
 export { CausalMemoryGraph } from './controllers/CausalMemoryGraph.js';
@@ -52,8 +50,7 @@ export { createDatabase } from './db-fallback.js';
 // Optimizations
 export { BatchOperations } from './optimizations/BatchOperations.js';
 export { QueryOptimizer } from './optimizations/QueryOptimizer.js';
-export { QueryCache } from './core/QueryCache.js';
-export type { QueryCacheConfig, CacheEntry, CacheStatistics } from './core/QueryCache.js';
+export { RVFOptimizer } from './optimizations/RVFOptimizer.js';
 
 // Security
 export {
@@ -65,69 +62,27 @@ export {
   ValidationError,
 } from './security/input-validation.js';
 
-// Vector Quantization
-export {
-  // Types
-  type QuantizationStats,
-  type QuantizedVector,
-  type ProductQuantizerConfig,
-  type PQEncodedVector,
-  type QuantizedVectorStoreConfig,
-  type QuantizedSearchResult,
-  // Scalar Quantization
-  quantize8bit,
-  quantize4bit,
-  dequantize8bit,
-  dequantize4bit,
-  calculateQuantizationError,
-  getQuantizationStats,
-  // Product Quantization
-  ProductQuantizer,
-  // Quantized Vector Store
-  QuantizedVectorStore,
-  // Factory Functions
-  createScalar8BitStore,
-  createScalar4BitStore,
-  createProductQuantizedStore,
-} from './quantization/index.js';
+// Services - RuVector package integrations
+export { SemanticRouter } from './services/SemanticRouter.js';
+export { SonaTrajectoryService } from './services/SonaTrajectoryService.js';
+export { LLMRouter } from './services/LLMRouter.js';
+export { GraphTransformerService } from './services/GraphTransformerService.js';
+export { GNNService } from './services/GNNService.js';
 
-// Hybrid Search (Vector + Keyword)
-export {
-  KeywordIndex,
-  HybridSearch,
-  createKeywordIndex,
-  createHybridSearch,
-  type HybridSearchOptions,
-  type HybridSearchResult,
-  type HybridQuery,
-  type BM25Config,
-} from './search/index.js';
+// Consensus - Distributed coordination
+export { RaftConsensus } from './consensus/RaftConsensus.js';
+export type { RaftConfig, LogEntry, RaftState } from './consensus/RaftConsensus.js';
 
-// Benchmarking Suite
-export {
-  // Main Suite
-  BenchmarkSuite,
-  // Base class for custom benchmarks
-  Benchmark,
-  // Built-in benchmarks
-  VectorInsertBenchmark,
-  VectorSearchBenchmark,
-  MemoryUsageBenchmark,
-  ConcurrencyBenchmark,
-  QuantizationBenchmark,
-  // CLI integration functions
-  runBenchmarks,
-  runSelectedBenchmarks,
-  // Formatting utilities
-  formatReportAsMarkdown,
-  formatComparisonAsMarkdown,
-  // Types
-  type LatencyStats,
-  type BenchmarkResult,
-  type BenchmarkReport,
-  type ComparisonReport,
-  type BenchmarkConfig,
-} from './benchmark/index.js';
+// Re-export service types for convenience
+export type { RouteResult, RouteConfig } from './services/SemanticRouter.js';
+export type { TrajectoryStep, StoredTrajectory, PredictionResult, SonaStats } from './services/SonaTrajectoryService.js';
+export type { LLMConfig, LLMResponse } from './services/LLMRouter.js';
+export type { GraphTransformerStats } from './services/GraphTransformerService.js';
+export type { GNNConfig, IntentResult } from './services/GNNService.js';
+export type { RVFConfig } from './optimizations/RVFOptimizer.js';
+
+// Vector math utilities
+export { cosineSimilarity, batchCosineSimilarity, distanceToSimilarity, serializeEmbedding, deserializeEmbedding } from './utils/vector-math.js';
 
 // Re-export all controllers for convenience
 export * from './controllers/index.js';

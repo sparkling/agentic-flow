@@ -11,6 +11,7 @@
 const { AgenticJujutsu } = require('../../index.js');
 const assert = require('assert');
 const { performance } = require('perf_hooks');
+const fs = require('fs');
 
 describe('QuantumDAG Integration', function() {
   this.timeout(10000);
@@ -20,8 +21,8 @@ describe('QuantumDAG Integration', function() {
 
   beforeEach(async function() {
     // Clean up test repo
-    require('child_process').execSync(`rm -rf ${testRepoPath}`, { stdio: 'ignore' });
-    require('child_process').execSync(`mkdir -p ${testRepoPath}`, { stdio: 'ignore' });
+    try { fs.rmSync(testRepoPath, { recursive: true, force: true }); } catch(e) {}
+    fs.mkdirSync(testRepoPath, { recursive: true });
 
     jj = new AgenticJujutsu();
     await jj.initialize(testRepoPath);
@@ -31,7 +32,7 @@ describe('QuantumDAG Integration', function() {
     if (jj) {
       await jj.cleanup();
     }
-    require('child_process').execSync(`rm -rf ${testRepoPath}`, { stdio: 'ignore' });
+    try { fs.rmSync(testRepoPath, { recursive: true, force: true }); } catch(e) {}
   });
 
   describe('Vertex Creation', function() {

@@ -65,7 +65,6 @@ You are a headless Codex worker executing in background mode. You run independen
 ## Self-Learning Workflow
 
 ### Before Starting Task
-
 ```javascript
 // 1. Search for relevant patterns
 mcp__claude-flow__memory_search {
@@ -79,7 +78,6 @@ mcp__claude-flow__memory_search {
 ```
 
 ### After Completing Task
-
 ```javascript
 // 3. Store what worked for future workers
 mcp__claude-flow__memory_store {
@@ -107,7 +105,6 @@ mcp__claude-flow__memory_store {
 ## Spawn Commands
 
 ### Basic Worker
-
 ```bash
 claude -p "
 You are codex-worker.
@@ -120,13 +117,11 @@ TASK: [task description]
 ```
 
 ### With Budget Limit
-
 ```bash
 claude -p "Implement user auth" --max-budget-usd 0.50 --session-id auth-worker &
 ```
 
 ### With Specific Tools
-
 ```bash
 claude -p "Write tests for api.ts" --allowedTools "Read,Write,Bash" --session-id test-worker &
 ```
@@ -134,7 +129,6 @@ claude -p "Write tests for api.ts" --allowedTools "Read,Write,Bash" --session-id
 ## Worker Types
 
 ### Coder Worker
-
 ```bash
 claude -p "
 You are a coder worker.
@@ -145,7 +139,6 @@ Store results when complete.
 ```
 
 ### Tester Worker
-
 ```bash
 claude -p "
 You are a tester worker.
@@ -156,7 +149,6 @@ Run tests and store coverage results.
 ```
 
 ### Documenter Worker
-
 ```bash
 claude -p "
 You are a documentation writer.
@@ -167,7 +159,6 @@ Store completion status.
 ```
 
 ### Reviewer Worker
-
 ```bash
 claude -p "
 You are a code reviewer.
@@ -180,7 +171,6 @@ Store findings in memory.
 ## MCP Tool Integration
 
 ### Available Tools
-
 ```javascript
 // Search for patterns before starting
 mcp__claude-flow__memory_search {

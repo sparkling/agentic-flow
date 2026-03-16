@@ -125,7 +125,7 @@ async function checkRuVector(): Promise<RuVectorAvailability> {
     const core = await import('@ruvector/core');
 
     // Check if native bindings are available
-    const native = core.isNative?.() ?? false;
+    const native = (core as any).isNative?.() ?? false;
 
     // Get version (if available)
     const version = (core as any).version ?? 'unknown';

@@ -25,7 +25,6 @@ Task("Memory migration", "Migrate SQLite/Markdown to AgentDB", "v3-memory-specia
 ## Systems to Unify
 
 ### Legacy Systems → AgentDB
-
 ```
 ┌─────────────────────────────────────────┐
 │  • MemoryManager (basic operations)     │
@@ -49,13 +48,12 @@ Task("Memory migration", "Migrate SQLite/Markdown to AgentDB", "v3-memory-specia
 ## Implementation Architecture
 
 ### Unified Memory Service
-
 ```typescript
 class UnifiedMemoryService implements IMemoryBackend {
   constructor(
     private agentdb: AgentDBAdapter,
     private indexer: HNSWIndexer,
-    private migrator: DataMigrator,
+    private migrator: DataMigrator
   ) {}
 
   async store(entry: MemoryEntry): Promise<void> {
@@ -73,7 +71,6 @@ class UnifiedMemoryService implements IMemoryBackend {
 ```
 
 ### HNSW Vector Search
-
 ```typescript
 class HNSWIndexer {
   constructor(dimensions: number = 1536) {
@@ -81,7 +78,7 @@ class HNSWIndexer {
       dimensions,
       efConstruction: 200,
       M: 16,
-      speedupTarget: "150x-12500x",
+      speedupTarget: '150x-12500x'
     });
   }
 
@@ -96,18 +93,16 @@ class HNSWIndexer {
 ## Migration Strategy
 
 ### Phase 1: Foundation
-
 ```typescript
 // AgentDB adapter setup
 const agentdb = new AgentDBAdapter({
   dimensions: 1536,
-  indexType: "HNSW",
-  speedupTarget: "150x-12500x",
+  indexType: 'HNSW',
+  speedupTarget: '150x-12500x'
 });
 ```
 
 ### Phase 2: Data Migration
-
 ```typescript
 // SQLite → AgentDB
 const migrateFromSQLite = async () => {
@@ -120,14 +115,14 @@ const migrateFromSQLite = async () => {
 
 // Markdown → AgentDB
 const migrateFromMarkdown = async () => {
-  const files = await glob("**/*.md");
+  const files = await glob('**/*.md');
   for (const file of files) {
-    const content = await fs.readFile(file, "utf-8");
+    const content = await fs.readFile(file, 'utf-8');
     await agentdb.store({
       id: generateId(),
       content,
       embedding: await generateEmbedding(content),
-      metadata: { originalFile: file },
+      metadata: { originalFile: file }
     });
   }
 };
@@ -136,7 +131,6 @@ const migrateFromMarkdown = async () => {
 ## SONA Integration
 
 ### Learning Pattern Storage
-
 ```typescript
 class SONAMemoryIntegration {
   async storePattern(pattern: LearningPattern): Promise<void> {
@@ -146,17 +140,17 @@ class SONAMemoryIntegration {
       metadata: {
         sonaMode: pattern.mode,
         reward: pattern.reward,
-        adaptationTime: pattern.adaptationTime,
+        adaptationTime: pattern.adaptationTime
       },
-      embedding: await this.generateEmbedding(pattern.data),
+      embedding: await this.generateEmbedding(pattern.data)
     });
   }
 
   async retrieveSimilarPatterns(query: string): Promise<LearningPattern[]> {
     return this.memory.query({
-      type: "semantic",
+      type: 'semantic',
       content: query,
-      filters: { type: "learning_pattern" },
+      filters: { type: 'learning_pattern' }
     });
   }
 }

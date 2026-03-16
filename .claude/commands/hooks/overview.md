@@ -1,7 +1,6 @@
 # Claude Code Hooks for claude-flow
 
 ## Purpose
-
 Automatically coordinate, format, and learn from Claude Code operations using hooks.
 
 ## Available Hooks
@@ -13,7 +12,6 @@ Automatically coordinate, format, and learn from Claude Code operations using ho
 - **pre-task**: Auto-spawn agents for complex tasks
 
 ### Post-Operation Hooks
-
 - **post-edit**: Auto-format code and train neural patterns
 - **post-bash**: Log execution and update metrics
 - **post-search**: Cache results and improve search patterns
@@ -41,12 +39,10 @@ Hooks are configured in `.claude/settings.json`:
     "PreToolUse": [
       {
         "matcher": "^(Write|Edit|MultiEdit)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "npx claude-flow hook pre-edit --file '${tool.params.file_path}'"
-          }
-        ]
+        "hooks": [{
+          "type": "command",
+          "command": "npx claude-flow hook pre-edit --file '${tool.params.file_path}'"
+        }]
       }
     ]
   }

@@ -15,6 +15,7 @@ const { AgenticJujutsu } = require('../../index.js');
 const assert = require('assert');
 const { performance } = require('perf_hooks');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 
 describe('Quantum Full Workflow', function() {
@@ -24,8 +25,8 @@ describe('Quantum Full Workflow', function() {
   const testRepoPath = '/tmp/quantum-workflow-test';
 
   beforeEach(async function() {
-    require('child_process').execSync(`rm -rf ${testRepoPath}`, { stdio: 'ignore' });
-    require('child_process').execSync(`mkdir -p ${testRepoPath}`, { stdio: 'ignore' });
+    try { fsSync.rmSync(testRepoPath, { recursive: true, force: true }); } catch(e) {}
+    fsSync.mkdirSync(testRepoPath, { recursive: true });
 
     jj = new AgenticJujutsu();
     await jj.initialize(testRepoPath);
@@ -35,7 +36,7 @@ describe('Quantum Full Workflow', function() {
     if (jj) {
       await jj.cleanup();
     }
-    require('child_process').execSync(`rm -rf ${testRepoPath}`, { stdio: 'ignore' });
+    try { fsSync.rmSync(testRepoPath, { recursive: true, force: true }); } catch(e) {}
   });
 
   describe('Complete Workflow: Single Agent', function() {

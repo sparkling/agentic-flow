@@ -8,7 +8,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import { logger } from '../utils/logger.js';
-import Database from 'better-sqlite3';
+import Database from '../db/sql-adapter.js';
 // AgentDB is optional - federation works with SQLite only
 type AgentDB = any;
 
@@ -44,7 +44,7 @@ export class FederationHubServer {
   private wss?: WebSocketServer;
   private server?: ReturnType<typeof createServer>;
   private connections: Map<string, AgentConnection> = new Map();
-  private db: Database.Database;
+  private db: Database;
   private agentDB: AgentDB;
   private globalVectorClock: Record<string, number> = {};
 

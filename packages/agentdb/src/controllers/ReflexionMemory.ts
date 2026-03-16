@@ -16,7 +16,7 @@ import type { LearningBackend } from '../backends/LearningBackend.js';
 import type { GraphBackend, GraphNode } from '../backends/GraphBackend.js';
 import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
 import { NodeIdMapper } from '../utils/NodeIdMapper.js';
-import { QueryCache, type QueryCacheConfig } from '../core/QueryCache.js';
+import { cosineSimilarity } from '../utils/vector-math.js';
 
 export interface Episode {
   id?: number;
@@ -139,10 +139,12 @@ export class ReflexionMemory {
 
       // Store embedding using vectorBackend if available
       if (this.vectorBackend && taskEmbedding) {
-        this.vectorBackend.insert(nodeId, taskEmbedding, {
-          type: 'episode',
-          sessionId: episode.sessionId,
-        });
+        try {
+          this.vectorBackend.insert(nodeId, taskEmbedding, {
+            type: 'episode',
+            sessionId: episode.sessionId
+          });
+        } catch { /* vectorBackend insert failed — graph node still created */ }
       }
 
       // Return a numeric ID (parse from string ID)
@@ -187,7 +189,9 @@ export class ReflexionMemory {
 
     // Use vector backend if available (150x faster retrieval)
     if (this.vectorBackend) {
-      this.vectorBackend.insert(episodeId.toString(), embedding);
+      try {
+        this.vectorBackend.insert(episodeId.toString(), embedding);
+      } catch { /* vectorBackend insert failed — SQL fallback used */ }
     }
 
     // Also store in SQL for fallback
@@ -464,15 +468,67 @@ export class ReflexionMemory {
       cypherQuery += ` AND e.createdAt >= ${cutoff}`;
     }
 
-    cypherQuery += ` RETURN e LIMIT ${k * 3}`;
-    return cypherQuery;
-  }
+    // Use optimized vector backend if available (150x faster)
+    if (this.vectorBackend) {
+      try {
+      // Get candidates from vector backend
+      const searchResults = this.vectorBackend.search(queryEmbedding, k * 3, {
+        threshold: 0.0
+      });
 
-  /**
-   * Build SQL WHERE clause and parameters for filters
-   */
-  private buildSQLFilters(query: ReflexionQuery): { whereClause: string; params: any[] } {
-    const { minReward, onlyFailures, onlySuccesses, timeWindowDays } = query;
+      // Fetch full episode data from DB
+      const episodeIds = searchResults.map(r => parseInt(r.id));
+      if (episodeIds.length === 0) {
+        return [];
+      }
+
+      const placeholders = episodeIds.map(() => '?').join(',');
+      const stmt = this.db.prepare(`
+        SELECT * FROM episodes
+        WHERE id IN (${placeholders})
+      `);
+
+      const rows = stmt.all(...episodeIds) as any[];
+      const episodeMap = new Map(rows.map(r => [r.id.toString(), r]));
+
+      // Map results back with similarity scores and apply filters
+      const episodes: EpisodeWithEmbedding[] = [];
+
+      for (const result of searchResults) {
+        const row = episodeMap.get(result.id);
+        if (!row) continue;
+
+        // Apply additional filters
+        if (minReward !== undefined && row.reward < minReward) continue;
+        if (onlyFailures && row.success === 1) continue;
+        if (onlySuccesses && row.success === 0) continue;
+        if (timeWindowDays && row.ts < (Date.now() / 1000 - timeWindowDays * 86400)) continue;
+
+        episodes.push({
+          id: row.id,
+          ts: row.ts,
+          sessionId: row.session_id,
+          task: row.task,
+          input: row.input,
+          output: row.output,
+          critique: row.critique,
+          reward: row.reward,
+          success: row.success === 1,
+          latencyMs: row.latency_ms,
+          tokensUsed: row.tokens_used,
+          tags: row.tags ? JSON.parse(row.tags) : undefined,
+          metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+          similarity: result.similarity
+        });
+
+        if (episodes.length >= k) break;
+      }
+
+      return episodes;
+      } catch { /* vectorBackend search failed — fall through to SQL */ }
+    }
+
+    // Fallback to SQL-based similarity search
     const filters: string[] = [];
     const params: any[] = [];
 
@@ -495,7 +551,46 @@ export class ReflexionMemory {
     }
 
     const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
-    return { whereClause, params };
+
+    const stmt = this.db.prepare(`
+      SELECT
+        e.*,
+        ee.embedding
+      FROM episodes e
+      JOIN episode_embeddings ee ON e.id = ee.episode_id
+      ${whereClause}
+      ORDER BY e.reward DESC
+    `);
+
+    const rows = stmt.all(...params) as any[];
+
+    // Calculate similarities manually
+    const episodes: EpisodeWithEmbedding[] = rows.map(row => {
+      const embedding = this.deserializeEmbedding(row.embedding);
+      const similarity = cosineSimilarity(queryEmbedding, embedding);
+
+      return {
+        id: row.id,
+        ts: row.ts,
+        sessionId: row.session_id,
+        task: row.task,
+        input: row.input,
+        output: row.output,
+        critique: row.critique,
+        reward: row.reward,
+        success: row.success === 1,
+        latencyMs: row.latency_ms,
+        tokensUsed: row.tokens_used,
+        tags: row.tags ? JSON.parse(row.tags) : undefined,
+        metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+        embedding,
+        similarity
+      };
+    });
+
+    // Sort by similarity and return top-k
+    episodes.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+    return episodes.slice(0, k);
   }
 
   /**
@@ -847,20 +942,6 @@ export class ReflexionMemory {
     return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.length / 4);
   }
 
-  private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-  }
-
   // ========================================================================
   // GNN and Graph Integration Methods
   // ========================================================================
@@ -896,10 +977,18 @@ export class ReflexionMemory {
     // Create similarity relationships to similar episodes
     for (const similar of similarEpisodes) {
       if (similar.id !== nodeId && similar.properties.episodeId !== episodeId) {
-        await this.graphBackend.createRelationship(nodeId, similar.id, 'SIMILAR_TO', {
-          similarity: this.cosineSimilarity(embedding, similar.embedding || new Float32Array()),
-          createdAt: Date.now(),
-        });
+        await this.graphBackend.createRelationship(
+          nodeId,
+          similar.id,
+          'SIMILAR_TO',
+          {
+            similarity: cosineSimilarity(
+              embedding,
+              similar.embedding || new Float32Array()
+            ),
+            createdAt: Date.now()
+          }
+        );
       }
     }
 

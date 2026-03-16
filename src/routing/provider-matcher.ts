@@ -1,11 +1,90 @@
 /**
  * Provider Matcher
- * Matches patient queries to the most suitable providers
+ * Matches patient queries to the most suitable providers.
+ * Optionally enhanced with semantic routing via @ruvector/router.
  */
 
 import { ProviderMatch } from './types';
 import { PatientQuery } from '../providers/types';
 import { Provider, ProviderStatus } from '../providers/types';
+
+// --- Semantic Routing Layer (Phase 2: ADR-057) ---
+
+let semanticRouterInstance: any = null;
+let semanticRouterAvailable = false;
+
+async function initSemanticRouter(): Promise<void> {
+  try {
+    // Use variable to prevent tsc from statically resolving the optional package
+    const routerPkg = '@ruvector/router';
+    const { Router } = await import(/* webpackIgnore: true */ routerPkg);
+    semanticRouterInstance = new Router();
+    semanticRouterAvailable = true;
+  } catch {
+    // @ruvector/router not available; keyword matching only
+    semanticRouterAvailable = false;
+  }
+}
+
+// Initialize once on module load (non-blocking)
+initSemanticRouter().catch(() => {});
+
+/**
+ * Semantic matching: uses @ruvector/router when available, falls back to keyword overlap.
+ * Matches a free-text query against a list of candidate strings.
+ */
+export async function semanticMatch(
+  query: string,
+  candidates: string[]
+): Promise<{ match: string; confidence: number }> {
+  if (candidates.length === 0) {
+    return { match: '', confidence: 0 };
+  }
+
+  // Try semantic router first
+  if (semanticRouterAvailable && semanticRouterInstance) {
+    try {
+      for (const candidate of candidates) {
+        await semanticRouterInstance.addRoute(candidate, candidate);
+      }
+      const result = await semanticRouterInstance.route(query);
+      if (result) {
+        return {
+          match: result.name || String(result),
+          confidence: typeof result.score === 'number' ? result.score : 0.8,
+        };
+      }
+    } catch {
+      // Fall through to keyword matching
+    }
+  }
+
+  // Fallback: keyword overlap scoring
+  const queryWords = new Set(query.toLowerCase().split(/\s+/).filter(Boolean));
+  let bestMatch = candidates[0];
+  let bestScore = 0;
+
+  for (const candidate of candidates) {
+    const candidateWords = candidate.toLowerCase().split(/\s+/).filter(Boolean);
+    const overlap = candidateWords.filter(w => queryWords.has(w)).length;
+    const score = queryWords.size > 0 ? overlap / queryWords.size : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = candidate;
+    }
+  }
+
+  return { match: bestMatch, confidence: Math.max(bestScore, 0.5) };
+}
+
+/**
+ * Check whether semantic routing is active (for diagnostics).
+ */
+export function isSemanticRoutingAvailable(): boolean {
+  return semanticRouterAvailable;
+}
+
+// --- End Semantic Routing Layer ---
 
 export class ProviderMatcher {
   /**

@@ -15,8 +15,7 @@
  * - Privacy requirements (local models via RuvLLM or ONNX)
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
+import dotenv from 'dotenv';
 
 // Lazy-loaded RuvLLM to avoid import failures if not installed
 let RuvLLMEngine: any = null;
@@ -93,39 +92,14 @@ export class LLMRouter {
   }
 
   /**
-   * Load environment variables from root .env file
+   * Load environment variables using dotenv
    */
   private loadEnv(): void {
     if (this.envLoaded) return;
 
     try {
-      // Look for .env in project root
-      const possiblePaths = [
-        path.join(process.cwd(), '.env'),
-        path.join(process.cwd(), '..', '..', '.env'),
-        '/workspaces/agentic-flow/.env'
-      ];
-
-      for (const envPath of possiblePaths) {
-        if (fs.existsSync(envPath)) {
-          const envContent = fs.readFileSync(envPath, 'utf-8');
-          const lines = envContent.split('\n');
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed && !trimmed.startsWith('#')) {
-              const [key, ...valueParts] = trimmed.split('=');
-              const value = valueParts.join('=').trim();
-              if (key && value && !process.env[key]) {
-                process.env[key] = value;
-              }
-            }
-          }
-
-          this.envLoaded = true;
-          break;
-        }
-      }
+      dotenv.config();
+      this.envLoaded = true;
     } catch (error) {
       // Silent fail - environment variables may be set directly
     }

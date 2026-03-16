@@ -1,3 +1,8 @@
+---
+name: "reasoning-agents"
+description: "Reasoning agents overview for Agentic-Flow"
+---
+
 # Reasoning Agents for Agentic-Flow
 
 This directory contains **5 specialized reasoning agents** that leverage ReasoningBank's closed-loop learning system to provide intelligent, adaptive task execution with continuous improvement.

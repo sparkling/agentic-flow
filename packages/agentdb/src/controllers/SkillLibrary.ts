@@ -14,7 +14,7 @@ import { EmbeddingService } from './EmbeddingService.js';
 import { VectorBackend } from '../backends/VectorBackend.js';
 import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
 import { NodeIdMapper } from '../utils/NodeIdMapper.js';
-import { QueryCache, type QueryCacheConfig } from '../core/QueryCache.js';
+import { cosineSimilarity } from '../utils/vector-math.js';
 
 export interface Skill {
   id?: number;
@@ -141,12 +141,21 @@ export class SkillLibrary {
 
     // Store in VectorBackend with skill metadata (if available)
     if (this.vectorBackend) {
-      this.vectorBackend.insert(`skill:${skillId}`, embedding, {
-        name: skill.name,
-        description: skill.description,
-        successRate: skill.successRate,
-        avgReward: skill.avgReward,
-      });
+      try {
+        this.vectorBackend.insert(
+          `skill:${skillId}`,
+          embedding,
+          {
+            name: skill.name,
+            description: skill.description,
+            successRate: skill.successRate,
+            avgReward: skill.avgReward
+          }
+        );
+      } catch {
+        // VectorBackend insert failed — fall back to legacy
+        this.storeSkillEmbeddingLegacy(skillId, embedding);
+      }
     } else {
       // Legacy: store in database
       this.storeSkillEmbeddingLegacy(skillId, embedding);
@@ -253,58 +262,56 @@ export class SkillLibrary {
 
     // Use VectorBackend for semantic search (if available)
     if (this.vectorBackend) {
-      const searchResults = this.vectorBackend.search(queryEmbedding, k * 3);
+      try {
+        const searchResults = this.vectorBackend.search(queryEmbedding, k * 3);
 
-      // Map results back to skill IDs and fetch full skill data
-      const skillsWithSimilarity: (Skill & { similarity: number })[] = [];
+        // Map results back to skill IDs and fetch full skill data
+        const skillsWithSimilarity: (Skill & { similarity: number })[] = [];
 
-      // Prepare statement ONCE outside loop (better-sqlite3 best practice)
-      const getSkillStmt = this.db.prepare<DatabaseRows.Skill>('SELECT * FROM skills WHERE id = ?');
+        // Prepare statement ONCE outside loop (better-sqlite3 best practice)
+        const getSkillStmt = this.db.prepare('SELECT * FROM skills WHERE id = ?');
 
-      for (const result of searchResults) {
-        // Extract skill ID from vector ID (format: "skill:123")
-        const skillId = parseInt(result.id.replace('skill:', ''));
+        for (const result of searchResults) {
+          // Extract skill ID from vector ID (format: "skill:123")
+          const skillId = parseInt(result.id.replace('skill:', ''));
 
-        // Fetch full skill data from database
-        const row = getSkillStmt.get(skillId);
+          // Fetch full skill data from database
+          const row = getSkillStmt.get(skillId);
 
-        if (!row) continue;
+          if (!row) continue;
 
-        // Apply filters
-        if (row.success_rate < minSuccessRate) continue;
+          // Apply filters
+          if (row.success_rate < minSuccessRate) continue;
 
-        skillsWithSimilarity.push({
-          id: row.id,
-          name: row.name,
-          description: row.description ?? undefined,
-          signature: JSON.parse(row.signature),
-          code: row.code ?? undefined,
-          successRate: row.success_rate,
-          uses: row.uses,
-          avgReward: row.avg_reward,
-          avgLatencyMs: row.avg_latency_ms,
-          createdFromEpisode: row.created_from_episode ?? undefined,
-          metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
-          similarity: result.similarity,
+          skillsWithSimilarity.push({
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            signature: JSON.parse(row.signature),
+            code: row.code,
+            successRate: row.success_rate,
+            uses: row.uses,
+            avgReward: row.avg_reward,
+            avgLatencyMs: row.avg_latency_ms,
+            createdFromEpisode: row.created_from_episode,
+            metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+            similarity: result.similarity
+          });
+        }
+
+        // Compute composite scores
+        skillsWithSimilarity.sort((a, b) => {
+          const scoreA = this.computeSkillScore(a);
+          const scoreB = this.computeSkillScore(b);
+          return scoreB - scoreA;
         });
-      }
 
-      // Compute composite scores
-      skillsWithSimilarity.sort((a, b) => {
-        const scoreA = this.computeSkillScore(a);
-        const scoreB = this.computeSkillScore(b);
-        return scoreB - scoreA;
-      });
-
-      const results = skillsWithSimilarity.slice(0, k);
-
-      // Cache the results
-      this.queryCache.set(cacheKey, results);
-      return results;
-    } else {
-      // Legacy: use SQL-based similarity search
-      return this.retrieveSkillsLegacy(query);
+        return skillsWithSimilarity.slice(0, k);
+      } catch { /* vectorBackend search failed — fall through to SQL */ }
     }
+
+    // Legacy: use SQL-based similarity search
+    return this.retrieveSkillsLegacy(query);
   }
 
   /**
@@ -335,7 +342,7 @@ export class SkillLibrary {
       if (!row.embedding) continue;
 
       const embedding = new Float32Array(row.embedding.buffer);
-      const similarity = this.cosineSimilarity(queryEmbedding, embedding);
+      const similarity = cosineSimilarity(queryEmbedding, embedding);
 
       skillsWithSimilarity.push({
         id: row.id,
@@ -374,23 +381,6 @@ export class SkillLibrary {
     `);
     const buffer = Buffer.from(embedding.buffer);
     stmt.run(skillId, buffer);
-  }
-
-  /**
-   * Cosine similarity between two vectors
-   */
-  private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
   /**

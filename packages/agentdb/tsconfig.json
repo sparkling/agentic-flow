@@ -38,10 +38,6 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "src/middleware/**",
-    "src/db/migrations/**",
-    "src/utils/crypto.utils.ts",
-    "src/services/token.service.ts",
-    "src/services/auth.service.ts"
+    "src/cli/lib/report-store.ts"
   ]
 }

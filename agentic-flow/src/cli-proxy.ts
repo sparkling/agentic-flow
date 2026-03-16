@@ -69,7 +69,7 @@ class AgenticFlowCLI {
     }
 
     // If no mode and no agent specified, show help
-    if (!options.agent && options.mode !== 'list' && !['init', 'config', 'agent-manager', 'mcp-manager', 'proxy', 'quic', 'claude-code', 'mcp', 'reasoningbank', 'federation', 'hooks', 'workers', 'embeddings'].includes(options.mode)) {
+    if (!options.agent && options.mode !== 'list' && !['config', 'agent-manager', 'mcp-manager', 'proxy', 'quic', 'claude-code', 'mcp', 'reasoningbank', 'federation', 'daemon', 'hive-mind', 'hivemind', 'hooks', 'session', 'swarm', 'memory', 'task', 'doctor', 'autopilot'].includes(options.mode)) {
       this.printHelp();
       process.exit(0);
     }
@@ -195,62 +195,57 @@ class AgenticFlowCLI {
       process.exit(0);
     }
 
+    if (options.mode === 'daemon') {
+      const { handleDaemonCommand } = await import('./cli/daemon-cli.js');
+      await handleDaemonCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'hive-mind' || options.mode === 'hivemind') {
+      const { handleHiveMindCommand } = await import('./cli/hivemind-cli.js');
+      await handleHiveMindCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
     if (options.mode === 'hooks') {
-      // Handle Hooks commands (intelligence, init, pre-edit, post-edit, etc.)
-      const { spawn } = await import('child_process');
-      const { resolve, dirname } = await import('path');
-      const { fileURLToPath } = await import('url');
-
-      const __filename = fileURLToPath(import.meta.url);
-      const __dirname = dirname(__filename);
-      const hooksPath = resolve(__dirname, './cli/commands/hooks.js');
-
-      // Pass all args after 'hooks' to hooks command
-      const hooksArgs = process.argv.slice(3);
-
-      const proc = spawn('node', [hooksPath, ...hooksArgs], {
-        stdio: 'inherit'
-      });
-
-      proc.on('exit', (code) => {
-        process.exit(code || 0);
-      });
-
-      process.on('SIGINT', () => proc.kill('SIGINT'));
-      process.on('SIGTERM', () => proc.kill('SIGTERM'));
-      return;
+      const { handleHooksCommand } = await import('./cli/hooks-cli.js');
+      await handleHooksCommand(process.argv.slice(3));
+      process.exit(0);
     }
 
-    if (options.mode === 'workers') {
-      // Handle Workers commands (status, cleanup, dispatch-prompt, etc.)
-      const { spawn } = await import('child_process');
-      const { resolve, dirname } = await import('path');
-      const { fileURLToPath } = await import('url');
-
-      const __filename = fileURLToPath(import.meta.url);
-      const __dirname = dirname(__filename);
-      const workersPath = resolve(__dirname, './cli/commands/workers.js');
-
-      // Pass all args after 'workers' to workers command
-      const workersArgs = process.argv.slice(3);
-
-      const proc = spawn('node', [workersPath, ...workersArgs], {
-        stdio: 'inherit'
-      });
-
-      proc.on('exit', (code) => {
-        process.exit(code || 0);
-      });
-
-      process.on('SIGINT', () => proc.kill('SIGINT'));
-      process.on('SIGTERM', () => proc.kill('SIGTERM'));
-      return;
+    if (options.mode === 'session') {
+      const { handleSessionCommand } = await import('./cli/session-cli.js');
+      await handleSessionCommand(process.argv.slice(3));
+      process.exit(0);
     }
 
-    if (options.mode === 'embeddings') {
-      // Handle Embeddings commands (init, download, list, benchmark, status)
-      const { handleEmbeddingsCommand } = await import('./cli/commands/embeddings.js');
-      await handleEmbeddingsCommand(process.argv.slice(3));
+    if (options.mode === 'swarm') {
+      const { handleSwarmCommand } = await import('./cli/swarm-cli.js');
+      await handleSwarmCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'memory') {
+      const { handleMemoryCommand } = await import('./cli/memory-cli.js');
+      await handleMemoryCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'task') {
+      const { handleTaskCommand } = await import('./cli/task-cli.js');
+      await handleTaskCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'doctor') {
+      const { handleDoctorCommand } = await import('./cli/doctor-cli.js');
+      await handleDoctorCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'autopilot') {
+      const { handleAutopilotCommand } = await import('./cli/autopilot-cli.js');
+      await handleAutopilotCommand(process.argv.slice(3));
       process.exit(0);
     }
 

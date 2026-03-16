@@ -26,10 +26,6 @@ server.addTool({
     model: z.string().optional().describe('Model to use (e.g., "claude-sonnet-4-5-20250929" for Anthropic, "meta-llama/llama-3.1-8b-instruct" for OpenRouter, or "Xenova/gpt2" for ONNX local models)'),
     provider: z.enum(['anthropic', 'openrouter', 'onnx', 'gemini']).optional().describe('LLM provider: "anthropic" (default, highest quality, requires ANTHROPIC_API_KEY), "gemini" (free tier, requires GOOGLE_GEMINI_API_KEY), "openrouter" (99% cost savings, requires OPENROUTER_API_KEY), "onnx" (free local inference, no API key needed)'),
 
-    // API Configuration
-    anthropicApiKey: z.string().optional().describe('Anthropic API key (sk-ant-...) - overrides ANTHROPIC_API_KEY environment variable'),
-    openrouterApiKey: z.string().optional().describe('OpenRouter API key (sk-or-...) - overrides OPENROUTER_API_KEY environment variable'),
-
     // Agent Behavior
     stream: z.boolean().optional().default(false).describe('Enable streaming output (real-time response chunks)'),
     temperature: z.number().min(0).max(1).optional().describe('Sampling temperature (0.0-1.0): lower = more focused/deterministic, higher = more creative/random. Default varies by agent.'),
@@ -51,8 +47,6 @@ server.addTool({
     task,
     model,
     provider,
-    anthropicApiKey,
-    openrouterApiKey,
     stream,
     temperature,
     maxTokens,
@@ -70,10 +64,7 @@ server.addTool({
       if (model) cmd += ` --model "${model}"`;
       if (provider) cmd += ` --provider ${provider}`;
 
-      // API Keys (set as env vars)
       const env = { ...process.env };
-      if (anthropicApiKey) env.ANTHROPIC_API_KEY = anthropicApiKey;
-      if (openrouterApiKey) env.OPENROUTER_API_KEY = openrouterApiKey;
 
       // Agent Behavior
       if (stream) cmd += ' --stream';

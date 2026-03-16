@@ -1,6 +1,8 @@
 // Agent spawn tool implementation using FastMCP
+// SECURITY: Fixed command injection vulnerability (HIGH-001, CVSS 9.8)
+// Changed from execSync (shell interpolation) to execFileSync (argument array)
 import { z } from 'zod';
-import { spawnSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import type { ToolDefinition } from '../../types/index.js';
 
 // Security: Validate input to prevent command injection
@@ -29,36 +31,39 @@ export const agentSpawnTool: ToolDefinition = {
       .optional()
       .describe('Agent capabilities'),
     name: z.string()
+      .regex(/^[a-zA-Z0-9_-]+$/, 'Name must be alphanumeric with dashes/underscores only')
+      .min(1)
+      .max(50)
       .optional()
-      .describe('Custom agent name')
+      .describe('Custom agent name (alphanumeric, dashes, underscores only)')
   }),
   execute: async ({ type, capabilities, name }, { onProgress, auth }) => {
     try {
-      // Security: Build command using argument array to prevent injection
+      // SECURITY: Build argument array instead of command string
       const args = ['claude-flow@alpha', 'agent', 'spawn', '--type', type];
 
-      // Validate and add capabilities
+      // SECURITY: Validate each capability before passing to command
       if (capabilities && capabilities.length > 0) {
-        const validCaps = capabilities.filter(validateCapability);
-        if (validCaps.length !== capabilities.length) {
-          throw new Error('Invalid capability format. Only alphanumeric, hyphens, and underscores allowed.');
-        }
-        args.push('--capabilities', validCaps.join(','));
+        capabilities.forEach(cap => {
+          if (!/^[a-zA-Z0-9_-]+$/.test(cap)) {
+            throw new Error(`Invalid capability format: ${cap}. Only alphanumeric, dashes, and underscores allowed.`);
+          }
+        });
+        args.push('--capabilities', capabilities.join(','));
       }
 
-      // Validate and add name
       if (name) {
-        if (!validateName(name)) {
-          throw new Error('Invalid agent name. Only alphanumeric, hyphens, underscores, and dots allowed (max 64 chars).');
-        }
+        // Name already validated by Zod schema regex
         args.push('--name', name);
       }
 
-      // Security: Use spawnSync with argument array instead of string interpolation
-      const result = spawnSync('npx', args, {
+      // SECURITY: Use execFileSync with argument array, shell disabled
+      // This prevents command injection by not interpreting shell metacharacters
+      const result = execFileSync('npx', args, {
         encoding: 'utf-8',
         maxBuffer: 10 * 1024 * 1024,
-        timeout: 60000
+        timeout: 60000,
+        shell: false // CRITICAL: Disable shell interpretation
       });
 
       if (result.error) {

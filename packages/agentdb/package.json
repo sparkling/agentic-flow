@@ -1,7 +1,7 @@
 {
   "name": "agentdb",
-  "version": "3.0.0-alpha.3-patch.23",
-  "description": "AgentDB v3 - Intelligent agentic vector database with RVF native format, RuVector-powered graph DB, Cypher queries, ACID persistence. 150x faster than SQLite with self-learning GNN, 6 cognitive memory patterns, semantic routing, COW branching, and comprehensive MCP integration. Runs anywhere: Node.js, browsers, edge, offline.",
+  "version": "3.0.0-alpha.10",
+  "description": "AgentDB v3 — Proof-gated graph intelligence for AI agents. Every state mutation requires cryptographic proof. Native Rust performance via @ruvector/graph-transformer with 8 verified graph modules, HNSW search, causal reasoning, and reflexion memory.",
   "type": "module",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
@@ -10,29 +10,33 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js",
+      "require": "./dist/src/index.cjs",
       "default": "./dist/src/index.js"
     },
-    "./wasm": "./dist/src/wasm-loader.js",
     "./package.json": "./package.json",
-    "./cli": "./dist/src/cli/agentdb-cli.js",
-    "./cli/commands/migrate": "./dist/src/cli/commands/migrate.js",
-    "./db-fallback": "./dist/src/db-fallback.js",
-    "./backends": "./dist/src/backends/index.js",
-    "./backends/self-learning": "./dist/src/backends/rvf/SelfLearningRvfBackend.js",
-    "./backends/native-accelerator": "./dist/src/backends/rvf/NativeAccelerator.js",
-    "./security": "./dist/src/security/input-validation.js",
-    "./wrappers": "./dist/src/wrappers/index.js",
-    "./wrappers/gnn": "./dist/src/wrappers/gnn-wrapper.js",
-    "./wrappers/agentdb-fast": "./dist/src/wrappers/agentdb-fast.js",
-    "./wrappers/attention": "./dist/src/wrappers/attention-fallbacks.js",
-    "./wrappers/embedding": "./dist/src/wrappers/embedding-service.js",
-    "./controllers": "./dist/src/controllers/index.js",
+    "./cli": "./dist/cli/agentdb-cli.js",
+    "./controllers": {
+      "import": "./dist/src/controllers/index.js",
+      "require": "./dist/src/controllers/index.cjs",
+      "default": "./dist/src/controllers/index.js"
+    },
+    "./backends": {
+      "import": "./dist/src/backends/index.js",
+      "require": "./dist/src/backends/index.cjs",
+      "default": "./dist/src/backends/index.js"
+    },
+    "./security": {
+      "import": "./dist/src/security/index.js",
+      "require": "./dist/src/security/index.cjs",
+      "default": "./dist/src/security/index.js"
+    },
     "./controllers/CausalMemoryGraph": "./dist/src/controllers/CausalMemoryGraph.js",
     "./controllers/CausalRecall": "./dist/src/controllers/CausalRecall.js",
     "./controllers/ExplainableRecall": "./dist/src/controllers/ExplainableRecall.js",
     "./controllers/NightlyLearner": "./dist/src/controllers/NightlyLearner.js",
+    "./controllers/LearningSystem": "./dist/src/controllers/LearningSystem.js",
+    "./controllers/ReasoningBank": "./dist/src/controllers/ReasoningBank.js",
     "./controllers/ReflexionMemory": "./dist/src/controllers/ReflexionMemory.js",
     "./controllers/SkillLibrary": "./dist/src/controllers/SkillLibrary.js",
     "./controllers/EmbeddingService": "./dist/src/controllers/EmbeddingService.js",
@@ -45,13 +49,12 @@
     "./controllers/QUICClient": "./dist/src/controllers/QUICClient.js",
     "./controllers/SyncCoordinator": "./dist/src/controllers/SyncCoordinator.js",
     "./controllers/HNSWIndex": "./dist/src/controllers/HNSWIndex.js",
-    "./controllers/AttentionService": "./dist/src/controllers/AttentionService.js",
-    "./services/federated-learning": "./dist/src/services/federated-learning.js",
-    "./model": "./dist/src/model/ModelCacheLoader.js"
+    "./controllers/AttentionService": "./dist/src/controllers/AttentionService.js"
   },
   "scripts": {
-    "build": "npm run build:ts && npm run copy:schemas && npm run build:browser",
+    "build": "npm run build:ts && npm run build:cjs && npm run copy:schemas && npm run build:browser",
     "build:ts": "tsc",
+    "build:cjs": "node scripts/build-cjs.js",
     "copy:schemas": "mkdir -p dist/schemas && cp src/schemas/*.sql dist/schemas/",
     "build:browser": "node scripts/build-browser.js && node scripts/build-browser-v2.js",
     "build:napi": "bash scripts/optimize-napi.sh",
@@ -92,7 +95,13 @@
     "embeddings",
     "sqlite",
     "sql.js",
-    "wasm"
+    "wasm",
+    "proof-gated",
+    "graph-transformer",
+    "attestation",
+    "verified-training",
+    "causal-attention",
+    "mutation-guard"
   ],
   "author": "ruv",
   "license": "MIT",
@@ -105,60 +114,60 @@
     "url": "https://github.com/ruvnet/agentic-flow/issues"
   },
   "homepage": "https://agentdb.ruv.io",
+  "peerDependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "better-sqlite3": "^11.8.1"
+  },
+  "peerDependenciesMeta": {
+    "@xenova/transformers": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.1",
-    "@opentelemetry/api": "^1.9.0",
-    "ajv": "^8.18.0",
-    "jsonwebtoken": "^9.0.2",
-    "sql.js": "^1.13.0"
+    "@ruvector/graph-transformer": "^2.0.4",
+    "ajv": "^8.17.1",
+    "ruvector": "^0.1.99",
+    "sql.js": "^1.13.0",
+    "zod": "^3.25.76"
+  },
+  "optionalDependencies": {
+    "@ruvector/attention": "^0.1.31",
+    "@ruvector/gnn": "^0.1.25",
+    "@ruvector/graph-node": "^2.0.2",
+    "@ruvector/router": "^0.1.28",
+    "@ruvector/sona": "^0.1.5",
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "hnswlib-node": "^3.0.0",
+    "inquirer": "^9.3.8",
+    "marked-terminal": "^6.0.0",
+    "ora": "^7.0.0",
+    "ruvector-attention-wasm": "^0.1.0",
+    "ruvector-graph-transformer-wasm": "^2.0.4",
+    "sqlite": "^5.1.1"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.10.2",
-    "dotenv": "^16.4.7",
+    "@xenova/transformers": "^2.17.2",
     "esbuild": "^0.25.11",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^4.0.15"
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "files": [
-    "dist/src/",
-    "dist/schemas/",
-    "dist/models/",
+    "dist",
     "scripts/postinstall.cjs",
     "README.md",
     "LICENSE"
-  ],
-  "optionalDependencies": {
-    "@opentelemetry/resources": "^1.25.0",
-    "@opentelemetry/sdk-node": "^0.52.0",
-    "@opentelemetry/semantic-conventions": "^1.25.0",
-    "@ruvector/attention": "^0.1.2",
-    "@ruvector/gnn": "^0.1.23",
-    "@ruvector/graph-node": "^2.0.2",
-    "@ruvector/router": "^0.1.15",
-    "@ruvector/ruvllm": "^2.5.1",
-    "@ruvector/rvf": "^0.1.9",
-    "@ruvector/rvf-node": "^0.1.7",
-    "@ruvector/rvf-solver": "^0.1.7",
-    "@ruvector/rvf-wasm": "^0.1.6",
-    "@ruvector/sona": "^0.1.4",
-    "@xenova/transformers": "^2.17.2",
-    "argon2": "^0.44.0",
-    "better-sqlite3": "^11.8.1",
-    "chalk": "^5.3.0",
-    "commander": "^12.1.0",
-    "hnswlib-node": "^3.0.0",
-    "inquirer": "^9.3.8",
-    "ruvector": "^0.1.30",
-    "ruvector-attention-wasm": "^0.1.0"
-  },
-  "overrides": {
-    "@xenova/transformers": {
-      "sharp": "^0.33.0"
-    }
-  }
+  ]
 }

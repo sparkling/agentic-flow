@@ -21,7 +21,7 @@
 // Database type from db-fallback
 type Database = any;
 import * as crypto from 'crypto';
-import { AttentionService, type GraphRoPEConfig } from '../services/AttentionService.js';
+import { AttentionService, type GraphRoPEConfig } from '../utils/LegacyAttentionAdapter.js';
 import { EmbeddingService } from './EmbeddingService.js';
 
 /**

@@ -13,6 +13,7 @@ const { AgenticJujutsu } = require('../../index.js');
 const assert = require('assert');
 const { performance } = require('perf_hooks');
 const crypto = require('crypto');
+const fs = require('fs');
 
 describe('ML-DSA Signing', function() {
   this.timeout(15000);
@@ -21,8 +22,8 @@ describe('ML-DSA Signing', function() {
   const testRepoPath = '/tmp/ml-dsa-signing-test';
 
   beforeEach(async function() {
-    require('child_process').execSync(`rm -rf ${testRepoPath}`, { stdio: 'ignore' });
-    require('child_process').execSync(`mkdir -p ${testRepoPath}`, { stdio: 'ignore' });
+    try { fs.rmSync(testRepoPath, { recursive: true, force: true }); } catch(e) {}
+    fs.mkdirSync(testRepoPath, { recursive: true });
 
     jj = new AgenticJujutsu();
     await jj.initialize(testRepoPath);
@@ -32,7 +33,7 @@ describe('ML-DSA Signing', function() {
     if (jj) {
       await jj.cleanup();
     }
-    require('child_process').execSync(`rm -rf ${testRepoPath}`, { stdio: 'ignore' });
+    try { fs.rmSync(testRepoPath, { recursive: true, force: true }); } catch(e) {}
   });
 
   describe('Keypair Generation', function() {

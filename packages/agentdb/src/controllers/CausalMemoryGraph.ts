@@ -20,7 +20,7 @@ import type { IDatabaseConnection, DatabaseRows } from '../types/database.types.
 import { normalizeRowId } from '../types/database.types.js';
 import type { GraphDatabaseAdapter, CausalEdge as GraphCausalEdge } from '../backends/graph/GraphDatabaseAdapter.js';
 import { NodeIdMapper } from '../utils/NodeIdMapper.js';
-import { AttentionService, type HyperbolicAttentionConfig } from '../services/AttentionService.js';
+import { AttentionService, type HyperbolicAttentionConfig } from '../utils/LegacyAttentionAdapter.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import type { VectorBackend } from '../backends/VectorBackend.js';
 

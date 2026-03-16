@@ -83,8 +83,7 @@ export class AttentionBrowser {
       }
 
       // Dynamic import of WASM loader
-      // @ts-ignore - WASM loader generated during build
-      const wasmLoader = await import('../../dist/agentdb.wasm-loader.js');
+      const wasmLoader = await import('../../dist/agentdb.wasm-loader.js' as string);
       this.wasmModule = await wasmLoader.initWASM();
       this.loadingState = 'loaded';
     } catch (error) {

@@ -17,7 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
@@ -33,7 +33,7 @@ console.log('📦 Building AgentDB Advanced Browser Bundle...\n');
 // Step 1: Compile TypeScript to JavaScript
 console.log('🔧 Step 1: Compiling TypeScript advanced features...');
 try {
-  execSync('npx tsc --project tsconfig.browser.json', {
+  execFileSync('npx', ['tsc', '--project', 'tsconfig.browser.json'], {
     cwd: ROOT_DIR,
     stdio: 'inherit'
   });
@@ -630,7 +630,7 @@ const sqlJsPath = path.join(DIST_DIR, 'sql-wasm.js');
     // Step 5: Minify
     console.log('🔧 Step 5: Minifying bundle...');
     try {
-      execSync(`npx terser ${bundlePath} -o ${path.join(DIST_DIR, 'agentdb-advanced.min.js')} --compress --mangle`, {
+      execFileSync('npx', ['terser', bundlePath, '-o', path.join(DIST_DIR, 'agentdb-advanced.min.js'), '--compress', '--mangle'], {
         cwd: ROOT_DIR,
         stdio: 'inherit'
       });

@@ -88,7 +88,7 @@ export class SupabaseFederationAdapterDebug {
       this.debug.logConnection('initialize_complete', { duration });
     } catch (error) {
       const duration = Date.now() - startTime;
-      this.debug.logConnection('initialize_error', { duration, error: String(error) });
+      this.debug.logConnection('initialize_error', { duration, error: (error as Error).message });
       throw error;
     }
   }

@@ -71,9 +71,7 @@ You orchestrate hybrid workflows that combine **Claude Code** (interactive) for 
 ## Routing Rules
 
 ### Route to Claude Code (Interactive)
-
 When the task requires:
-
 - Complex reasoning or debugging
 - Architecture decisions
 - Real-time review and discussion
@@ -81,29 +79,25 @@ When the task requires:
 - Strategic planning
 
 **Patterns:**
-
-- "explain \*"
-- "debug \*"
-- "design \*"
-- "review with me \*"
-- "help me understand \*"
+- "explain *"
+- "debug *"
+- "design *"
+- "review with me *"
+- "help me understand *"
 
 ### Route to Codex (Headless)
-
 When the task can be:
-
 - Parallelized across workers
 - Run in background
 - Batch processed
 - Executed without interaction
 
 **Patterns:**
-
-- "implement \* in parallel"
-- "generate \* files"
-- "write tests for \*"
-- "document \*"
-- "batch process \*"
+- "implement * in parallel"
+- "generate * files"
+- "write tests for *"
+- "document *"
+- "batch process *"
 
 ## Hybrid Workflows
 
@@ -163,7 +157,6 @@ steps:
 ## Example: Build API Feature
 
 ### Phase 1: Interactive Design (Claude Code)
-
 ```
 Let's design the API endpoints together.
 I'll help you think through the data models
@@ -171,7 +164,6 @@ and error handling strategies.
 ```
 
 ### Phase 2: Headless Implementation (Codex)
-
 ```bash
 claude -p "Implement GET /users endpoint" &
 claude -p "Implement POST /users endpoint" &
@@ -180,7 +172,6 @@ wait
 ```
 
 ### Phase 3: Interactive Review (Claude Code)
-
 ```
 Now let's review what the workers produced.
 I'll help identify any issues or improvements.
@@ -189,7 +180,6 @@ I'll help identify any issues or improvements.
 ## Spawn Commands
 
 ### Full Hybrid Workflow
-
 ```bash
 # 1. Interactive: Claude Code designs
 # (This happens in current session)
@@ -205,25 +195,21 @@ npx claude-flow@v3alpha memory list --namespace results
 ```
 
 ### Decision Prompt Template
-
 ```javascript
 // Analyze task and decide platform
 const decideRouting = (task) => {
   const interactivePatterns = [
-    /explain/i,
-    /debug/i,
-    /design/i,
-    /review/i,
-    /help.*understand/i,
+    /explain/i, /debug/i, /design/i,
+    /review/i, /help.*understand/i
   ];
 
-  const isInteractive = interactivePatterns.some((p) => p.test(task));
+  const isInteractive = interactivePatterns.some(p => p.test(task));
 
   return {
     platform: isInteractive ? "claude-code" : "codex",
     reason: isInteractive
       ? "Requires interaction and reasoning"
-      : "Can run in background, parallelizable",
+      : "Can run in background, parallelizable"
   };
 };
 ```
@@ -231,18 +217,16 @@ const decideRouting = (task) => {
 ## MCP Integration
 
 ### Shared Tools (Both Platforms)
-
 ```javascript
 // Both Claude Code and Codex can use these
-mcp__claude - flow__memory_search; // Find patterns
-mcp__claude - flow__memory_store; // Store results
-mcp__ruv - swarm__swarm_init; // Initialize coordination
-mcp__ruv - swarm__swarm_status; // Check status
-mcp__ruv - swarm__agent_spawn; // Spawn agents
+mcp__claude-flow__memory_search  // Find patterns
+mcp__claude-flow__memory_store   // Store results
+mcp__ruv-swarm__swarm_init       // Initialize coordination
+mcp__ruv-swarm__swarm_status     // Check status
+mcp__ruv-swarm__agent_spawn      // Spawn agents
 ```
 
 ### Coordination Pattern
-
 ```javascript
 // 1. Store design from interactive phase
 mcp__claude-flow__memory_store {
@@ -272,16 +256,16 @@ mcp__claude-flow__memory_store {
 
 ## Platform Selection Guide
 
-| Task Type           | Platform    | Reason                      |
-| ------------------- | ----------- | --------------------------- |
-| Design/Architecture | Claude Code | Needs reasoning             |
-| Debugging           | Claude Code | Interactive analysis        |
-| Code Review         | Claude Code | Discussion required         |
-| Implementation      | Codex       | Can parallelize             |
-| Test Writing        | Codex       | Batch execution             |
-| Documentation       | Codex       | Independent work            |
-| Refactoring         | Hybrid      | Design → Execute            |
-| New Feature         | Hybrid      | Design → Implement → Review |
+| Task Type | Platform | Reason |
+|-----------|----------|--------|
+| Design/Architecture | Claude Code | Needs reasoning |
+| Debugging | Claude Code | Interactive analysis |
+| Code Review | Claude Code | Discussion required |
+| Implementation | Codex | Can parallelize |
+| Test Writing | Codex | Batch execution |
+| Documentation | Codex | Independent work |
+| Refactoring | Hybrid | Design → Execute |
+| New Feature | Hybrid | Design → Implement → Review |
 
 ## Best Practices
 

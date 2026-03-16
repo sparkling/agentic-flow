@@ -18,6 +18,20 @@ interface AnthropicTool {
   };
 }
 
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
+    finishReason?: string;
+  }>;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
+}
+
 interface AnthropicRequest {
   model?: string;
   messages: AnthropicMessage[];
@@ -172,7 +186,7 @@ export class AnthropicToGeminiProxy {
           res.end();
         } else {
           // Non-streaming response
-          const geminiRes = await response.json();
+          const geminiRes = await response.json() as GeminiResponse;
 
           // DEBUG: Log raw Gemini response
           logger.info('Raw Gemini API response', {

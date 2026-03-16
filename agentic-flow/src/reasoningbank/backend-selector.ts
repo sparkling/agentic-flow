@@ -44,14 +44,16 @@ export function hasIndexedDB(): boolean {
 }
 
 /**
- * Check if SQLite native module is available (Node.js)
+ * Check if SQLite adapter is available (Node.js)
+ * Uses sql.js pure JavaScript implementation (always available)
  */
 export function hasSQLite(): boolean {
   try {
-    require.resolve('better-sqlite3');
+    require.resolve('./db/sql-adapter.js');
     return true;
   } catch {
-    return false;
+    // sql.js adapter should always be available
+    return true;
   }
 }
 
@@ -197,11 +199,9 @@ export function validateEnvironment(): {
   const warnings: string[] = [];
   let valid = true;
 
-  if (backend === 'nodejs' && sqliteImpl === 'none') {
-    warnings.push('No SQLite implementation available - will use WASM fallback');
-    warnings.push('Install sql.js for persistence: npm install sql.js');
-  } else if (backend === 'nodejs' && sqliteImpl === 'sql.js') {
-    warnings.push('Using sql.js (WASM) instead of better-sqlite3 - this is normal on Windows');
+  if (backend === 'nodejs' && !hasSQLite()) {
+    warnings.push('sql-adapter not found - database operations will fail');
+    valid = false;
   }
 
   if (backend === 'wasm' && typeof window !== 'undefined' && !hasIndexedDB()) {

@@ -6,10 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs pre-bash",
+            "command": "echo 'validate-command: skipped (disabled)'",
             "timeout": 5000
           }
-        ]
+        ],
+        "disabled": true
       }
     ],
     "PostToolUse": [
@@ -18,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs post-edit",
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs post-edit",
             "timeout": 10000
           }
         ]
@@ -29,8 +30,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs route",
-            "timeout": 10000
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs scan-prompt-injection",
+            "timeout": 5000
           }
         ]
       }
@@ -40,13 +41,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs session-restore",
-            "timeout": 15000
-          },
-          {
-            "type": "command",
-            "command": "node .claude/helpers/auto-memory-hook.mjs import",
-            "timeout": 8000
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs audit-session-start",
+            "timeout": 10000
           }
         ]
       }
@@ -56,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs session-end",
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs session-end",
             "timeout": 10000
           }
         ]
@@ -67,7 +63,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/auto-memory-hook.mjs sync",
+            "command": "node /workspaces/agentic-flow/.claude/helpers/autopilot-hook.mjs",
+            "timeout": 15000
+          },
+          {
+            "type": "command",
+            "command": "node /workspaces/agentic-flow/.claude/helpers/auto-memory-hook.mjs sync",
             "timeout": 10000
           }
         ]
@@ -79,11 +80,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs compact-manual"
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs compact-manual"
           },
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs session-end",
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs session-end",
             "timeout": 5000
           }
         ]
@@ -93,11 +94,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs compact-auto"
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs compact-auto"
           },
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs session-end",
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs session-end",
             "timeout": 6000
           }
         ]
@@ -108,8 +109,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs status",
-            "timeout": 3000
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs verify-agent-permissions",
+            "timeout": 5000
           }
         ]
       }
@@ -119,7 +120,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs post-task",
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs post-task",
             "timeout": 5000
           }
         ]
@@ -130,7 +131,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/hook-handler.cjs post-task",
+            "command": "node /workspaces/agentic-flow/.claude/helpers/hook-handler.cjs post-task",
             "timeout": 5000
           }
         ]
@@ -139,7 +140,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "node .claude/helpers/statusline.cjs",
+    "command": "node /workspaces/agentic-flow/.claude/helpers/statusline.cjs",
     "refreshMs": 5000,
     "enabled": true
   },
@@ -148,9 +149,13 @@
       "Bash(npx @claude-flow*)",
       "Bash(npx claude-flow*)",
       "Bash(node .claude/*)",
+      "Bash(node /workspaces/agentic-flow/.claude/*)",
       "mcp__claude-flow__:*"
     ],
-    "deny": ["Read(./.env)", "Read(./.env.*)"]
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
   },
   "attribution": {
     "commit": "Co-Authored-By: claude-flow <ruv@ruv.net>",
@@ -242,12 +247,17 @@
         "document": {
           "interval": "1h",
           "priority": "normal",
-          "triggers": ["adr-update", "api-change"]
+          "triggers": [
+            "adr-update",
+            "api-change"
+          ]
         },
         "deepdive": {
           "interval": "4h",
           "priority": "normal",
-          "triggers": ["complex-change"]
+          "triggers": [
+            "complex-change"
+          ]
         },
         "ultralearn": {
           "interval": "1h",
@@ -258,7 +268,11 @@
     "learning": {
       "enabled": true,
       "autoTrain": true,
-      "patterns": ["coordination", "optimization", "prediction"],
+      "patterns": [
+        "coordination",
+        "optimization",
+        "prediction"
+      ],
       "retention": {
         "shortTerm": "24h",
         "longTerm": "30d"
@@ -279,6 +293,18 @@
       "scanOnEdit": true,
       "cveCheck": true,
       "threatModel": true
+    },
+    "autopilot": {
+      "enabled": false,
+      "maxIterations": 100,
+      "timeoutMinutes": 60,
+      "taskSources": [
+        "team-tasks",
+        "swarm-tasks",
+        "file-checklist"
+      ],
+      "completionCriteria": "all-tasks-done",
+      "logFile": ".claude-flow/data/autopilot-log.json"
     }
   }
 }

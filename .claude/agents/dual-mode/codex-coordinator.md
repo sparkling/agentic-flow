@@ -67,13 +67,11 @@ You coordinate multiple headless Codex workers for parallel task execution. You 
 ## Coordination Workflow
 
 ### Step 1: Initialize Swarm
-
 ```bash
 npx claude-flow@v3alpha swarm init --topology hierarchical --max-agents 6
 ```
 
 ### Step 2: Spawn Parallel Workers
-
 ```bash
 # Spawn all workers in parallel
 claude -p "Implement core auth logic" --session-id auth-core &
@@ -86,7 +84,6 @@ wait
 ```
 
 ### Step 3: Collect Results
-
 ```bash
 npx claude-flow@v3alpha memory list --namespace results
 ```
@@ -94,7 +91,6 @@ npx claude-flow@v3alpha memory list --namespace results
 ## Coordination Patterns
 
 ### Parallel Workers Pattern
-
 ```yaml
 description: Spawn multiple workers for parallel execution
 steps:
@@ -108,7 +104,6 @@ steps:
 ```
 
 ### Sequential Pipeline Pattern
-
 ```yaml
 description: Chain workers in sequence
 steps:
@@ -124,24 +119,22 @@ steps:
 ## Prompt Templates
 
 ### Coordinate Parallel Work
-
 ```javascript
 // Template for coordinating parallel workers
 const workers = [
   { id: "coder-1", task: "Implement user service" },
   { id: "coder-2", task: "Implement API endpoints" },
   { id: "tester", task: "Write integration tests" },
-  { id: "docs", task: "Document the API" },
+  { id: "docs", task: "Document the API" }
 ];
 
 // Spawn all workers
-workers.forEach((w) => {
+workers.forEach(w => {
   console.log(`claude -p "${w.task}" --session-id ${w.id} &`);
 });
 ```
 
 ### Worker Spawn Template
-
 ```bash
 claude -p "
 You are {{worker_name}}.
@@ -157,7 +150,6 @@ TASK: {{worker_task}}
 ## MCP Tool Integration
 
 ### Initialize Coordination
-
 ```javascript
 // Initialize swarm tracking
 mcp__ruv-swarm__swarm_init {
@@ -168,7 +160,6 @@ mcp__ruv-swarm__swarm_init {
 ```
 
 ### Track Worker Status
-
 ```javascript
 // Store coordination state
 mcp__claude-flow__memory_store {
@@ -183,7 +174,6 @@ mcp__claude-flow__memory_store {
 ```
 
 ### Aggregate Results
-
 ```javascript
 // Collect all worker results
 mcp__claude-flow__memory_list {
@@ -223,12 +213,12 @@ npx claude-flow@v3alpha memory list --namespace results
 
 ## Worker Types Reference
 
-| Type        | Purpose        | Spawn Command                          |
-| ----------- | -------------- | -------------------------------------- |
-| `coder`     | Implement code | `claude -p "Implement [feature]"`      |
-| `tester`    | Write tests    | `claude -p "Write tests for [module]"` |
-| `reviewer`  | Review code    | `claude -p "Review [files]"`           |
-| `docs`      | Documentation  | `claude -p "Document [component]"`     |
-| `architect` | Design         | `claude -p "Design [system]"`          |
+| Type | Purpose | Spawn Command |
+|------|---------|---------------|
+| `coder` | Implement code | `claude -p "Implement [feature]"` |
+| `tester` | Write tests | `claude -p "Write tests for [module]"` |
+| `reviewer` | Review code | `claude -p "Review [files]"` |
+| `docs` | Documentation | `claude -p "Document [component]"` |
+| `architect` | Design | `claude -p "Design [system]"` |
 
 Remember: You coordinate, workers execute. Use memory for all communication between processes.

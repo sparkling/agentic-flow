@@ -4,6 +4,7 @@ import { logger } from "../utils/logger.js";
 import { withRetry } from "../utils/retry.js";
 import { AgentDefinition } from "../utils/agentLoader.js";
 import { claudeFlowSdkServer } from "../mcp/claudeFlowSdkServer.js";
+import { validateReadPath } from "../security/path-validator.js";
 
 function getCurrentProvider(): string {
   // Determine provider from environment
@@ -231,8 +232,11 @@ export async function claudeAgent(
 
         const configPath = path.join(os.homedir(), '.agentic-flow', 'mcp-config.json');
 
-        if (fs.existsSync(configPath)) {
-          const configContent = fs.readFileSync(configPath, 'utf-8');
+        // CVE-2026-004 FIX: Validate config path before reading
+        const safeConfigPath = validateReadPath(configPath, os.homedir());
+
+        if (fs.existsSync(safeConfigPath)) {
+          const configContent = fs.readFileSync(safeConfigPath, 'utf-8');
           const config = JSON.parse(configContent);
 
           // Add enabled user-configured servers

@@ -1,216 +1,254 @@
 /**
- * AgentDB Integration for Medical MCP
- * Enables pattern learning and experience tracking for medical analyses
+ * AgentDB Integration for Agentic-Flow
+ * Replaces in-memory Maps with persistent AgentDB-backed storage.
+ * Falls back to in-memory Maps when AgentDB is unavailable.
  */
 
-import type { MedicalAnalysis, LearningFeedback, AgentDBPattern } from './types';
+// Lazy-loaded AgentDB controller constructors
+let ReflexionMemoryClass: any = null;
+let SkillLibraryClass: any = null;
+let ReasoningBankClass: any = null;
+let EmbeddingServiceClass: any = null;
+let createDatabaseFn: any = null;
 
-export class AgentDBIntegration {
-  private readonly patterns: Map<string, AgentDBPattern>;
-  private readonly feedback: Map<string, LearningFeedback>;
+// In-memory fallback stores (used when AgentDB is unavailable)
+const episodeStore = new Map<string, any[]>();
+const skillStore = new Map<string, any[]>();
+const patternStore = new Map<string, any>();
 
-  constructor() {
-    this.patterns = new Map();
-    this.feedback = new Map();
-  }
-
-  /**
-   * Store analysis pattern for learning
-   */
-  async storeAnalysisPattern(analysis: MedicalAnalysis): Promise<void> {
-    // In production, integrate with actual AgentDB
-    // using packages/agentdb/src/index.ts
-
-    const pattern: AgentDBPattern = {
-      taskType: 'medical_analysis',
-      approach: this.summarizeApproach(analysis),
-      successRate: analysis.providerApproved ? 1.0 : 0.5,
-      tags: this.generateTags(analysis),
-      metadata: {
-        analysisId: analysis.id,
-        timestamp: analysis.timestamp,
-        conditions: analysis.conditions.map(c => c.name),
-        urgencyLevel: analysis.urgencyLevel,
-        confidence: analysis.confidence,
-      },
-    };
-
-    this.patterns.set(analysis.id, pattern);
-
-    // Would call AgentDB in production:
-    // const { ReasoningBank } = await import('../../packages/agentdb/src/index.js');
-    // const reasoningBank = new ReasoningBank(db, embeddingService);
-    // await reasoningBank.storePattern(pattern);
-  }
-
-  /**
-   * Record provider feedback for learning
-   */
-  async recordFeedback(
-    analysisId: string,
-    accuracy: number,
-    providerFeedback: string,
-    corrections?: string[]
-  ): Promise<void> {
-    const feedback: LearningFeedback = {
-      analysisId,
-      accuracy,
-      providerFeedback,
-      corrections,
-      timestamp: Date.now(),
-    };
-
-    this.feedback.set(analysisId, feedback);
-
-    // Update pattern success rate
-    const pattern = this.patterns.get(analysisId);
-    if (pattern) {
-      pattern.successRate = accuracy;
-      await this.updatePattern(pattern);
-    }
-
-    // Would call AgentDB learning system in production:
-    // const { LearningSystem } = await import('../../packages/agentdb/src/index.js');
-    // await learningSystem.submitFeedback({...});
-  }
-
-  /**
-   * Search for similar analysis patterns
-   */
-  async findSimilarPatterns(
-    symptoms: string[],
-    k: number = 5
-  ): Promise<AgentDBPattern[]> {
-    // In production, use AgentDB vector search
-    // For now, simple matching
-
-    const symptomText = symptoms.join(' ').toLowerCase();
-    const matches: Array<{ pattern: AgentDBPattern; similarity: number }> = [];
-
-    for (const pattern of this.patterns.values()) {
-      const patternConditions = (pattern.metadata.conditions as string[] || []).join(' ').toLowerCase();
-      const similarity = this.calculateSimilarity(symptomText, patternConditions);
-
-      if (similarity > 0.5) {
-        matches.push({ pattern, similarity });
-      }
-    }
-
-    // Sort by similarity and success rate
-    matches.sort((a, b) => {
-      const scoreA = a.similarity * 0.7 + a.pattern.successRate * 0.3;
-      const scoreB = b.similarity * 0.7 + b.pattern.successRate * 0.3;
-      return scoreB - scoreA;
-    });
-
-    return matches.slice(0, k).map(m => m.pattern);
-
-    // Would use AgentDB in production:
-    // const { ReasoningBank } = await import('../../packages/agentdb/src/index.js');
-    // return await reasoningBank.searchPatterns({ task: symptomText, k });
-  }
-
-  /**
-   * Get learning metrics
-   */
-  async getLearningMetrics(): Promise<{
-    totalAnalyses: number;
-    avgAccuracy: number;
-    patternsLearned: number;
-    topConditions: Array<{ name: string; count: number }>;
-  }> {
-    const feedbackArray = Array.from(this.feedback.values());
-    const avgAccuracy =
-      feedbackArray.length > 0
-        ? feedbackArray.reduce((sum, f) => sum + f.accuracy, 0) / feedbackArray.length
-        : 0;
-
-    // Count conditions
-    const conditionCounts = new Map<string, number>();
-    for (const pattern of this.patterns.values()) {
-      const conditions = pattern.metadata.conditions as string[] || [];
-      for (const condition of conditions) {
-        conditionCounts.set(condition, (conditionCounts.get(condition) || 0) + 1);
-      }
-    }
-
-    const topConditions = Array.from(conditionCounts.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    return {
-      totalAnalyses: this.patterns.size,
-      avgAccuracy,
-      patternsLearned: this.patterns.size,
-      topConditions,
-    };
-  }
-
-  /**
-   * Summarize analysis approach
-   */
-  private summarizeApproach(analysis: MedicalAnalysis): string {
-    const conditionNames = analysis.conditions.map(c => c.name).join(', ');
-    return `Analyzed ${analysis.conditions.length} conditions (${conditionNames}) with ${analysis.citations.length} citations, confidence ${(analysis.confidence * 100).toFixed(1)}%`;
-  }
-
-  /**
-   * Generate tags for pattern
-   */
-  private generateTags(analysis: MedicalAnalysis): string[] {
-    const tags: string[] = [
-      'medical_analysis',
-      `urgency_${analysis.urgencyLevel}`,
-      `confidence_${analysis.confidence >= 0.8 ? 'high' : analysis.confidence >= 0.6 ? 'medium' : 'low'}`,
-    ];
-
-    // Add condition-based tags
-    for (const condition of analysis.conditions) {
-      tags.push(`severity_${condition.severity}`);
-      if (condition.icd10Code) {
-        tags.push(`icd10_${condition.icd10Code.substring(0, 3)}`);
-      }
-    }
-
-    return tags;
-  }
-
-  /**
-   * Update pattern in storage
-   */
-  private async updatePattern(pattern: AgentDBPattern): Promise<void> {
-    this.patterns.set(pattern.metadata.analysisId as string, pattern);
-
-    // Would update in AgentDB in production
-  }
-
-  /**
-   * Calculate text similarity (simple Jaccard)
-   */
-  private calculateSimilarity(text1: string, text2: string): number {
-    const words1 = new Set(text1.split(/\s+/));
-    const words2 = new Set(text2.split(/\s+/));
-
-    const intersection = new Set([...words1].filter(w => words2.has(w)));
-    const union = new Set([...words1, ...words2]);
-
-    return union.size > 0 ? intersection.size / union.size : 0;
-  }
-
-  /**
-   * Export patterns for analysis
-   */
-  exportPatterns(): AgentDBPattern[] {
-    return Array.from(this.patterns.values());
-  }
-
-  /**
-   * Import patterns from external source
-   */
-  importPatterns(patterns: AgentDBPattern[]): void {
-    for (const pattern of patterns) {
-      this.patterns.set(pattern.metadata.analysisId as string, pattern);
-    }
+async function loadAgentDB(): Promise<boolean> {
+  try {
+    const agentdb = await import('agentdb');
+    ReflexionMemoryClass = agentdb.ReflexionMemory;
+    SkillLibraryClass = agentdb.SkillLibrary;
+    ReasoningBankClass = agentdb.ReasoningBank;
+    EmbeddingServiceClass = agentdb.EmbeddingService;
+    createDatabaseFn = agentdb.createDatabase;
+    return true;
+  } catch {
+    return false;
   }
 }
+
+export class AgentDBIntegration {
+  private reflexion: any = null;
+  private skills: any = null;
+  private reasoning: any = null;
+  private initialized = false;
+  private useAgentDB = false;
+
+  /**
+   * Initialize with real AgentDB controllers, falling back to in-memory Maps.
+   */
+  async initialize(dbPath?: string): Promise<boolean> {
+    if (this.initialized) return this.useAgentDB;
+
+    const loaded = await loadAgentDB();
+    if (loaded && createDatabaseFn && EmbeddingServiceClass) {
+      try {
+        const db = await createDatabaseFn(dbPath || ':memory:');
+        const embedder = new EmbeddingServiceClass();
+
+        if (ReflexionMemoryClass) {
+          this.reflexion = new ReflexionMemoryClass(db, embedder);
+        }
+        if (SkillLibraryClass) {
+          this.skills = new SkillLibraryClass(db, embedder);
+        }
+        if (ReasoningBankClass) {
+          this.reasoning = new ReasoningBankClass(db, embedder);
+        }
+
+        this.useAgentDB = true;
+      } catch {
+        // AgentDB init failed, use fallback Maps
+        this.useAgentDB = false;
+      }
+    }
+
+    this.initialized = true;
+    return this.useAgentDB;
+  }
+
+  /**
+   * Store an episode (task execution record) for reflexion learning.
+   */
+  async storeEpisode(episode: {
+    taskType: string;
+    agentType: string;
+    actions: string[];
+    outcome: string;
+    reward: number;
+  }): Promise<void> {
+    if (this.reflexion) {
+      try {
+        await this.reflexion.storeEpisode({
+          sessionId: `session-${Date.now()}`,
+          task: `${episode.taskType}:${episode.agentType}`,
+          input: JSON.stringify(episode.actions),
+          output: episode.outcome,
+          reward: episode.reward,
+          success: episode.reward > 0.5,
+          metadata: { taskType: episode.taskType, agentType: episode.agentType },
+        });
+        return;
+      } catch { /* fall through to Map */ }
+    }
+
+    const key = episode.taskType;
+    const existing = episodeStore.get(key) || [];
+    existing.push({ ...episode, timestamp: Date.now() });
+    episodeStore.set(key, existing);
+  }
+
+  /**
+   * Recall episodes similar to a query string.
+   */
+  async recallSimilarEpisodes(query: string, limit = 5): Promise<any[]> {
+    if (this.reflexion) {
+      try {
+        const results = await this.reflexion.retrieveRelevant({
+          task: query,
+          k: limit,
+        });
+        return results;
+      } catch { /* fall through to Map */ }
+    }
+
+    // Fallback: linear scan with simple word overlap
+    const queryWords = new Set(query.toLowerCase().split(/\s+/));
+    const scored: { episode: any; score: number }[] = [];
+
+    for (const episodes of episodeStore.values()) {
+      for (const ep of episodes) {
+        const text = `${ep.taskType} ${ep.agentType} ${ep.outcome}`.toLowerCase();
+        const words = text.split(/\s+/);
+        const overlap = words.filter(w => queryWords.has(w)).length;
+        if (overlap > 0) {
+          scored.push({ episode: ep, score: overlap / queryWords.size });
+        }
+      }
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit).map(s => s.episode);
+  }
+
+  /**
+   * Publish a reusable skill to the library.
+   */
+  async publishSkill(skill: {
+    name: string;
+    code: string;
+    taskType: string;
+    successRate: number;
+    agentType: string;
+  }): Promise<void> {
+    if (this.skills) {
+      try {
+        await this.skills.createSkill({
+          name: skill.name,
+          description: `${skill.taskType} skill for ${skill.agentType}`,
+          code: skill.code,
+          successRate: skill.successRate,
+          metadata: { taskType: skill.taskType, agentType: skill.agentType },
+        });
+        return;
+      } catch { /* fall through to Map */ }
+    }
+
+    const key = skill.taskType;
+    const existing = skillStore.get(key) || [];
+    existing.push({ ...skill, timestamp: Date.now() });
+    skillStore.set(key, existing);
+  }
+
+  /**
+   * Find skills applicable to a task description.
+   */
+  async findApplicableSkills(description: string, limit = 3): Promise<any[]> {
+    if (this.skills) {
+      try {
+        const results = await this.skills.retrieveSkills({
+          task: description,
+          k: limit,
+        });
+        return results;
+      } catch { /* fall through to Map */ }
+    }
+
+    // Fallback: linear scan with word overlap
+    const queryWords = new Set(description.toLowerCase().split(/\s+/));
+    const scored: { skill: any; score: number }[] = [];
+
+    for (const skills of skillStore.values()) {
+      for (const sk of skills) {
+        const text = `${sk.name} ${sk.taskType} ${sk.agentType}`.toLowerCase();
+        const words = text.split(/\s+/);
+        const overlap = words.filter(w => queryWords.has(w)).length;
+        scored.push({ skill: sk, score: overlap / Math.max(queryWords.size, 1) });
+      }
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit).map(s => s.skill);
+  }
+
+  /**
+   * Store a reasoning pattern by key.
+   */
+  async storePattern(key: string, pattern: any): Promise<void> {
+    if (this.reasoning) {
+      try {
+        await this.reasoning.storePattern({
+          taskType: key,
+          approach: typeof pattern === 'string' ? pattern : JSON.stringify(pattern),
+          successRate: pattern.successRate ?? 0.5,
+          tags: pattern.tags ?? [key],
+          metadata: typeof pattern === 'object' ? pattern : { value: pattern },
+        });
+        return;
+      } catch { /* fall through to Map */ }
+    }
+
+    patternStore.set(key, { ...pattern, timestamp: Date.now() });
+  }
+
+  /**
+   * Search reasoning patterns by query string.
+   */
+  async searchPatterns(query: string, limit = 10): Promise<any[]> {
+    if (this.reasoning) {
+      try {
+        const results = await this.reasoning.searchPatterns({
+          task: query,
+          k: limit,
+        });
+        return results;
+      } catch { /* fall through to Map */ }
+    }
+
+    // Fallback: linear scan over patternStore
+    const queryLower = query.toLowerCase();
+    const matches: any[] = [];
+
+    for (const [key, pattern] of patternStore.entries()) {
+      const text = `${key} ${JSON.stringify(pattern)}`.toLowerCase();
+      if (text.includes(queryLower) || queryLower.split(/\s+/).some(w => text.includes(w))) {
+        matches.push({ key, ...pattern });
+      }
+    }
+
+    return matches.slice(0, limit);
+  }
+
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  isUsingAgentDB(): boolean {
+    return this.useAgentDB;
+  }
+}
+
+export const agentDBIntegration = new AgentDBIntegration();

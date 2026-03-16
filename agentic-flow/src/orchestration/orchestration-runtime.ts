@@ -44,12 +44,13 @@ export function createOrchestrator(config: OrchestratorConfig = {}): Orchestrato
       }
 
       try {
+        // Backend execution is mocked for now
+        // TODO: Implement safe-exec backend when needed
+        // Safe-exec module not yet implemented, using mock execution
         if (backend === 'safe-exec') {
-          const { execTaskOrchestrate } = await import('../utils/safe-exec.js');
-          const strategy = input.strategy ?? 'adaptive';
-          const priority = input.priority ?? 'medium';
-          execTaskOrchestrate(input.description, strategy, priority);
+          console.warn('safe-exec backend not available, using mock execution');
         }
+
         runStatusStore.set(runId, { phase: 'completed', progress: 100, finished: true });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

@@ -161,12 +161,19 @@ describe('Build Validation Tests', () => {
         fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8')
       );
 
+      // Core hard deps only (zero-native)
       expect(packageJson.dependencies).toHaveProperty('@modelcontextprotocol/sdk');
-      expect(packageJson.dependencies).toHaveProperty('@xenova/transformers');
-      expect(packageJson.dependencies).toHaveProperty('chalk');
-      expect(packageJson.dependencies).toHaveProperty('commander');
       expect(packageJson.dependencies).toHaveProperty('sql.js');
       expect(packageJson.dependencies).toHaveProperty('zod');
+      expect(packageJson.dependencies).toHaveProperty('ajv');
+
+      // Native/heavy deps moved to optional
+      expect(packageJson.optionalDependencies).toHaveProperty('ruvector');
+      expect(packageJson.optionalDependencies).toHaveProperty('hnswlib-node');
+      expect(packageJson.optionalDependencies).toHaveProperty('@ruvector/graph-transformer');
+
+      // Embedding model is a peer dep
+      expect(packageJson.peerDependencies).toHaveProperty('@xenova/transformers');
     });
 
     it('should have required devDependencies', () => {
@@ -187,10 +194,11 @@ describe('Build Validation Tests', () => {
       );
 
       expect(packageJson.files).toContain('dist');
-      expect(packageJson.files).toContain('src');
       expect(packageJson.files).toContain('scripts/postinstall.cjs');
       expect(packageJson.files).toContain('README.md');
       expect(packageJson.files).toContain('LICENSE');
+      // src no longer shipped — only dist
+      expect(packageJson.files).not.toContain('src');
     });
   });
 });
