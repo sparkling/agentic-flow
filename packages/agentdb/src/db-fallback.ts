@@ -89,6 +89,11 @@ function createSqlJsWrapper(SQL: any) {
           console.warn(`⚠️  Detected ${this.activeStatements.size} active SQL statements - possible memory leak`);
         }
       }, 10000);
+      // MM-002: Don't prevent process exit — allow Node.js to exit naturally
+      // even if the interval is still active (e.g., after CLI init --full)
+      if (this.intervalId.unref) {
+        this.intervalId.unref();
+      }
     }
 
     prepare(sql: string) {

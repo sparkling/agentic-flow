@@ -72,6 +72,10 @@ function createSqlJsWrapper(SQL) {
                     console.warn(`⚠️  Detected ${this.activeStatements.size} active SQL statements - possible memory leak`);
                 }
             }, 10000);
+            // MM-002: Don't prevent process exit
+            if (this.intervalId.unref) {
+                this.intervalId.unref();
+            }
         }
         prepare(sql) {
             const stmt = this.db.prepare(sql);
