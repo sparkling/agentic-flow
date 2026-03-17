@@ -60,9 +60,12 @@ export class ModelCacheLoader {
     }
 
     // 3. Check existing transformers.js cache locations
+    //    Includes persistent cache at /tmp/agentdb-models (survives across processes)
+    //    and user home cache (survives across npm installs)
     const cacheDirs = [
       path.join(process.cwd(), 'node_modules', '@xenova', 'transformers', '.cache'),
       path.join(os.homedir(), '.cache', 'huggingface', 'hub'),
+      path.join(os.homedir(), '.cache', 'agentdb-models'),
     ];
     for (const cacheDir of cacheDirs) {
       const onnxPath = path.join(cacheDir, 'Xenova', modelId, 'onnx', 'model_quantized.onnx');
