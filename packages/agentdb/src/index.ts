@@ -97,3 +97,18 @@ export type { BanditArmStats, BanditConfig, BanditStats, BanditState } from './b
 // LLM Router - Multi-provider LLM integration with RuvLLM support
 // LLMRouter, LLMConfig, LLMResponse already exported above (lines 68, 79)
 export { isRuvLLMInstalled } from './services/LLMRouter.js';
+
+// Attention metrics (ADR-0050)
+export { AttentionMetricsCollector } from './utils/attention-metrics.js';
+export type { AttentionMetrics, OperationMetrics } from './utils/attention-metrics.js';
+
+// Index health monitoring (ADR-0050)
+export { IndexHealthMonitor } from './backends/rvf/AdaptiveIndexTuner.js';
+
+// Audit logging (ADR-0050)
+export { AuditLogger } from './services/audit-logger.service.js';
+export type { AuditEventType, AuditEvent } from './services/audit-logger.service.js';
+
+// Federated learning (ADR-0050)
+export { FederatedLearningManager } from './services/federated-learning.js';
+export type { FederatedAgentState, FederatedConfig } from './services/federated-learning.js';
