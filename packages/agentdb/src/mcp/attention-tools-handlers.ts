@@ -482,7 +482,7 @@ export const attentionTools = [
         dimension: {
           type: 'number',
           description: 'Attention dimension',
-          default: ${_DIM},
+          default: _DIM,
         },
       },
       required: [],
@@ -512,7 +512,7 @@ export const attentionTools = [
         dimension: {
           type: 'number',
           description: 'Vector dimension',
-          default: ${_DIM},
+          default: _DIM,
         },
         key_count: {
           type: 'number',
