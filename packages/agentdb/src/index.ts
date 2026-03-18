@@ -116,3 +116,10 @@ export type { FederatedAgentState, FederatedConfig } from './services/federated-
 // Quantized vector store (ADR-0050 F4)
 export { QuantizedVectorStore } from './optimizations/Quantization.js';
 export type { QuantizationConfig, QuantizationType } from './optimizations/Quantization.js';
+
+// Self-learning RVF backend (ADR-0050 remaining controllers)
+export { SelfLearningRvfBackend } from './backends/rvf/SelfLearningRvfBackend.js';
+export type { SelfLearningConfig } from './backends/rvf/SelfLearningRvfBackend.js';
+
+// Native accelerator — JS fallback singleton (ADR-0050)
+export { NativeAccelerator, getAccelerator, resetAccelerator } from './backends/rvf/NativeAccelerator.js';
