@@ -24,7 +24,7 @@ export { ReasoningBank } from './controllers/ReasoningBank.js';
 
 // Embedding services
 export { EmbeddingService } from './controllers/EmbeddingService.js';
-export { EnhancedEmbeddingService } from './controllers/EnhancedEmbeddingService.js';
+export { EnhancedEmbeddingService } from './services/enhanced-embeddings.js';
 
 // Model cache (offline .rvf model loading)
 export { ModelCacheLoader } from './model/ModelCacheLoader.js';
@@ -112,3 +112,7 @@ export type { AuditEventType, AuditEvent } from './services/audit-logger.service
 // Federated learning (ADR-0050)
 export { FederatedLearningManager } from './services/federated-learning.js';
 export type { FederatedAgentState, FederatedConfig } from './services/federated-learning.js';
+
+// Quantized vector store (ADR-0050 F4)
+export { QuantizedVectorStore } from './optimizations/Quantization.js';
+export type { QuantizationConfig, QuantizationType } from './optimizations/Quantization.js';
