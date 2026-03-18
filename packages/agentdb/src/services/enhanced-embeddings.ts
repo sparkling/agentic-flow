@@ -11,6 +11,7 @@
  */
 
 import type { VectorBackend, SearchResult as VectorSearchResult } from '../backends/VectorBackend.js';
+import { getModelDimension } from '../config/embedding-config.js';
 
 // ============================================================================
 // Performance & Security Constants
@@ -522,33 +523,6 @@ class Semaphore {
       this.release();
     }
   }
-}
-
-// ============================================================================
-// Model Dimension Mapping
-// ============================================================================
-
-const MODEL_DIMENSIONS: Record<string, number> = {
-  'all-MiniLM-L6-v2': 384,
-  'Xenova/all-MiniLM-L6-v2': 384,
-  'all-mpnet-base-v2': 768,
-  'Xenova/all-mpnet-base-v2': 768,
-  'bge-small-en-v1.5': 384,
-  'BAAI/bge-small-en-v1.5': 384,
-  'nomic-ai/nomic-embed-text-v1.5': 768,
-  'nomic-embed-text-v1.5': 768,
-  'text-embedding-ada-002': 1536, // OpenAI
-  'text-embedding-3-small': 1536, // OpenAI
-  'text-embedding-3-large': 3072, // OpenAI
-  'embed-english-v3.0': 1024, // Cohere
-  'embed-multilingual-v3.0': 1024, // Cohere
-};
-
-/**
- * Get model dimension from model name
- */
-function getModelDimension(model: string): number {
-  return MODEL_DIMENSIONS[model] || MODEL_DIMENSIONS[`Xenova/${model}`] || 768;
 }
 
 // ============================================================================

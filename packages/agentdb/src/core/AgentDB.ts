@@ -13,6 +13,7 @@ import { LearningSystem } from '../controllers/LearningSystem.js';
 import { ExplainableRecall } from '../controllers/ExplainableRecall.js';
 import { NightlyLearner } from '../controllers/NightlyLearner.js';
 import { EmbeddingService } from '../controllers/EmbeddingService.js';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 import { createGuardedBackend } from '../backends/factory.js';
 import type { VectorBackend } from '../backends/VectorBackend.js';
 import type { GuardedVectorBackend } from '../backends/ruvector/GuardedVectorBackend.js';
@@ -85,7 +86,12 @@ export class AgentDB {
       this.db = new DatabaseImpl(dbPath);
     }
 
-    const dim = this.config.dimension ?? 768;
+    // Resolve embedding config from layered sources (env, file, registry, overrides)
+    const embConfig = getEmbeddingConfig({
+      model: this.config.embeddingModel,
+      dimension: this.config.dimension,
+    });
+    const dim = embConfig.dimension;
 
     // Load schemas
     const schemaPath = path.join(__dirname, '../../schemas/schema.sql');
@@ -100,11 +106,15 @@ export class AgentDB {
       this.db.exec(frontierSchema);
     }
 
-    // Initialize embedder
+    // Initialize embedder using centralized config
+    // EmbeddingService accepts 'transformers' | 'openai' | 'local'; map other providers to 'local'
+    const esProvider = (embConfig.provider === 'transformers' || embConfig.provider === 'openai')
+      ? embConfig.provider
+      : 'local' as const;
     this.embedder = new EmbeddingService({
-      model: this.config.embeddingModel || 'nomic-ai/nomic-embed-text-v1.5',
+      model: embConfig.model,
       dimension: dim,
-      provider: 'transformers'
+      provider: esProvider,
     });
     await this.embedder.initialize();
 

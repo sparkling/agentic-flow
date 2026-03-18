@@ -123,3 +123,7 @@ export type { SelfLearningConfig } from './backends/rvf/SelfLearningRvfBackend.j
 
 // Native accelerator — JS fallback singleton (ADR-0050)
 export { NativeAccelerator, getAccelerator, resetAccelerator } from './backends/rvf/NativeAccelerator.js';
+
+// Embedding config (ADR-0052 config-driven framework)
+export { getEmbeddingConfig, resetEmbeddingConfig, getModelDimension, getTaskPrefix, applyTaskPrefix, deriveHNSWParams, MODEL_REGISTRY } from './config/embedding-config.js';
+export type { EmbeddingConfig, HNSWParams, ModelInfo } from './config/embedding-config.js';
