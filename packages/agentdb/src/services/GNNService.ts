@@ -14,6 +14,8 @@
  * - Zero-overhead JS fallback when native is not present
  */
 
+import { getEmbeddingConfig } from '../config/embedding-config.js';
+
 export interface GNNConfig {
   inputDim: number;
   hiddenDim: number;
@@ -39,7 +41,7 @@ export class GNNService {
     const heads = config?.heads ?? config?.layers ?? 8;
 
     this.config = {
-      inputDim: config?.inputDim ?? 384,
+      inputDim: config?.inputDim ?? getEmbeddingConfig().dimension,
       hiddenDim: config?.hiddenDim ?? 128,
       outputDim: config?.outputDim ?? 64,
       heads,

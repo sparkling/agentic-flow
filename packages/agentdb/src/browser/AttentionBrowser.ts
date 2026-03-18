@@ -10,6 +10,21 @@
  * @module browser/AttentionBrowser
  */
 
+/** Lazy-cached default dimension from embedding config (browser-safe). */
+let _defaultDim: number | null = null;
+function getDefaultDim(): number {
+  if (_defaultDim === null) {
+    try {
+      // Dynamic import would be async; use require-style for sync fallback
+      const { getEmbeddingConfig } = require('../config/embedding-config.js');
+      _defaultDim = getEmbeddingConfig().dimension;
+    } catch {
+      _defaultDim = 768; // Safe default when fs/config unavailable (browser)
+    }
+  }
+  return _defaultDim;
+}
+
 export interface AttentionConfig {
   dimension?: number;
   numHeads?: number;
@@ -37,7 +52,7 @@ export class AttentionBrowser {
 
   constructor(config: AttentionConfig = {}) {
     this.config = {
-      dimension: 384,
+      dimension: getDefaultDim(),
       numHeads: 4,
       blockSize: 64,
       curvature: -1.0,
@@ -202,7 +217,7 @@ export class AttentionBrowser {
     keys: Float32Array,
     values: Float32Array
   ): Float32Array {
-    const { dimension = 384 } = this.config;
+    const { dimension = getDefaultDim() } = this.config;
     const seqLen = keys.length / dimension;
     const output = new Float32Array(query.length);
 

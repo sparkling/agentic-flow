@@ -16,6 +16,7 @@
  */
 
 import dotenv from 'dotenv';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 // Lazy-loaded RuvLLM to avoid import failures if not installed
 let RuvLLMEngine: any = null;
@@ -45,7 +46,7 @@ async function loadRuvLLM(): Promise<boolean> {
 function getRuvLLMInstance(config?: { embeddingDim?: number }): any {
   if (!RuvLLMEngine) return null;
   if (!ruvllmInstance) {
-    ruvllmInstance = new RuvLLMEngine(config || { embeddingDim: 768 });
+    ruvllmInstance = new RuvLLMEngine(config || { embeddingDim: getEmbeddingConfig().dimension });
   }
   return ruvllmInstance;
 }
@@ -57,7 +58,7 @@ export interface LLMConfig {
   maxTokens?: number;
   apiKey?: string;
   priority?: 'quality' | 'balanced' | 'cost' | 'speed' | 'privacy';
-  /** RuvLLM-specific: embedding dimension (384, 768, 1024) */
+  /** RuvLLM-specific: embedding dimension (from embedding config) */
   embeddingDim?: number;
   /** RuvLLM-specific: enable adaptive learning */
   learningEnabled?: boolean;
@@ -86,7 +87,7 @@ export class LLMRouter {
       maxTokens: config.maxTokens ?? 4096,
       apiKey: config.apiKey || this.getApiKey(config.provider),
       priority: config.priority || 'balanced',
-      embeddingDim: config.embeddingDim ?? 768,
+      embeddingDim: config.embeddingDim ?? getEmbeddingConfig().dimension,
       learningEnabled: config.learningEnabled ?? true
     };
   }
@@ -272,7 +273,7 @@ export class LLMRouter {
     temperature: number,
     maxTokens: number
   ): Promise<{ content: string; tokensUsed: number; cost: number }> {
-    const engine = getRuvLLMInstance({ embeddingDim: this.config.embeddingDim || 768 });
+    const engine = getRuvLLMInstance({ embeddingDim: this.config.embeddingDim || getEmbeddingConfig().dimension });
 
     if (!engine) {
       throw new Error('RuvLLM not available. Install with: npm install @ruvector/ruvllm');
@@ -313,12 +314,12 @@ export class LLMRouter {
   }
 
   /**
-   * Get embeddings using RuvLLM (768-dimensional by default)
+   * Get embeddings using RuvLLM (dimension from embedding config)
    */
   async getEmbedding(text: string): Promise<Float32Array | null> {
     if (!this.ruvllmAvailable) return null;
 
-    const engine = getRuvLLMInstance({ embeddingDim: this.config.embeddingDim || 768 });
+    const engine = getRuvLLMInstance({ embeddingDim: this.config.embeddingDim || getEmbeddingConfig().dimension });
     if (!engine) return null;
 
     try {

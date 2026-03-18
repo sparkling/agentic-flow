@@ -11,6 +11,7 @@
  */
 
 import { EnhancedEmbeddingService, EnhancedEmbeddingConfig } from './EnhancedEmbeddingService.js';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 export interface StreamingConfig extends EnhancedEmbeddingConfig {
   chunkSize?: number;
@@ -36,11 +37,12 @@ export class StreamingEmbeddingService extends EnhancedEmbeddingService {
   private activeStreams = new Map<string, AbortController>();
 
   constructor(config: Partial<StreamingConfig> = {}) {
-    super({ model: 'all-MiniLM-L6-v2', dimension: 384, provider: 'transformers', ...config } as StreamingConfig);
+    const embCfg = getEmbeddingConfig();
+    super({ model: embCfg.model, dimension: embCfg.dimension, provider: embCfg.provider, ...config } as StreamingConfig);
     this.streamingConfig = {
       ...config,
-      model: config.model || 'Xenova/all-MiniLM-L6-v2',
-      dimension: config.dimension || 384,
+      model: config.model || embCfg.model,
+      dimension: config.dimension || embCfg.dimension,
       provider: config.provider || 'transformers',
       enableWASM: config.enableWASM ?? true,
       enableBatchProcessing: config.enableBatchProcessing ?? true,

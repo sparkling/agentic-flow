@@ -21,6 +21,7 @@
 
 import type { VectorBackend, VectorConfig, SearchResult, SearchOptions, VectorStats } from '../VectorBackend.js';
 import type { RuVectorLearning } from './RuVectorLearning.js';
+import { getEmbeddingConfig } from '../../config/embedding-config.js';
 
 // ============================================================================
 // Performance & Security Constants
@@ -656,7 +657,7 @@ export class RuVectorBackend implements VectorBackend {
 
     return {
       count,
-      dimension: this.config.dimension || 384,
+      dimension: this.config.dimension || getEmbeddingConfig().dimension,
       metric: this.config.metric,
       backend: 'ruvector',
       memoryUsage: 0,

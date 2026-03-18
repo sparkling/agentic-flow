@@ -7,6 +7,7 @@ import { createDatabase } from '../../db-fallback.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { getEmbeddingConfig } from '../../config/embedding-config.js';
 
 // Color codes for beautiful output
 const colors = {
@@ -42,7 +43,7 @@ function getBackendColor(backend: 'ruvector' | 'hnswlib'): string {
 export async function initCommand(options: InitOptions = {}): Promise<void> {
   const {
     backend = 'auto',
-    dimension = 384,
+    dimension = getEmbeddingConfig().dimension,
     model,
     preset,
     inMemory = false,

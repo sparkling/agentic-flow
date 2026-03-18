@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 export interface EmbeddingConfig {
   provider: 'openai' | 'transformers' | 'onnx' | 'mock';
@@ -299,7 +300,7 @@ export class MockEmbeddingService extends EmbeddingService {
   constructor(config?: Partial<EmbeddingConfig>) {
     super({
       provider: 'mock',
-      dimensions: 384,
+      dimensions: getEmbeddingConfig().dimension,
       ...config
     });
   }
@@ -335,7 +336,7 @@ export class MockEmbeddingService extends EmbeddingService {
   }
 
   private hashEmbedding(text: string): number[] {
-    const dimensions = this.config.dimensions || 384;
+    const dimensions = this.config.dimensions || getEmbeddingConfig().dimension;
     const embedding = new Array(dimensions);
 
     // Seed with text hash
@@ -408,7 +409,7 @@ export async function benchmarkEmbeddings(testText: string = 'Hello world'): Pro
   const results: any = {};
 
   // Test mock
-  const mockService = new MockEmbeddingService({ dimensions: 384 });
+  const mockService = new MockEmbeddingService({ dimensions: getEmbeddingConfig().dimension });
   const mockResult = await mockService.embed(testText);
   results.mock = {
     latency: mockResult.latency,

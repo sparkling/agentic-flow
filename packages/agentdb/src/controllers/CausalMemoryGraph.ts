@@ -23,6 +23,7 @@ import { NodeIdMapper } from '../utils/NodeIdMapper.js';
 import { AttentionService, type HyperbolicAttentionConfig } from '../utils/LegacyAttentionAdapter.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import type { VectorBackend } from '../backends/VectorBackend.js';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 /**
  * Configuration for CausalMemoryGraph
@@ -161,7 +162,7 @@ export class CausalMemoryGraph {
       embedding = await this.embedder.embed(mechanismText);
     } else {
       // Fallback to zero embedding if no embedder available
-      embedding = new Float32Array(384).fill(0);
+      embedding = new Float32Array(getEmbeddingConfig().dimension).fill(0);
     }
 
     // Use GraphDatabaseAdapter if available (AgentDB v2)
@@ -653,20 +654,21 @@ export class CausalMemoryGraph {
     }
 
     // Prepare keys, values, and hierarchy for attention
+    const dim = getEmbeddingConfig().dimension;
     const nodeList = Array.from(allNodeIds);
-    const keys = new Float32Array(nodeList.length * 384);
-    const values = new Float32Array(nodeList.length * 384);
+    const keys = new Float32Array(nodeList.length * dim);
+    const values = new Float32Array(nodeList.length * dim);
     const hierarchyArray: number[] = [];
 
     nodeList.forEach((nodeId, idx) => {
       const embedding = nodeEmbeddings.get(nodeId)!;
-      keys.set(embedding, idx * 384);
-      values.set(embedding, idx * 384);
+      keys.set(embedding, idx * dim);
+      values.set(embedding, idx * dim);
       hierarchyArray.push(hierarchyLevels.get(nodeId) || 0);
     });
 
     // Apply HyperbolicAttention
-    const queries = new Float32Array(384);
+    const queries = new Float32Array(dim);
     queries.set(queryEmbedding);
 
     const attentionResult = await this.attentionService!.hyperbolicAttention(

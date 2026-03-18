@@ -18,6 +18,7 @@ import { HNSWLibBackend } from './hnswlib/HNSWLibBackend.js';
 import { GuardedVectorBackend, ProofDeniedError } from './ruvector/GuardedVectorBackend.js';
 import { MutationGuard } from '../security/MutationGuard.js';
 import { AttestationLog } from '../security/AttestationLog.js';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 // Note: HNSWLibBackend and RvfBackend are lazy-loaded to avoid import failures
 // on systems without build tools. The imports happen in helper functions.
@@ -388,7 +389,7 @@ export async function createGuardedBackend(
   const enableWasmProofs = config.enableProofs ?? detection.ruvector.graphTransformer ?? true;
 
   const guard = new MutationGuard({
-    dimension: config.dimension ?? config.dimensions ?? 384,
+    dimension: config.dimension ?? config.dimensions ?? getEmbeddingConfig().dimension,
     maxElements: config.maxElements ?? 10000,
     enableWasmProofs,
     enableAttestationLog: true,

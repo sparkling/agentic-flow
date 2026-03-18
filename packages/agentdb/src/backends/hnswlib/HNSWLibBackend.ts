@@ -24,6 +24,7 @@ import type {
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
+import { getEmbeddingConfig } from '../../config/embedding-config.js';
 
 // Lazy-loaded hnswlib-node to avoid import failures on systems without build tools
 let HierarchicalNSW: any = null;
@@ -259,7 +260,7 @@ export class HNSWLibBackend implements VectorBackend {
 
     return {
       count: activeCount,
-      dimension: this.config.dimension || 384,
+      dimension: this.config.dimension || getEmbeddingConfig().dimension,
       metric: this.config.metric,
       backend: 'hnswlib',
       memoryUsage: 0, // hnswlib doesn't expose memory usage

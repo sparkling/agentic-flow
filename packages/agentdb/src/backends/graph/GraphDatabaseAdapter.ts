@@ -18,6 +18,8 @@
 // Types are defined inline since @ruvector/graph-node doesn't export interfaces properly
 // See node_modules/@ruvector/graph-node/index.d.ts for reference
 
+import { getEmbeddingConfig } from '../../config/embedding-config.js';
+
 type GraphDatabase = any; // Will use dynamic import
 type JsNode = {
   id: string;
@@ -56,7 +58,7 @@ type JsBatchInsert = {
 
 export interface GraphDatabaseConfig {
   storagePath: string;
-  dimensions?: number; // Default: 384 (matches sentence-transformers models)
+  dimensions?: number; // Default: from embedding config
   distanceMetric?: 'Cosine' | 'Euclidean' | 'DotProduct' | 'Manhattan';
 }
 
@@ -139,7 +141,7 @@ export class GraphDatabaseAdapter {
       // Create new database
       this.db = new GraphDatabase({
         distanceMetric: this.config.distanceMetric || 'Cosine',
-        dimensions: this.config.dimensions || 384, // Default to 384 (all-MiniLM-L6-v2 standard)
+        dimensions: this.config.dimensions || getEmbeddingConfig().dimension,
         storagePath: this.config.storagePath
       });
 

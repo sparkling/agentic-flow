@@ -37,6 +37,7 @@ import * as path from 'path';
 import * as zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -193,10 +194,11 @@ class AgentDBCLI {
     }
 
     // Initialize embedding service
+    const embCfg = getEmbeddingConfig();
     this.embedder = new EmbeddingService({
-      model: 'Xenova/all-MiniLM-L6-v2',
-      dimension: 384,
-      provider: 'transformers'
+      model: embCfg.model,
+      dimension: embCfg.dimension,
+      provider: embCfg.provider
     });
     await this.embedder.initialize();
 
@@ -1752,7 +1754,7 @@ async function main() {
 
   // Handle init command with new v2 implementation
   if (command === 'init') {
-    const options: any = { dbPath: './agentdb.db', dimension: 384 };
+    const options: any = { dbPath: './agentdb.db', dimension: getEmbeddingConfig().dimension };
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
       if (arg === '--backend' && i + 1 < args.length) {
