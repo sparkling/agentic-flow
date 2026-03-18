@@ -99,7 +99,7 @@ export class LearningSystem {
     // Try to initialize GNN-enhanced learning
     try {
       const gnnConfig: GNNConfig = {
-        inputDim: 384,  // Default embedding size
+        inputDim: 768,  // Default embedding size (nomic-embed-text-v1.5)
         hiddenDim: 256,
         heads: 4,
         dropout: 0.1
@@ -132,7 +132,7 @@ export class LearningSystem {
 
     // Try to initialize GNNService for intent classification
     try {
-      this.gnnService = new GNNService({ inputDim: 384, hiddenDim: 128, outputDim: 64, layers: 3 });
+      this.gnnService = new GNNService({ inputDim: 768, hiddenDim: 128, outputDim: 64, layers: 3 });
       await this.gnnService.initialize();
       console.log(`[LearningSystem] GNNService initialized (engine: ${this.gnnService.getEngineType()})`);
     } catch (error) {

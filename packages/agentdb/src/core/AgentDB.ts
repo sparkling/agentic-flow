@@ -36,8 +36,10 @@ export interface AgentDBConfig {
   forceWasm?: boolean;
   /** Vector backend type: 'auto' | 'ruvector' | 'hnswlib' */
   vectorBackend?: 'auto' | 'ruvector' | 'hnswlib';
-  /** Vector dimension (default: 384 for MiniLM) */
+  /** Vector dimension (default: 768 for nomic-embed-text-v1.5) */
   vectorDimension?: number;
+  /** Embedding model ID (default: 'nomic-ai/nomic-embed-text-v1.5') */
+  embeddingModel?: string;
 }
 
 export class AgentDB {
@@ -83,7 +85,7 @@ export class AgentDB {
       this.db = new DatabaseImpl(dbPath);
     }
 
-    const dim = this.config.dimension ?? 384;
+    const dim = this.config.dimension ?? 768;
 
     // Load schemas
     const schemaPath = path.join(__dirname, '../../schemas/schema.sql');
@@ -100,7 +102,7 @@ export class AgentDB {
 
     // Initialize embedder
     this.embedder = new EmbeddingService({
-      model: 'Xenova/all-MiniLM-L6-v2',
+      model: this.config.embeddingModel || 'nomic-ai/nomic-embed-text-v1.5',
       dimension: dim,
       provider: 'transformers'
     });

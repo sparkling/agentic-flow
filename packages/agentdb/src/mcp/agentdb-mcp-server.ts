@@ -257,8 +257,8 @@ try {
 
 // Initialize embedding service
 const embeddingService = new EmbeddingService({
-  model: 'Xenova/all-MiniLM-L6-v2',
-  dimension: 384,
+  model: process.env.AGENTDB_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5',
+  dimension: parseInt(process.env.AGENTDB_EMBEDDING_DIM || '768', 10),
   provider: 'transformers'
 });
 await embeddingService.initialize();

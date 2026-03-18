@@ -250,7 +250,8 @@ export class NightlyLearner {
     }
 
     // Prepare queries (each episode is a query)
-    const dim = 384;
+    // Derive dimension from the first embedding rather than hardcoding
+    const dim = episodeEmbeddings.length > 0 ? episodeEmbeddings[0].length : 768;
     const queries = new Float32Array(episodes.length * dim);
     const keys = new Float32Array(episodes.length * dim);
     const values = new Float32Array(episodes.length * dim);
