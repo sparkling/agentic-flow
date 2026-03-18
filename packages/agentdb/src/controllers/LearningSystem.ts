@@ -26,6 +26,7 @@ import { cosineSimilarity } from '../utils/vector-math.js';
 import { RuVectorLearning, LearningConfig as GNNConfig } from '../backends/ruvector/RuVectorLearning.js';
 import { SonaTrajectoryService, TrajectoryStep as SonaStep } from '../services/SonaTrajectoryService.js';
 import { GNNService } from '../services/GNNService.js';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 export interface LearningSession {
   id: string;
@@ -99,7 +100,7 @@ export class LearningSystem {
     // Try to initialize GNN-enhanced learning
     try {
       const gnnConfig: GNNConfig = {
-        inputDim: 768,  // Default embedding size (nomic-embed-text-v1.5)
+        inputDim: getEmbeddingConfig().dimension,
         hiddenDim: 256,
         heads: 4,
         dropout: 0.1
@@ -132,7 +133,7 @@ export class LearningSystem {
 
     // Try to initialize GNNService for intent classification
     try {
-      this.gnnService = new GNNService({ inputDim: 768, hiddenDim: 128, outputDim: 64, layers: 3 });
+      this.gnnService = new GNNService({ inputDim: getEmbeddingConfig().dimension, hiddenDim: 128, outputDim: 64, layers: 3 });
       await this.gnnService.initialize();
       console.log(`[LearningSystem] GNNService initialized (engine: ${this.gnnService.getEngineType()})`);
     } catch (error) {

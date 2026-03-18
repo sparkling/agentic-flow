@@ -11,6 +11,7 @@
 
 import { AttentionService as ControllersAttentionService } from '../controllers/AttentionService.js';
 import type { AttentionResult } from '../controllers/AttentionService.js';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 // Database type placeholder (matches legacy pattern)
 type Database = any;
@@ -105,7 +106,7 @@ export class AttentionService {
     this.hyperbolicConfig = {
       enabled: false,
       curvature: 1.0,
-      dimension: 768,
+      dimension: getEmbeddingConfig().dimension,
       temperature: 1.0,
       ...configs?.hyperbolic,
     };
@@ -126,7 +127,7 @@ export class AttentionService {
       ...configs?.graphRoPE,
     };
 
-    const dim = this.hyperbolicConfig.dimension ?? 768;
+    const dim = this.hyperbolicConfig.dimension ?? getEmbeddingConfig().dimension;
     this.delegate = new ControllersAttentionService({
       numHeads: 1,
       headDim: dim,
@@ -143,7 +144,7 @@ export class AttentionService {
     hierarchyLevels: number[]
   ): Promise<HyperbolicAttentionResult> {
     const startTime = Date.now();
-    const dim = this.hyperbolicConfig.dimension ?? 768;
+    const dim = this.hyperbolicConfig.dimension ?? getEmbeddingConfig().dimension;
     const numKeys = keys.length / dim;
 
     try {
@@ -270,7 +271,7 @@ export class AttentionService {
     values: Float32Array,
     startTime: number
   ): FlashAttentionResult {
-    const dim = this.hyperbolicConfig.dimension ?? 768;
+    const dim = this.hyperbolicConfig.dimension ?? getEmbeddingConfig().dimension;
     const numQueries = queries.length / dim;
     const numKeys = keys.length / dim;
     const blockSize = this.flashConfig.blockSize!;
@@ -329,7 +330,7 @@ export class AttentionService {
     hopDistances: number[][],
     startTime: number
   ): GraphRoPEResult {
-    const dim = this.hyperbolicConfig.dimension ?? 768;
+    const dim = this.hyperbolicConfig.dimension ?? getEmbeddingConfig().dimension;
     const numQueries = queries.length / dim;
     const numKeys = keys.length / dim;
 

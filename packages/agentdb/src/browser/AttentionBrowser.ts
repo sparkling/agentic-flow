@@ -394,7 +394,7 @@ export function createFastAttention(): AttentionBrowser {
  */
 export function createAccurateAttention(): AttentionBrowser {
   return new AttentionBrowser({
-    dimension: 768,
+    dimension: getDefaultDim(),
     numHeads: 8,
     blockSize: 128,
     useWASM: true
