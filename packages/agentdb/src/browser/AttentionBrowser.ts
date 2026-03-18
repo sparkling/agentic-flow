@@ -22,7 +22,7 @@ function getDefaultDim(): number {
       _defaultDim = 768; // Safe default when fs/config unavailable (browser)
     }
   }
-  return _defaultDim;
+  return _defaultDim!;
 }
 
 export interface AttentionConfig {

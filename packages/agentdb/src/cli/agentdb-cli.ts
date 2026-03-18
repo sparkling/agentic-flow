@@ -198,7 +198,7 @@ class AgentDBCLI {
     this.embedder = new EmbeddingService({
       model: embCfg.model,
       dimension: embCfg.dimension,
-      provider: embCfg.provider
+      provider: (embCfg.provider === 'cohere' || embCfg.provider === 'custom') ? 'transformers' : embCfg.provider
     });
     await this.embedder.initialize();
 
