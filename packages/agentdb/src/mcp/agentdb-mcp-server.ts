@@ -41,6 +41,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -256,10 +257,11 @@ try {
 }
 
 // Initialize embedding service
+const embCfg = getEmbeddingConfig();
 const embeddingService = new EmbeddingService({
-  model: process.env.AGENTDB_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5',
-  dimension: parseInt(process.env.AGENTDB_EMBEDDING_DIM || '768', 10),
-  provider: 'transformers'
+  model: embCfg.model,
+  dimension: embCfg.dimension,
+  provider: embCfg.provider as 'transformers' | 'openai' | 'local',
 });
 await embeddingService.initialize();
 

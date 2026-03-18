@@ -26,6 +26,7 @@ import { SkillLibrary } from './SkillLibrary.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import { AttentionService, type FlashAttentionConfig } from '../utils/LegacyAttentionAdapter.js';
 import { cosineSimilarity } from '../utils/vector-math.js';
+import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 export interface LearnerConfig {
   minSimilarity: number; // Min similarity to consider for causal edge (default: 0.7)
@@ -251,7 +252,7 @@ export class NightlyLearner {
 
     // Prepare queries (each episode is a query)
     // Derive dimension from the first embedding rather than hardcoding
-    const dim = episodeEmbeddings.length > 0 ? episodeEmbeddings[0].length : 768;
+    const dim = episodeEmbeddings.length > 0 ? episodeEmbeddings[0].length : getEmbeddingConfig().dimension;
     const queries = new Float32Array(episodes.length * dim);
     const keys = new Float32Array(episodes.length * dim);
     const values = new Float32Array(episodes.length * dim);

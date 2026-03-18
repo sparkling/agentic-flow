@@ -19,7 +19,8 @@ function getDefaultDim(): number {
       const { getEmbeddingConfig } = require('../config/embedding-config.js');
       _defaultDim = getEmbeddingConfig().dimension;
     } catch {
-      _defaultDim = 768; // Safe default when fs/config unavailable (browser)
+      // getEmbeddingConfig() failed — absolute fallback (browser env, no fs)
+      _defaultDim = 768;
     }
   }
   return _defaultDim!;
