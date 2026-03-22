@@ -133,7 +133,7 @@ export class LearningSystem {
 
     // Try to initialize GNNService for intent classification
     try {
-      this.gnnService = new GNNService({ inputDim: getEmbeddingConfig().dimension, hiddenDim: 128, outputDim: 64, layers: 3 });
+      this.gnnService = new GNNService({ inputDim: getEmbeddingConfig().dimension, hiddenDim: 128, outputDim: 64, heads: 8 });
       await this.gnnService.initialize();
       console.log(`[LearningSystem] GNNService initialized (engine: ${this.gnnService.getEngineType()})`);
     } catch (error) {
