@@ -6,7 +6,8 @@
  * 2. Run A/B experiments on promising hypotheses
  * 3. Calculate uplift for completed experiments
  * 4. Prune low-confidence edges
- * 5. Update rerank weights based on performance
+ * 5. Consolidate episodes into reusable skills via SkillLibrary
+ * 6. Update rerank weights based on performance
  *
  * Based on doubly robust learner:
  * τ̂(x) = μ1(x) − μ0(x) + [a*(y−μ1(x)) / e(x)] − [(1−a)*(y−μ0(x)) / (1−e(x))]
@@ -54,6 +55,9 @@ export interface LearnerReport {
   experimentsCreated: number;
   avgUplift: number;
   avgConfidence: number;
+  skillsCreated: number;
+  skillsUpdated: number;
+  patternsExtracted: number;
   recommendations: string[];
 }
 
@@ -117,6 +121,9 @@ export class NightlyLearner {
       experimentsCreated: 0,
       avgUplift: 0,
       avgConfidence: 0,
+      skillsCreated: 0,
+      skillsUpdated: 0,
+      patternsExtracted: 0,
       recommendations: []
     };
 
@@ -145,12 +152,27 @@ export class NightlyLearner {
         console.log(`   ✓ Pruned ${report.edgesPruned} edges\n`);
       }
 
-      // Step 5: Calculate statistics
+      // Step 5: Consolidate episodes into reusable skills
+      try {
+        const consolidation = await this.skillLibrary.consolidateEpisodesIntoSkills({
+          minAttempts: 3,
+          minReward: this.config.confidenceThreshold || 0.7,
+          timeWindowDays: this.config.edgeMaxAgeDays || 30,
+          extractPatterns: true,
+        });
+        report.skillsCreated = consolidation.created;
+        report.skillsUpdated = consolidation.updated;
+        report.patternsExtracted = consolidation.patterns?.length ?? 0;
+      } catch (error) {
+        // Non-fatal — skill consolidation is a bonus, not critical
+      }
+
+      // Step 6: Calculate statistics
       const stats = this.calculateStats();
       report.avgUplift = stats.avgUplift;
       report.avgConfidence = stats.avgConfidence;
 
-      // Step 6: Generate recommendations
+      // Step 7: Generate recommendations
       report.recommendations = this.generateRecommendations(report);
 
       report.executionTimeMs = Date.now() - startTime;
@@ -630,7 +652,10 @@ export class NightlyLearner {
     console.log(`    • Edges Discovered: ${report.edgesDiscovered}`);
     console.log(`    • Edges Pruned: ${report.edgesPruned}`);
     console.log(`    • Experiments Completed: ${report.experimentsCompleted}`);
-    console.log(`    • Experiments Created: ${report.experimentsCreated}\n`);
+    console.log(`    • Experiments Created: ${report.experimentsCreated}`);
+    console.log(`    • Skills Created: ${report.skillsCreated}`);
+    console.log(`    • Skills Updated: ${report.skillsUpdated}`);
+    console.log(`    • Patterns Extracted: ${report.patternsExtracted}\n`);
     console.log('  Statistics:');
     console.log(`    • Avg Uplift: ${report.avgUplift.toFixed(3)}`);
     console.log(`    • Avg Confidence: ${report.avgConfidence.toFixed(3)}\n`);
