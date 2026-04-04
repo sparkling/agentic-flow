@@ -548,8 +548,8 @@ export class EnhancedEmbeddingService {
     // Set defaults
     this.config = {
       provider: config.provider ?? 'transformers',
-      model: config.model ?? 'Xenova/all-MiniLM-L6-v2',
-      dimension: config.dimension ?? getModelDimension(config.model ?? 'Xenova/all-MiniLM-L6-v2'),
+      model: config.model ?? 'all-MiniLM-L6-v2',
+      dimension: config.dimension ?? getModelDimension(config.model ?? 'all-MiniLM-L6-v2'),
       apiKey: config.apiKey ?? '',
       customEmbedder: config.customEmbedder,
       cache: {
