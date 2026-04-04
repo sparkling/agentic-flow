@@ -54,10 +54,8 @@ export class EmbeddingService {
           env.HF_TOKEN = hfToken;
         }
 
-        // Models without an org prefix need Xenova/ to resolve from HuggingFace
-        const modelId = this.config.model.includes('/') ? this.config.model : `Xenova/${this.config.model}`;
-        this.pipeline = await transformers.pipeline('feature-extraction', modelId);
-        console.log(`Transformers.js loaded: ${modelId}`);
+        this.pipeline = await transformers.pipeline('feature-extraction', this.config.model);
+        console.log(`Transformers.js loaded: ${this.config.model}`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.warn(`Transformers.js initialization failed: ${errorMessage}`);
