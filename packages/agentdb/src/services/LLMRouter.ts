@@ -15,7 +15,6 @@
  * - Privacy requirements (local models via RuvLLM or ONNX)
  */
 
-import dotenv from 'dotenv';
 import { getEmbeddingConfig } from '../config/embedding-config.js';
 
 // Lazy-loaded RuvLLM to avoid import failures if not installed
@@ -99,10 +98,14 @@ export class LLMRouter {
     if (this.envLoaded) return;
 
     try {
+      // Lazy import — dotenv is a dev convenience, not a runtime requirement.
+      // In production, env vars are set by the caller's environment.
+      const dotenv = require('dotenv');
       dotenv.config();
       this.envLoaded = true;
-    } catch (error) {
-      // Silent fail - environment variables may be set directly
+    } catch {
+      // dotenv not installed or config failed — env vars must be set directly
+      this.envLoaded = true;
     }
   }
 
