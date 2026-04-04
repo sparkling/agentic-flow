@@ -26,7 +26,7 @@ export { ReasoningBank } from './controllers/ReasoningBank.js';
 
 // Embedding services
 export { EmbeddingService } from './controllers/EmbeddingService.js';
-export { EnhancedEmbeddingService } from './controllers/EnhancedEmbeddingService.js';
+export { EnhancedEmbeddingService } from './services/enhanced-embeddings.js';
 
 // Model cache (offline .rvf model loading)
 export { ModelCacheLoader } from './model/ModelCacheLoader.js';
@@ -52,8 +52,10 @@ export { createDatabase } from './db-fallback.js';
 // Optimizations
 export { BatchOperations } from './optimizations/BatchOperations.js';
 export { QueryOptimizer } from './optimizations/QueryOptimizer.js';
-export { QueryCache } from './core/QueryCache.js';
-export type { QueryCacheConfig, CacheEntry, CacheStatistics } from './core/QueryCache.js';
+export { RVFOptimizer } from './optimizations/RVFOptimizer.js';
+
+// Metadata filtering (ADR-0043)
+export { MetadataFilter } from './controllers/MetadataFilter.js';
 
 // Security
 export {
@@ -65,77 +67,65 @@ export {
   ValidationError,
 } from './security/input-validation.js';
 
-// Vector Quantization
-export {
-  // Types
-  type QuantizationStats,
-  type QuantizedVector,
-  type ProductQuantizerConfig,
-  type PQEncodedVector,
-  type QuantizedVectorStoreConfig,
-  type QuantizedSearchResult,
-  // Scalar Quantization
-  quantize8bit,
-  quantize4bit,
-  dequantize8bit,
-  dequantize4bit,
-  calculateQuantizationError,
-  getQuantizationStats,
-  // Product Quantization
-  ProductQuantizer,
-  // Quantized Vector Store
-  QuantizedVectorStore,
-  // Factory Functions
-  createScalar8BitStore,
-  createScalar4BitStore,
-  createProductQuantizedStore,
-} from './quantization/index.js';
+// Services - RuVector package integrations
+export { SemanticRouter } from './services/SemanticRouter.js';
+export { SonaTrajectoryService } from './services/SonaTrajectoryService.js';
+export { LLMRouter } from './services/LLMRouter.js';
+export { GraphTransformerService } from './services/GraphTransformerService.js';
+export { GNNService } from './services/GNNService.js';
 
-// Hybrid Search (Vector + Keyword)
-export {
-  KeywordIndex,
-  HybridSearch,
-  createKeywordIndex,
-  createHybridSearch,
-  type HybridSearchOptions,
-  type HybridSearchResult,
-  type HybridQuery,
-  type BM25Config,
-} from './search/index.js';
+// Consensus - Distributed coordination
+export { RaftConsensus } from './consensus/RaftConsensus.js';
+export type { RaftConfig, LogEntry, RaftState } from './consensus/RaftConsensus.js';
 
-// Benchmarking Suite
-export {
-  // Main Suite
-  BenchmarkSuite,
-  // Base class for custom benchmarks
-  Benchmark,
-  // Built-in benchmarks
-  VectorInsertBenchmark,
-  VectorSearchBenchmark,
-  MemoryUsageBenchmark,
-  ConcurrencyBenchmark,
-  QuantizationBenchmark,
-  // CLI integration functions
-  runBenchmarks,
-  runSelectedBenchmarks,
-  // Formatting utilities
-  formatReportAsMarkdown,
-  formatComparisonAsMarkdown,
-  // Types
-  type LatencyStats,
-  type BenchmarkResult,
-  type BenchmarkReport,
-  type ComparisonReport,
-  type BenchmarkConfig,
-} from './benchmark/index.js';
+// Re-export service types for convenience
+export type { RouteResult, RouteConfig } from './services/SemanticRouter.js';
+export type { TrajectoryStep, StoredTrajectory, PredictionResult, SonaStats } from './services/SonaTrajectoryService.js';
+export type { LLMConfig, LLMResponse } from './services/LLMRouter.js';
+export type { GraphTransformerStats } from './services/GraphTransformerService.js';
+export type { GNNConfig, IntentResult } from './services/GNNService.js';
+export type { RVFConfig } from './optimizations/RVFOptimizer.js';
+
+// Vector math utilities
+export { cosineSimilarity, batchCosineSimilarity, distanceToSimilarity, serializeEmbedding, deserializeEmbedding } from './utils/vector-math.js';
 
 // Re-export all controllers for convenience
 export * from './controllers/index.js';
 
+// Thompson Sampling bandit (RVF backend)
+export { SolverBandit } from './backends/rvf/SolverBandit.js';
+export type { BanditArmStats, BanditConfig, BanditStats, BanditState } from './backends/rvf/SolverBandit.js';
+
 // LLM Router - Multi-provider LLM integration with RuvLLM support
-export {
-  LLMRouter,
-  isRuvLLMInstalled,
-  type LLMConfig,
-  type LLMResponse,
-} from './services/LLMRouter.js';
+// LLMRouter, LLMConfig, LLMResponse already exported above (lines 68, 79)
+export { isRuvLLMInstalled } from './services/LLMRouter.js';
+
+// Attention metrics (ADR-0050)
+export { AttentionMetricsCollector } from './utils/attention-metrics.js';
+export type { AttentionMetrics, OperationMetrics } from './utils/attention-metrics.js';
+
+// Index health monitoring (ADR-0050)
+export { IndexHealthMonitor } from './backends/rvf/AdaptiveIndexTuner.js';
+
+// Audit logging (ADR-0050)
+export { AuditLogger } from './services/audit-logger.service.js';
+export type { AuditEventType, AuditEvent } from './services/audit-logger.service.js';
+
+// Federated learning (ADR-0050)
+export { FederatedLearningManager } from './services/federated-learning.js';
+export type { FederatedAgentState, FederatedConfig } from './services/federated-learning.js';
+
+// Quantized vector store (ADR-0050 F4)
+export { QuantizedVectorStore } from './optimizations/Quantization.js';
+export type { QuantizationConfig, QuantizationType } from './optimizations/Quantization.js';
+
+// Self-learning RVF backend (ADR-0050 remaining controllers)
+export { SelfLearningRvfBackend } from './backends/rvf/SelfLearningRvfBackend.js';
+export type { SelfLearningConfig } from './backends/rvf/SelfLearningRvfBackend.js';
+
+// Native accelerator — JS fallback singleton (ADR-0050)
+export { NativeAccelerator, getAccelerator, resetAccelerator } from './backends/rvf/NativeAccelerator.js';
+
+// Embedding config (ADR-0052 config-driven framework)
+export { getEmbeddingConfig, resetEmbeddingConfig, getModelDimension, getTaskPrefix, applyTaskPrefix, deriveHNSWParams, MODEL_REGISTRY } from './config/embedding-config.js';
+export type { EmbeddingConfig, HNSWParams, ModelInfo } from './config/embedding-config.js';
