@@ -47,6 +47,12 @@ export interface AgentDBConfig {
   vectorDimension?: number;
   /** Embedding model ID (default: 'nomic-ai/nomic-embed-text-v1.5') */
   embeddingModel?: string;
+  /** HNSW M parameter - connections per layer (forwarded to vector backend) */
+  hnswM?: number;
+  /** HNSW efConstruction - build quality (forwarded to vector backend) */
+  hnswEfConstruction?: number;
+  /** HNSW efSearch - search quality (forwarded to vector backend) */
+  hnswEfSearch?: number;
 }
 
 export class AgentDB {
@@ -149,6 +155,9 @@ export class AgentDB {
         dimensions: dim,
         metric: 'cosine',
         maxElements: this.config.maxElements ?? 10000,
+        ...(this.config.hnswM !== undefined && { M: this.config.hnswM }),
+        ...(this.config.hnswEfConstruction !== undefined && { efConstruction: this.config.hnswEfConstruction }),
+        ...(this.config.hnswEfSearch !== undefined && { efSearch: this.config.hnswEfSearch }),
         database: this.db,
       });
       this.guardedBackend = backend;
@@ -175,8 +184,14 @@ export class AgentDB {
     this.reflexion = new ReflexionMemory(this.db, this.embedder, controllerVB ?? undefined);
     this.skills = new SkillLibrary(this.db, this.embedder, controllerVB ?? undefined);
     this.reasoning = new ReasoningBank(this.db, this.embedder, controllerVB ?? undefined);
-    this.causalGraph = new CausalMemoryGraph(this.db);
-    this.explainableRecall = new ExplainableRecall(this.db, this.embedder);
+    this.causalGraph = new CausalMemoryGraph(
+      this.db, undefined, undefined, undefined, undefined,
+      this.attentionService,
+    );
+    this.explainableRecall = new ExplainableRecall(
+      this.db, this.embedder, undefined,
+      this.attentionService,
+    );
     this.learningSystem = new LearningSystem(this.db, this.embedder);
     this.causalRecall = new CausalRecall(
       this.db, this.embedder, controllerVB ?? undefined,
@@ -186,6 +201,7 @@ export class AgentDB {
     this.nightlyLearner = new NightlyLearner(
       this.db, this.embedder, undefined, // config — use default
       this.causalGraph, this.reflexion, this.skills,
+      this.attentionService,
     );
 
     // Initialize optional graph database adapter
