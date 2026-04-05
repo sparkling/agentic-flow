@@ -390,7 +390,7 @@ export async function createGuardedBackend(
 
   const guard = new MutationGuard({
     dimension: config.dimension ?? config.dimensions ?? getEmbeddingConfig().dimension,
-    maxElements: config.maxElements ?? 10000,
+    maxElements: config.maxElements ?? getEmbeddingConfig().maxElements, // ADR-0069: config-chain capacity
     enableWasmProofs,
     enableAttestationLog: true,
     defaultNamespace: 'default',

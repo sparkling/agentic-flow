@@ -21,7 +21,7 @@
 
 import type { VectorBackend, VectorConfig, SearchResult, SearchOptions, VectorStats } from '../VectorBackend.js';
 import type { RuVectorLearning } from './RuVectorLearning.js';
-import { getEmbeddingConfig } from '../../config/embedding-config.js';
+import { getEmbeddingConfig, deriveHNSWParams } from '../../config/embedding-config.js';
 
 // ============================================================================
 // Performance & Security Constants
@@ -267,8 +267,10 @@ export class RuVectorBackend implements VectorBackend {
     // Validate dimension for security
     validateDimension(dimension);
 
+    // Derive dimension-aware HNSW defaults, allow caller config to override
+    const derived = deriveHNSWParams(dimension);
     // Store both forms for compatibility with different backends
-    this.config = { ...config, dimension, dimensions: dimension } as RuVectorConfig;
+    this.config = { M: derived.M, efConstruction: derived.efConstruction, efSearch: derived.efSearch, ...config, dimension, dimensions: dimension } as RuVectorConfig;
 
     // Initialize concurrency control with configurable limit (bounded for security)
     const concurrency = Math.min(Math.max(1, (config as RuVectorConfig).parallelConcurrency ?? 4), 32);
@@ -334,9 +336,9 @@ export class RuVectorBackend implements VectorBackend {
       this.db = new VectorDB({
         dimensions: dimensions,
         metric: this.config.metric,
-        maxElements: this.config.maxElements || 100000,
-        efConstruction: this.config.efConstruction || 200,
-        m: this.config.M || 16
+        maxElements: this.config.maxElements || getEmbeddingConfig().maxElements, // ADR-0069: config-chain capacity
+        efConstruction: this.config.efConstruction,
+        m: this.config.M
       });
 
       // Detect native SIMD availability

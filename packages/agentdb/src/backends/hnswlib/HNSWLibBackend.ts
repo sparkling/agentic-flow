@@ -24,7 +24,7 @@ import type {
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
-import { getEmbeddingConfig } from '../../config/embedding-config.js';
+import { getEmbeddingConfig, deriveHNSWParams } from '../../config/embedding-config.js';
 
 // Lazy-loaded hnswlib-node to avoid import failures on systems without build tools
 let HierarchicalNSW: any = null;
@@ -85,11 +85,12 @@ export class HNSWLibBackend implements VectorBackend {
     if (!dimension) {
       throw new Error('Vector dimension is required (use dimension or dimensions)');
     }
+    const derived = deriveHNSWParams(dimension);
     this.config = {
-      maxElements: 100000,
-      M: 16,
-      efConstruction: 200,
-      efSearch: 100,
+      maxElements: derived.maxElements, // ADR-0069: config-chain capacity
+      M: derived.M,
+      efConstruction: derived.efConstruction,
+      efSearch: derived.efSearch,
       ...config,
       dimension,  // Ensure dimension (singular) is always set
     };
