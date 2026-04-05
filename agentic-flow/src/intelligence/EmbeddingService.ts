@@ -15,6 +15,7 @@
  */
 
 import { getEmbeddingCache, type EmbeddingCache } from './EmbeddingCache.js';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js'; // ADR-0069
 
 export type EmbeddingBackend = 'simple' | 'onnx' | 'auto';
 
@@ -185,7 +186,7 @@ export class EmbeddingService {
     // Initialize persistent cache
     if (this.persistentCacheEnabled) {
       try {
-        this.persistentCache = getEmbeddingCache({ dimension: 768 });
+        this.persistentCache = getEmbeddingCache({ dimension: getEmbeddingConfig().dimension }); // ADR-0069: config-chain-aware
       } catch (error) {
         console.warn('[EmbeddingService] Persistent cache unavailable:', error);
         this.persistentCacheEnabled = false;
@@ -212,13 +213,13 @@ export class EmbeddingService {
       const hasOnnx = await detectOnnx();
       this.effectiveBackend = hasOnnx ? 'onnx' : 'simple';
       if (hasOnnx) {
-        this.dimension = 768; // all-mpnet-base-v2 dimension
+        this.dimension = getEmbeddingConfig().dimension; // ADR-0069: config-chain-aware
       }
     } else {
       this.effectiveBackend = this.backend;
       if (this.backend === 'onnx') {
         await detectOnnx(); // Ensure module is loaded
-        this.dimension = 768;
+        this.dimension = getEmbeddingConfig().dimension; // ADR-0069: config-chain-aware
       }
     }
 

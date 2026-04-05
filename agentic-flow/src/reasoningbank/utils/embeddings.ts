@@ -5,6 +5,7 @@
 
 import { pipeline, env } from '@xenova/transformers';
 import { loadConfig } from './config.js';
+import { getEmbeddingConfig } from '../../../../packages/agentdb/src/config/embedding-config.js'; // ADR-0069
 
 // Configure transformers.js to use WASM backend only (avoid ONNX runtime issues)
 // The native ONNX runtime causes "DefaultLogger not registered" errors in Node.js
@@ -48,9 +49,10 @@ async function initializeEmbeddings(): Promise<void> {
     console.log('[Embeddings] First run will download ~80MB model...');
 
     try {
+      const pipelineCfg = getEmbeddingConfig(); // ADR-0069: config-chain-aware
       embeddingPipeline = await pipeline(
         'feature-extraction',
-        'Xenova/all-mpnet-base-v2',
+        pipelineCfg.model,
         { quantized: true } // Smaller, faster
       );
       console.log('[Embeddings] Local model ready! (768 dimensions)');
@@ -92,7 +94,7 @@ export async function computeEmbedding(text: string): Promise<Float32Array> {
       embedding = new Float32Array(output.data);
     } catch (error: any) {
       console.error('[Embeddings] Generation failed:', error?.message || error);
-      embedding = hashEmbed(text, 768); // Fallback
+      embedding = hashEmbed(text, getEmbeddingConfig().dimension); // ADR-0069: config-chain-aware fallback
     }
   } else {
     // Fallback to hash-based embeddings
@@ -148,7 +150,7 @@ export async function computeEmbeddingBatch(texts: string[]): Promise<Float32Arr
  * Get embedding dimensions
  */
 export function getEmbeddingDimensions(): number {
-  return 768; // all-mpnet-base-v2 uses 768 dimensions
+  return getEmbeddingConfig().dimension; // ADR-0069: config-chain-aware
 }
 
 /**

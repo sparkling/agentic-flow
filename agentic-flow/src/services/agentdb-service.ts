@@ -7,6 +7,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { CostOptimizerService } from './cost-optimizer-service.js';
+import { getEmbeddingConfig, deriveHNSWParams } from '../../../packages/agentdb/src/config/embedding-config.js'; // ADR-0069
 
 // -- Public interfaces ------------------------------------------------------
 
@@ -211,8 +212,9 @@ export class AgentDBService {
       await this.db.initialize();
 
       const EmbeddingSvc = agentdb.EmbeddingService;
+      const embCfg = getEmbeddingConfig(); // ADR-0069: config-chain-aware
       this.embeddingService = new EmbeddingSvc({
-        model: 'Xenova/all-mpnet-base-v2', dimension: 768, provider: 'transformers',
+        model: embCfg.model, dimension: embCfg.dimension, provider: embCfg.provider,
       });
       await this.embeddingService.initialize();
 
@@ -258,12 +260,13 @@ export class AgentDBService {
         const { createBackend } = await import(
           /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/factory.js'
         );
+        const hnswParams = deriveHNSWParams(embCfg.dimension); // ADR-0069: config-chain-aware
         vectorBackend = await createBackend('auto', {
-          dimension: 768,
+          dimension: embCfg.dimension,
           metric: 'cosine',
-          maxElements: 10000,
-          efConstruction: 200,
-          M: 16,
+          maxElements: 100000,  // ADR-0069: match registry's 100K capacity
+          efConstruction: hnswParams.efConstruction,
+          M: hnswParams.M,
         });
         this.vectorBackend = vectorBackend;
         console.log('[AgentDBService] VectorBackend initialized');
@@ -288,8 +291,8 @@ export class AgentDBService {
             /* webpackIgnore: true */ '../../../packages/agentdb/src/security/AttestationLog.js'
           );
           const guard = new MutationGuard({
-            dimension: 768,
-            maxElements: 10000,
+            dimension: embCfg.dimension, // ADR-0069: config-chain-aware
+            maxElements: 100000,  // ADR-0069: match registry's 100K capacity
             enableWasmProofs: true,
             enableAttestationLog: true,
             defaultNamespace: 'agentdb',
@@ -457,10 +460,11 @@ export class AgentDBService {
       );
 
       // Create enhanced version with same config
+      const upgradeCfg = getEmbeddingConfig(); // ADR-0069: config-chain-aware
       const enhanced = new EnhancedEmbeddingService({
-        model: 'Xenova/all-mpnet-base-v2',
-        dimension: 768,
-        provider: 'transformers',
+        model: upgradeCfg.model,
+        dimension: upgradeCfg.dimension,
+        provider: upgradeCfg.provider,
         enableWASM: true,
         enableBatchProcessing: true,
         batchSize: 100,
