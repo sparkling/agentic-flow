@@ -212,7 +212,7 @@ export class AgentDBService {
 
       const EmbeddingSvc = agentdb.EmbeddingService;
       this.embeddingService = new EmbeddingSvc({
-        model: 'Xenova/all-MiniLM-L6-v2', dimension: 384, provider: 'transformers',
+        model: 'Xenova/all-mpnet-base-v2', dimension: 768, provider: 'transformers',
       });
       await this.embeddingService.initialize();
 
@@ -259,7 +259,7 @@ export class AgentDBService {
           /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/factory.js'
         );
         vectorBackend = await createBackend('auto', {
-          dimension: 384,
+          dimension: 768,
           metric: 'cosine',
           maxElements: 10000,
           efConstruction: 200,
@@ -288,7 +288,7 @@ export class AgentDBService {
             /* webpackIgnore: true */ '../../../packages/agentdb/src/security/AttestationLog.js'
           );
           const guard = new MutationGuard({
-            dimension: 384,
+            dimension: 768,
             maxElements: 10000,
             enableWasmProofs: true,
             enableAttestationLog: true,
@@ -392,7 +392,7 @@ export class AgentDBService {
       this.attentionService = new AttentionService({
         numHeads: 8,
         headDim: 48,
-        embedDim: 384,
+        embedDim: 768,
         useFlash: true,
         dropout: 0.1,
       });
@@ -458,8 +458,8 @@ export class AgentDBService {
 
       // Create enhanced version with same config
       const enhanced = new EnhancedEmbeddingService({
-        model: 'Xenova/all-MiniLM-L6-v2',
-        dimension: 384,
+        model: 'Xenova/all-mpnet-base-v2',
+        dimension: 768,
         provider: 'transformers',
         enableWASM: true,
         enableBatchProcessing: true,
@@ -491,7 +491,7 @@ export class AgentDBService {
       );
 
       this.gnnLearning = new RuVectorLearning({
-        inputDim: 384,
+        inputDim: 768,
         hiddenDim: 256,
         heads: 4,
         dropout: 0.1
@@ -542,7 +542,7 @@ export class AgentDBService {
       this.graphAdapter = new GraphDatabaseAdapter(
         {
           storagePath: graphPath,
-          dimensions: 384,
+          dimensions: 768,
           distanceMetric: 'Cosine'
         },
         this.embeddingService

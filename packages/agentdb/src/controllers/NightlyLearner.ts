@@ -86,6 +86,7 @@ export class NightlyLearner {
     causalGraph?: CausalMemoryGraph,
     reflexion?: ReflexionMemory,
     skillLibrary?: SkillLibrary,
+    attentionService?: AttentionService,
   ) {
     this.db = db;
     this.embedder = embedder;
@@ -94,8 +95,10 @@ export class NightlyLearner {
     this.reflexion = reflexion || new ReflexionMemory(db, embedder);
     this.skillLibrary = skillLibrary || new SkillLibrary(db, embedder);
 
-    // Initialize AttentionService if FlashAttention enabled
-    if (this.config.ENABLE_FLASH_CONSOLIDATION) {
+    // Use injected AttentionService if provided, else create one when needed
+    if (attentionService) {
+      this.attentionService = attentionService;
+    } else if (this.config.ENABLE_FLASH_CONSOLIDATION) {
       this.attentionService = new AttentionService(db, {
         flash: {
           enabled: true,

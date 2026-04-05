@@ -4,12 +4,12 @@
  * Uses ruvector@0.1.61+ for ONNX embeddings with:
  * - SIMD128 acceleration (6x faster)
  * - Parallel worker threads (7 workers)
- * - all-MiniLM-L6-v2 model (384 dimensions)
+ * - all-mpnet-base-v2 model (768 dimensions)
  * - Persistent SQLite cache (0.1ms vs 400ms)
  *
  * Configure via:
  * - AGENTIC_FLOW_EMBEDDINGS=simple|onnx|auto (default: auto)
- * - AGENTIC_FLOW_EMBEDDING_MODEL=all-MiniLM-L6-v2 (default)
+ * - AGENTIC_FLOW_EMBEDDING_MODEL=all-mpnet-base-v2 (default)
  * - AGENTIC_FLOW_EMBEDDING_CACHE=true|false (default: true)
  * - AGENTIC_FLOW_PERSISTENT_CACHE=true|false (default: true)
  */
@@ -176,8 +176,8 @@ export class EmbeddingService {
   private constructor() {
     // Default to 'auto' which will detect ONNX and use it if available
     this.backend = (process.env.AGENTIC_FLOW_EMBEDDINGS as EmbeddingBackend) || 'auto';
-    this.modelName = process.env.AGENTIC_FLOW_EMBEDDING_MODEL || 'all-MiniLM-L6-v2';
-    this.dimension = 256; // Will be updated when ONNX loads (384)
+    this.modelName = process.env.AGENTIC_FLOW_EMBEDDING_MODEL || 'all-mpnet-base-v2';
+    this.dimension = 256; // Will be updated when ONNX loads (768)
     this.cacheEnabled = process.env.AGENTIC_FLOW_EMBEDDING_CACHE !== 'false';
     this.persistentCacheEnabled = process.env.AGENTIC_FLOW_PERSISTENT_CACHE !== 'false';
     this.cache = new LRUCache(1000);
@@ -185,7 +185,7 @@ export class EmbeddingService {
     // Initialize persistent cache
     if (this.persistentCacheEnabled) {
       try {
-        this.persistentCache = getEmbeddingCache({ dimension: 384 });
+        this.persistentCache = getEmbeddingCache({ dimension: 768 });
       } catch (error) {
         console.warn('[EmbeddingService] Persistent cache unavailable:', error);
         this.persistentCacheEnabled = false;
@@ -212,13 +212,13 @@ export class EmbeddingService {
       const hasOnnx = await detectOnnx();
       this.effectiveBackend = hasOnnx ? 'onnx' : 'simple';
       if (hasOnnx) {
-        this.dimension = 384; // all-MiniLM-L6-v2 dimension
+        this.dimension = 768; // all-mpnet-base-v2 dimension
       }
     } else {
       this.effectiveBackend = this.backend;
       if (this.backend === 'onnx') {
         await detectOnnx(); // Ensure module is loaded
-        this.dimension = 384;
+        this.dimension = 768;
       }
     }
 
@@ -1570,7 +1570,7 @@ export class EmbeddingService {
         if (mod.HyperbolicAttention && selectedAttention === 'hyperbolic') {
           try {
             // Hyperbolic attention for hierarchical code structure
-            const attention = new mod.HyperbolicAttention({ dim: 384 });
+            const attention = new mod.HyperbolicAttention({ dim: 768 });
 
             // Identify structural patterns (classes, functions, imports)
             const structuralPatterns = [
