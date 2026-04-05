@@ -14,6 +14,8 @@
 import * as ort from 'onnxruntime-node';
 import { pipeline, env } from '@xenova/transformers';
 import { createHash } from 'crypto';
+// ADR-0069 A12: import canonical embedding config chain
+import { getEmbeddingConfig } from '../../../agentdb/src/config/embedding-config';
 
 export interface ONNXConfig {
   modelName: string;
@@ -110,8 +112,11 @@ export class ONNXEmbeddingService {
   private batchSizes: number[] = [];
 
   constructor(config: ONNXConfig) {
+    // ADR-0069 A12: default model from config chain (all-mpnet-base-v2, 768d)
+    const embCfg = getEmbeddingConfig();
+    const defaultModel = embCfg.model.startsWith('Xenova/') ? embCfg.model : `Xenova/${embCfg.model}`;
     this.config = {
-      modelName: config.modelName || 'Xenova/all-MiniLM-L6-v2',
+      modelName: config.modelName || defaultModel,
       executionProviders: config.executionProviders || ['cpu'],
       batchSize: config.batchSize || 32,
       maxLength: config.maxLength || 512,
@@ -438,8 +443,9 @@ export class ONNXEmbeddingService {
    * Get embedding dimension
    */
   getDimension(): number {
-    // Default dimensions for common models
+    // ADR-0069 A12: dimension lookup includes config-chain model
     const dimensions: Record<string, number> = {
+      'Xenova/all-mpnet-base-v2': 768,
       'Xenova/all-MiniLM-L6-v2': 384,
       'Xenova/all-MiniLM-L12-v2': 384,
       'Xenova/bge-small-en-v1.5': 384,
@@ -448,7 +454,7 @@ export class ONNXEmbeddingService {
       'Xenova/e5-base-v2': 768
     };
 
-    return dimensions[this.config.modelName] || 384;
+    return dimensions[this.config.modelName] || getEmbeddingConfig().dimension;
   }
 
   private ensureInitialized(): void {

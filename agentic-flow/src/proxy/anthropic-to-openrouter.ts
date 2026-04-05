@@ -89,7 +89,7 @@ export class AnthropicToOpenRouterProxy {
   }) {
     this.app = express();
     this.openrouterApiKey = config.openrouterApiKey;
-    this.openrouterBaseUrl = config.openrouterBaseUrl || 'https://openrouter.ai/api/v1';
+    this.openrouterBaseUrl = config.openrouterBaseUrl || process.env.OPENROUTER_URL || 'https://openrouter.ai/api/v1'; // ADR-0069 A15
     this.defaultModel = config.defaultModel || 'meta-llama/llama-3.1-8b-instruct';
     this.capabilities = config.capabilities;
 

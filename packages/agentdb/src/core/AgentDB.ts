@@ -163,7 +163,7 @@ export class AgentDB {
       const { backend, guard, log } = await createGuardedBackend('auto', {
         dimensions: dim,
         metric: 'cosine',
-        maxElements: this.config.maxElements ?? 10000,
+        maxElements: this.config.maxElements ?? getEmbeddingConfig().maxElements, // ADR-0069: config-chain capacity
         ...(this.config.hnswM !== undefined && { M: this.config.hnswM }),
         ...(this.config.hnswEfConstruction !== undefined && { efConstruction: this.config.hnswEfConstruction }),
         ...(this.config.hnswEfSearch !== undefined && { efSearch: this.config.hnswEfSearch }),

@@ -43,7 +43,7 @@ interface ProxyConfig {
  * Get proxy configuration based on provider
  */
 function getProxyConfig(provider: string, customPort?: number): ProxyConfig {
-  const port = customPort || 3000;
+  const port = customPort || parseInt(process.env.MCP_PORT || '', 10) || 3000; // ADR-0069 A6
   const baseUrl = `http://localhost:${port}`;
 
   switch (provider.toLowerCase()) {

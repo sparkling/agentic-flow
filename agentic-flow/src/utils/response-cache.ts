@@ -54,8 +54,9 @@ export class ResponseCache {
       totalSavings: 0
     };
 
-    // Cleanup expired entries every minute
-    setInterval(() => this.cleanup(), 60000);
+    // ADR-0069 A13: configurable cleanup interval
+    const cleanupMs = (() => { try { const c = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); return c?.memory?.cleanupIntervalMs ?? 60000; } catch { return 60000; } })();
+    setInterval(() => this.cleanup(), cleanupMs);
   }
 
   /**

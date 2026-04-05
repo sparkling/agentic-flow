@@ -272,7 +272,7 @@ export class AgentDBService {
         vectorBackend = await createBackend('auto', {
           dimension: embCfg.dimension,
           metric: 'cosine',
-          maxElements: 100000,  // ADR-0069: match registry's 100K capacity
+          maxElements: hnswParams.maxElements, // ADR-0069: use config-chain capacity
           efConstruction: hnswParams.efConstruction,
           M: hnswParams.M,
         });
@@ -300,7 +300,7 @@ export class AgentDBService {
           );
           const guard = new MutationGuard({
             dimension: embCfg.dimension, // ADR-0069: config-chain-aware
-            maxElements: 100000,  // ADR-0069: match registry's 100K capacity
+            maxElements: hnswParams.maxElements, // ADR-0069: use config-chain capacity
             enableWasmProofs: true,
             enableAttestationLog: true,
             defaultNamespace: 'agentdb',
@@ -554,7 +554,7 @@ export class AgentDBService {
       this.graphAdapter = new GraphDatabaseAdapter(
         {
           storagePath: graphPath,
-          dimensions: 768,
+          dimensions: embCfg.dimension, // ADR-0069: config-chain-aware
           distanceMetric: 'Cosine'
         },
         this.embeddingService
@@ -639,8 +639,10 @@ export class AgentDBService {
       const { NightlyLearner } = await import(
         /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/NightlyLearner.js'
       );
+      // ADR-0069 A7: config-chain similarity threshold
+      const _cfgSimThreshold = (() => { try { const c = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); return c?.memory?.similarityThreshold; } catch { return undefined; } })();
       this.nightlyLearner = new NightlyLearner(database, this.embeddingService, {
-        minSimilarity: 0.7,
+        minSimilarity: _cfgSimThreshold ?? 0.7,
         minSampleSize: 30,
         confidenceThreshold: 0.6,
         upliftThreshold: 0.05,

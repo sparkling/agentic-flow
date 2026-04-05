@@ -47,7 +47,7 @@ export function registerRVFTools(server: any): void {
               enabled: stats.config?.compression?.enabled || false,
               quantizeBits: stats.config?.compression?.quantizeBits || 32,
               estimatedSavings: compressionSavings,
-              deduplicationThreshold: stats.config?.compression?.deduplicationThreshold || 0.98
+              deduplicationThreshold: stats.config?.compression?.deduplicationThreshold || 0.95, // ADR-0069 A11: aligned to 0.95
             },
             cache: {
               size: stats.cacheSize || 0,

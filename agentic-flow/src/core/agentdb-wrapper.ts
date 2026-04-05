@@ -12,6 +12,8 @@
  * @module agentdb-wrapper
  */
 
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+
 let AgentDB: any = null;
 let agentdbAvailable = false;
 
@@ -87,7 +89,7 @@ export class AgentDBWrapper {
     this.config = {
       dbPath: config.dbPath || ':memory:',
       namespace: config.namespace || 'default',
-      dimension: config.dimension || 768,
+      dimension: config.dimension || getEmbeddingConfig().dimension, // ADR-0069: config-chain-aware
       hnswConfig: {
         M: config.hnswConfig?.M || 16,
         efConstruction: config.hnswConfig?.efConstruction || 200,

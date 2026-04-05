@@ -45,7 +45,7 @@ export class AnthropicToONNXProxy {
     executionProviders?: string[];
   } = {}) {
     this.app = express();
-    this.port = config.port || 3001;
+    this.port = config.port || parseInt(process.env.ONNX_PROXY_PORT || '', 10) || 3001; // ADR-0069 A6
 
     // Initialize ONNX provider with configuration
     this.onnxProvider = new ONNXLocalProvider({

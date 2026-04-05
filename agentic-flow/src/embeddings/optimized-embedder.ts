@@ -14,6 +14,8 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join, dirname, resolve, normalize } from 'path';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
+// ADR-0069 A12: import canonical embedding config chain
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config';
 
 // ============================================================================
 // Security Constants
@@ -35,14 +37,17 @@ export interface EmbedderConfig {
   autoDownload: boolean;
 }
 
+// ADR-0069 A12: default model comes from config chain (all-mpnet-base-v2, 768d)
+const _embCfg = getEmbeddingConfig();
 export const DEFAULT_CONFIG: EmbedderConfig = {
-  modelId: 'all-MiniLM-L6-v2',
-  dimension: 384,
+  modelId: _embCfg.model.replace(/^Xenova\//, ''),
+  dimension: _embCfg.dimension,
   cacheSize: 256,
   modelDir: join(homedir(), '.agentic-flow', 'models'),
   autoDownload: true
 };
 
+// ADR-0069 A12: canonical model is getEmbeddingConfig().model (default: all-mpnet-base-v2)
 // Model registry with download URLs and integrity checksums
 const MODEL_REGISTRY: Record<string, {
   url: string;
@@ -51,6 +56,17 @@ const MODEL_REGISTRY: Record<string, {
   quantized?: boolean;
   sha256?: string; // Optional integrity checksum
 }> = {
+  'all-mpnet-base-v2': {
+    url: 'https://huggingface.co/Xenova/all-mpnet-base-v2/resolve/main/onnx/model_quantized.onnx',
+    dimension: 768,
+    size: '33MB',
+    quantized: true
+  },
+  'all-mpnet-base-v2-full': {
+    url: 'https://huggingface.co/Xenova/all-mpnet-base-v2/resolve/main/onnx/model.onnx',
+    dimension: 768,
+    size: '110MB'
+  },
   'all-MiniLM-L6-v2': {
     url: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx',
     dimension: 384,

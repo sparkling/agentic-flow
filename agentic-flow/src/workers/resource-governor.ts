@@ -9,7 +9,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 // ADR-0069 A3: config-chain worker timeouts — global fallback is config-aware
-function loadGlobalWorkerTimeout(): number {
+export function loadGlobalWorkerTimeout(): number {
   try {
     const configPath = resolve(process.cwd(), '.claude-flow', 'config.json');
     const raw = readFileSync(configPath, 'utf-8');

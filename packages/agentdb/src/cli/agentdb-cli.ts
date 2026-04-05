@@ -149,6 +149,7 @@ class AgentDBCLI {
 
     // Configure for performance
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
     this.db.pragma('synchronous = NORMAL');
     this.db.pragma('cache_size = -64000');
 
@@ -890,7 +891,7 @@ class AgentDBCLI {
           key: params.key,
         },
         rateLimit: {
-          maxRequestsPerMinute: 60,
+          maxRequestsPerMinute: 100, // ADR-0069 A2: aligned with QUICServer default
           maxBytesPerMinute: 10 * 1024 * 1024, // 10MB
         },
       };

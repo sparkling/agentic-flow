@@ -254,6 +254,7 @@ try {
 
 // Configure for performance
 db.pragma('journal_mode = WAL');
+db.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
 db.pragma('synchronous = NORMAL');
 db.pragma('cache_size = -64000');
 

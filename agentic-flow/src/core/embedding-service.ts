@@ -9,6 +9,8 @@
  */
 
 import { EventEmitter } from 'events';
+// ADR-0069 A12: import canonical embedding config chain
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config';
 
 export interface EmbeddingConfig {
   provider: 'openai' | 'transformers' | 'onnx' | 'mock';
@@ -197,7 +199,10 @@ export class TransformersEmbeddingService extends EmbeddingService {
 
   constructor(config: Omit<EmbeddingConfig, 'provider'>) {
     super({ ...config, provider: 'transformers' });
-    this.modelName = config.model || 'Xenova/all-MiniLM-L6-v2';
+    // ADR-0069 A12: default model from config chain (all-mpnet-base-v2, 768d)
+    const embCfg = getEmbeddingConfig();
+    const defaultModel = embCfg.model.startsWith('Xenova/') ? embCfg.model : `Xenova/${embCfg.model}`;
+    this.modelName = config.model || defaultModel;
   }
 
   async initialize(): Promise<void> {
@@ -416,9 +421,12 @@ export async function benchmarkEmbeddings(testText: string = 'Hello world'): Pro
   };
 
   // Test transformers (if available)
+  // ADR-0069 A12: benchmark uses config-chain model
   try {
+    const _benchCfg = getEmbeddingConfig();
+    const _benchModel = _benchCfg.model.startsWith('Xenova/') ? _benchCfg.model : `Xenova/${_benchCfg.model}`;
     const transformersService = new TransformersEmbeddingService({
-      model: 'Xenova/all-MiniLM-L6-v2'
+      model: _benchModel
     });
     const transformersResult = await transformersService.embed(testText);
     results.transformers = {

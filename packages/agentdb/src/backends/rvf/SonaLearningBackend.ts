@@ -10,7 +10,7 @@
  *
  * Security:
  * - Operates on embeddings only (no user text)
- * - EWC lambda bounded (0-1000)
+ * - EWC lambda bounded (0-10000)
  * - Trajectory capacity bounded
  * - All inputs validated for dimension match
  */
@@ -25,7 +25,7 @@ export interface SonaConfig {
   microLoraRank?: number;
   /** Base LoRA rank (default: 8) */
   baseLoraRank?: number;
-  /** EWC regularization lambda (default: 1000) */
+  /** EWC regularization lambda (default: 2000) */
   ewcLambda?: number;
   /** Number of pattern clusters (default: 50) */
   patternClusters?: number;
@@ -113,7 +113,7 @@ export class SonaLearningBackend {
         embeddingDim: config.embeddingDim ?? dim,
         microLoraRank: Math.min(Math.max(1, config.microLoraRank ?? 1), 2),
         baseLoraRank: Math.min(Math.max(1, config.baseLoraRank ?? 8), 64),
-        ewcLambda: Math.min(Math.max(0, config.ewcLambda ?? 1000), MAX_EWC_LAMBDA),
+        ewcLambda: Math.min(Math.max(0, config.ewcLambda ?? 2000), MAX_EWC_LAMBDA), // ADR-0069 A5: aligned to 2000
         patternClusters: Math.min(Math.max(1, config.patternClusters ?? 50), MAX_PATTERN_CLUSTERS),
         trajectoryCapacity: Math.min(Math.max(10, config.trajectoryCapacity ?? 10000), MAX_TRAJECTORY_CAPACITY),
         backgroundIntervalMs: Math.max(1000, config.backgroundIntervalMs ?? 3600000),
