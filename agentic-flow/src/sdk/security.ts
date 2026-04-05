@@ -13,6 +13,8 @@
 import { logger } from "../utils/logger.js";
 import { existsSync, appendFileSync, mkdirSync } from "fs";
 import { join, resolve, normalize, dirname } from "path";
+// ADR-0069 A2: config-chain rate limits
+import { getRateLimitPreset } from "../config/rate-limiter-config.js";
 import { homedir } from "os";
 import { createHash, randomBytes } from "crypto";
 
@@ -368,10 +370,8 @@ export function getDefaultSecurityContext(): SecurityContext {
       /wget.*\|\s*sh/,
       />\s*\/etc\//
     ],
-    rateLimit: {
-      maxRequests: 100,
-      windowMs: 60000 // 1 minute
-    },
+    // ADR-0069 A2: config-chain rate limits
+    rateLimit: getRateLimitPreset('default'),
     auditEnabled: true
   };
 }

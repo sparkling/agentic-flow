@@ -3,6 +3,9 @@
  * Prevents DoS attacks (VUL-010)
  */
 
+// ADR-0069 A2: config-chain rate limits
+import { getRateLimitPreset } from '../config/rate-limiter-config.js';
+
 export interface RateLimitConfig {
   maxRequests: number;
   windowMs: number;
@@ -117,20 +120,26 @@ export class RateLimitError extends Error {
   }
 }
 
+// ADR-0069 A2: config-chain rate limits — read presets from config chain,
+// fall back to original hardcoded values for backward compat.
+const _toolsPreset = getRateLimitPreset('tools');
+const _memoryPreset = getRateLimitPreset('memory');
+const _filesPreset = getRateLimitPreset('files');
+
 // Pre-configured rate limiters for different use cases
 export const orchestrationLimiter = new RateLimiter({
-  maxRequests: 10,
-  windowMs: 60000, // 10 requests per minute
+  maxRequests: _toolsPreset.maxRequests,
+  windowMs: _toolsPreset.windowMs,
 });
 
 export const memoryOperationLimiter = new RateLimiter({
-  maxRequests: 100,
-  windowMs: 60000, // 100 operations per minute
+  maxRequests: _memoryPreset.maxRequests,
+  windowMs: _memoryPreset.windowMs,
 });
 
 export const fileOperationLimiter = new RateLimiter({
-  maxRequests: 50,
-  windowMs: 60000, // 50 file ops per minute
+  maxRequests: _filesPreset.maxRequests,
+  windowMs: _filesPreset.windowMs,
 });
 
 /**
