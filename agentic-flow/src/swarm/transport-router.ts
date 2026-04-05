@@ -69,12 +69,12 @@ export class TransportRouter {
       enableFallback: config.enableFallback ?? true,
       quicConfig: config.quicConfig || {
         host: 'localhost',
-        port: 4433,
+        port: parseInt(process.env.QUIC_PORT || '') || 4433, // ADR-0069 H6: config-chain ports
         maxConnections: 100
       },
       http2Config: config.http2Config || {
         host: 'localhost',
-        port: 8443,
+        port: parseInt(process.env.FEDERATION_PORT || '') || 8443, // ADR-0069 H6: config-chain ports
         maxConnections: 100,
         secure: true
       }

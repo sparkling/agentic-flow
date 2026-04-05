@@ -223,11 +223,19 @@ export class AgentDBService {
         const { RVFOptimizer } = await import(
           /* webpackIgnore: true */ '../../../packages/agentdb/src/optimizations/RVFOptimizer.js'
         );
+        // ADR-0069 A11: config-chain dedup threshold
+        let _dedupThreshold = 0.95;
+        try {
+          const _cfg = JSON.parse(fs.readFileSync(
+            path.join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8'));
+          _dedupThreshold = _cfg.memory?.dedupThreshold ?? 0.95;
+        } catch { /* use default */ }
+
         this.rvfOptimizer = new RVFOptimizer({
           compression: {
             enabled: true,
             quantizeBits: 8,  // 4x memory reduction, minimal quality loss
-            deduplicationThreshold: 0.98,  // 98% similarity = duplicate
+            deduplicationThreshold: _dedupThreshold,  // ADR-0069 A11: was 0.98, now config-chain-aware
             adaptive: true,
             progressive: true
           },

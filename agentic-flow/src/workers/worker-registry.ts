@@ -227,6 +227,8 @@ export class WorkerRegistry {
     // Enable WAL mode for better concurrent performance
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('synchronous = NORMAL');
+    this.db.pragma('cache_size = -64000'); // ADR-0069 A1: 64MB, consistent across all sites
+    this.db.pragma('busy_timeout = 5000'); // ADR-0069 A1: prevent SQLITE_BUSY under concurrency
 
     // Create tables
     this.db.exec(`

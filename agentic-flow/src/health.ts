@@ -77,7 +77,7 @@ export async function getHealthStatus(): Promise<HealthStatus> {
   };
 }
 
-export function startHealthServer(port: number = 8080): http.Server {
+export function startHealthServer(port: number = parseInt(process.env.HEALTH_PORT || '') || 8080): http.Server { // ADR-0069 H6: config-chain ports
   const server = http.createServer(async (req, res) => {
     if (req.url === '/health' && req.method === 'GET') {
       const health = await getHealthStatus();

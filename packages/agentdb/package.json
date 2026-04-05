@@ -1,6 +1,6 @@
 {
   "name": "agentdb",
-  "version": "3.0.0-alpha.10-patch.13",
+  "version": "3.0.0-alpha.10-patch.74",
   "description": "AgentDB v3 — Proof-gated graph intelligence for AI agents. Every state mutation requires cryptographic proof. Native Rust performance via @ruvector/graph-transformer with 8 verified graph modules, HNSW search, causal reasoning, and reflexion memory.",
   "type": "module",
   "main": "dist/src/index.js",
@@ -131,7 +131,7 @@
     "ajv": "^8.17.1",
     "sql.js": "^1.13.0",
     "zod": "^3.25.76",
-    "ruvector": "0.1.2-patch.3"
+    "ruvector": "0.1.2-patch.64"
   },
   "optionalDependencies": {
     "@ruvector/graph-transformer": "^2.0.4",
@@ -150,7 +150,10 @@
     "ora": "^7.0.0",
     "ruvector-attention-wasm": "^0.1.0",
     "ruvector-graph-transformer-wasm": "^2.0.4",
-    "sqlite": "^5.1.1"
+    "sqlite": "^5.1.1",
+    "@ruvector/ruvllm": "*",
+    "@ruvector/rvf-wasm": "*",
+    "@ruvector/rvf": "*"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",

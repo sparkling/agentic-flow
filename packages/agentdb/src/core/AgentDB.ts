@@ -53,6 +53,13 @@ export interface AgentDBConfig {
   hnswEfConstruction?: number;
   /** HNSW efSearch - search quality (forwarded to vector backend) */
   hnswEfSearch?: number;
+  /** ADR-0069 A1: config-chain SQLite pragmas */
+  sqlite?: {
+    cacheSize?: number;      // default: -64000 (64MB)
+    busyTimeoutMs?: number;  // default: 5000
+    journalMode?: string;    // default: 'WAL'
+    synchronous?: string;    // default: 'NORMAL'
+  };
 }
 
 export class AgentDB {
@@ -92,22 +99,24 @@ export class AgentDB {
 
     // Dynamic import: try better-sqlite3 (native), fallback to sql.js (WASM)
     const dbPath = this.config.dbPath || ':memory:';
+    // ADR-0069 A1: config-chain SQLite pragmas
+    const sq = this.config.sqlite;
     try {
       const Database = (await import('better-sqlite3')).default;
       this.db = new Database(dbPath);
-      this.db.pragma('journal_mode = WAL');
-      this.db.pragma('synchronous = NORMAL');
-      this.db.pragma('cache_size = -64000');
-      this.db.pragma('busy_timeout = 5000');
+      this.db.pragma(`journal_mode = ${sq?.journalMode ?? 'WAL'}`);
+      this.db.pragma(`synchronous = ${sq?.synchronous ?? 'NORMAL'}`);
+      this.db.pragma(`cache_size = ${sq?.cacheSize ?? -64000}`);
+      this.db.pragma(`busy_timeout = ${sq?.busyTimeoutMs ?? 5000}`);
       console.log('✅ Using better-sqlite3 (native performance)');
     } catch {
       console.log('⚠️  better-sqlite3 unavailable, using sql.js (WASM fallback)');
       const { getDatabaseImplementation } = await import('../db-fallback.js');
       const DatabaseImpl = await getDatabaseImplementation();
       this.db = new DatabaseImpl(dbPath);
-      // Apply pragmas supported by sql.js (skip journal_mode=WAL — not supported in WASM/in-memory)
-      this.db.pragma('cache_size = -64000');
-      this.db.pragma('busy_timeout = 5000');
+      // ADR-0069 A1: config-chain SQLite pragmas (WASM — skip journal_mode=WAL, not supported)
+      this.db.pragma(`cache_size = ${sq?.cacheSize ?? -64000}`);
+      this.db.pragma(`busy_timeout = ${sq?.busyTimeoutMs ?? 5000}`);
       this.usingWasm = true;
     }
 

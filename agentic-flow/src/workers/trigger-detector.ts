@@ -9,16 +9,113 @@ import {
   DetectedTrigger,
   WorkerPriority
 } from './types.js';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+// ADR-0069 A3: config-chain worker timeouts
+// Canonical timeout defaults — single source of truth for all worker modules.
+// Override via .claude-flow/config.json  workers.triggers.<name>.timeout
+export const CANONICAL_WORKER_TIMEOUTS: Record<string, number> = {
+  ultralearn:   300000,   // 5 minutes
+  optimize:     180000,   // 3 minutes
+  consolidate:  120000,   // 2 minutes
+  predict:       60000,   // 1 minute
+  audit:        300000,   // 5 minutes
+  map:          240000,   // 4 minutes
+  preload:       30000,   // 30 seconds
+  deepdive:     600000,   // 10 minutes
+  document:     180000,   // 3 minutes
+  refactor:     180000,   // 3 minutes
+  benchmark:    300000,   // 5 minutes
+  testgaps:     180000,   // 3 minutes
+};
+
+// ADR-0069 A3: config-chain worker cooldown defaults
+export const CANONICAL_WORKER_COOLDOWNS: Record<string, number> = {
+  ultralearn:    60000,
+  optimize:     120000,
+  consolidate:  300000,
+  predict:       30000,
+  audit:        180000,
+  map:          300000,
+  preload:       10000,
+  deepdive:     300000,
+  document:     120000,
+  refactor:     120000,
+  benchmark:    180000,
+  testgaps:     120000,
+};
+
+/**
+ * ADR-0069 A3: Load worker trigger overrides from config chain.
+ * Reads .claude-flow/config.json  workers.triggers block.
+ * Returns a map of trigger name -> partial config overrides.
+ */
+function loadConfigChainOverrides(): Map<string, { timeout?: number; cooldown?: number }> {
+  const overrides = new Map<string, { timeout?: number; cooldown?: number }>();
+  try {
+    const configPath = resolve(process.cwd(), '.claude-flow', 'config.json');
+    const raw = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(raw);
+    const triggers = config?.workers?.triggers;
+    if (triggers && typeof triggers === 'object') {
+      for (const [name, val] of Object.entries(triggers)) {
+        if (val && typeof val === 'object') {
+          const entry: { timeout?: number; cooldown?: number } = {};
+          const v = val as Record<string, unknown>;
+          if (typeof v.timeout === 'number') entry.timeout = v.timeout;
+          if (typeof v.cooldown === 'number') entry.cooldown = v.cooldown;
+          if (Object.keys(entry).length > 0) overrides.set(name, entry);
+        }
+      }
+    }
+  } catch {
+    // Config file absent or unreadable — use canonical defaults
+  }
+  return overrides;
+}
+
+/**
+ * ADR-0069 A3: Resolve timeout for a trigger.
+ * Config chain value wins; falls back to canonical default.
+ */
+export function resolveWorkerTimeout(trigger: string): number {
+  const overrides = loadConfigChainOverrides();
+  return overrides.get(trigger)?.timeout
+    ?? CANONICAL_WORKER_TIMEOUTS[trigger]
+    ?? 120000;
+}
+
+/**
+ * ADR-0069 A3: Resolve cooldown for a trigger.
+ */
+export function resolveWorkerCooldown(trigger: string): number {
+  const overrides = loadConfigChainOverrides();
+  return overrides.get(trigger)?.cooldown
+    ?? CANONICAL_WORKER_COOLDOWNS[trigger]
+    ?? 60000;
+}
+
+// Cache config overrides for the lifetime of the TRIGGER_CONFIGS init
+const _initOverrides = loadConfigChainOverrides();
+
+function _timeout(trigger: string): number {
+  return _initOverrides.get(trigger)?.timeout ?? CANONICAL_WORKER_TIMEOUTS[trigger] ?? 120000;
+}
+function _cooldown(trigger: string): number {
+  return _initOverrides.get(trigger)?.cooldown ?? CANONICAL_WORKER_COOLDOWNS[trigger] ?? 60000;
+}
 
 // Trigger configuration map
 const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
+  // ADR-0069 A3: all timeout/cooldown values resolved via config chain -> canonical defaults
   ['ultralearn', {
     keyword: 'ultralearn',
     worker: 'research-swarm',
     priority: 'high',
     maxAgents: 5,
-    timeout: 300000,      // 5 minutes
-    cooldown: 60000,      // 1 minute
+    timeout: _timeout('ultralearn'),
+    cooldown: _cooldown('ultralearn'),
     topicExtractor: /ultralearn\s+(.+?)(?:\.|$)/i,
     description: 'Deep research swarm for codebase learning'
   }],
@@ -27,8 +124,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'perf-analyzer',
     priority: 'medium',
     maxAgents: 2,
-    timeout: 180000,      // 3 minutes
-    cooldown: 120000,     // 2 minutes
+    timeout: _timeout('optimize'),
+    cooldown: _cooldown('optimize'),
     topicExtractor: /optimize\s+(.+?)(?:\.|$)/i,
     description: 'Performance analyzer and cache optimizer'
   }],
@@ -37,8 +134,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'memory-optimizer',
     priority: 'low',
     maxAgents: 1,
-    timeout: 120000,      // 2 minutes
-    cooldown: 300000,     // 5 minutes
+    timeout: _timeout('consolidate'),
+    cooldown: _cooldown('consolidate'),
     topicExtractor: null,
     description: 'Memory compaction and pattern extraction'
   }],
@@ -47,8 +144,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'pattern-matcher',
     priority: 'medium',
     maxAgents: 2,
-    timeout: 60000,       // 1 minute
-    cooldown: 30000,      // 30 seconds
+    timeout: _timeout('predict'),
+    cooldown: _cooldown('predict'),
     topicExtractor: /predict\s+(.+?)(?:\.|$)/i,
     description: 'Pre-fetch likely files based on learned patterns'
   }],
@@ -57,8 +154,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'security-scanner',
     priority: 'high',
     maxAgents: 3,
-    timeout: 300000,      // 5 minutes
-    cooldown: 180000,     // 3 minutes
+    timeout: _timeout('audit'),
+    cooldown: _cooldown('audit'),
     topicExtractor: /audit\s+(.+?)(?:\.|$)/i,
     description: 'Security and code quality scan'
   }],
@@ -67,8 +164,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'dependency-mapper',
     priority: 'medium',
     maxAgents: 2,
-    timeout: 240000,      // 4 minutes
-    cooldown: 300000,     // 5 minutes
+    timeout: _timeout('map'),
+    cooldown: _cooldown('map'),
     topicExtractor: /map\s+(.+?)(?:\.|$)/i,
     description: 'Build full dependency graph'
   }],
@@ -77,8 +174,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'context-prefetcher',
     priority: 'low',
     maxAgents: 1,
-    timeout: 30000,       // 30 seconds
-    cooldown: 10000,      // 10 seconds
+    timeout: _timeout('preload'),
+    cooldown: _cooldown('preload'),
     topicExtractor: /preload\s+(.+?)(?:\.|$)/i,
     description: 'Pre-fetch context for faster access'
   }],
@@ -87,8 +184,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'call-graph-analyzer',
     priority: 'high',
     maxAgents: 4,
-    timeout: 600000,      // 10 minutes
-    cooldown: 300000,     // 5 minutes
+    timeout: _timeout('deepdive'),
+    cooldown: _cooldown('deepdive'),
     topicExtractor: /deepdive\s+(.+?)(?:\.|$)/i,
     description: 'Traces call paths 5+ levels deep'
   }],
@@ -97,8 +194,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'doc-generator',
     priority: 'low',
     maxAgents: 2,
-    timeout: 180000,
-    cooldown: 120000,
+    timeout: _timeout('document'),
+    cooldown: _cooldown('document'),
     topicExtractor: /document\s+(.+?)(?:\.|$)/i,
     description: 'Generate documentation for patterns'
   }],
@@ -107,8 +204,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'refactor-analyzer',
     priority: 'medium',
     maxAgents: 2,
-    timeout: 180000,
-    cooldown: 120000,
+    timeout: _timeout('refactor'),
+    cooldown: _cooldown('refactor'),
     topicExtractor: /refactor\s+(.+?)(?:\.|$)/i,
     description: 'Identify refactoring opportunities'
   }],
@@ -117,8 +214,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'perf-benchmarker',
     priority: 'medium',
     maxAgents: 2,
-    timeout: 300000,
-    cooldown: 180000,
+    timeout: _timeout('benchmark'),
+    cooldown: _cooldown('benchmark'),
     topicExtractor: /benchmark\s+(.+?)(?:\.|$)/i,
     description: 'Run performance benchmarks silently'
   }],
@@ -127,8 +224,8 @@ const TRIGGER_CONFIGS: Map<WorkerTrigger, TriggerConfig> = new Map([
     worker: 'coverage-analyzer',
     priority: 'medium',
     maxAgents: 2,
-    timeout: 180000,
-    cooldown: 120000,
+    timeout: _timeout('testgaps'),
+    cooldown: _cooldown('testgaps'),
     topicExtractor: /testgaps?\s+(.+?)(?:\.|$)/i,
     description: 'Find untested code paths'
   }]

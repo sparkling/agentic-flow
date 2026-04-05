@@ -82,9 +82,25 @@ try {
 
 // Import from ruvector core (for HNSW)
 import ruvector from 'ruvector';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // Export availability flags
 export { sonaAvailable, attentionAvailable };
+
+// ADR-0069 A5: config-chain EWC lambda
+function readEwcLambdaFromConfig(fallback: number): number {
+  try {
+    const configPath = resolve(process.cwd(), '.claude-flow', 'config.json');
+    const raw = readFileSync(configPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const val = parsed?.neural?.ewcLambda;
+    if (typeof val === 'number' && val > 0) return val;
+  } catch {
+    // Config not found or unreadable — use fallback
+  }
+  return fallback;
+}
 
 // Local type definitions (replaces imports from optional packages)
 export interface JsSonaConfig {
@@ -341,7 +357,7 @@ export class RuVectorIntelligence {
           baseLoraRank: 8,
           microLoraLr: 0.001,
           baseLoraLr: 0.0001,
-          ewcLambda: 1000.0, // EWC++ regularization
+          ewcLambda: readEwcLambdaFromConfig(2000), // ADR-0069 A5: config-chain EWC lambda (was 1000, aligned with SONA base)
           patternClusters: 50,
           trajectoryCapacity: 10000,
           qualityThreshold: this.config.qualityThreshold ?? 0.5, // Ensure defined

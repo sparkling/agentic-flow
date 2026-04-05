@@ -15,6 +15,8 @@
 
 import { SonaEngine } from '@ruvector/sona';
 import { EventEmitter } from 'events';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * SONA Configuration Profiles
@@ -127,15 +129,44 @@ export class SONAService extends EventEmitter {
     this.emit('sona:initialized', { config: this.config });
   }
 
+  // ADR-0069 A5: config-chain EWC lambda
+  // Per-profile multipliers preserve current behavior (base=2000):
+  //   real-time: 0.5, batch: 1.0, research: 1.25, edge: 0.5, balanced: 1.0
+  private static readonly EWC_LAMBDA_MULTIPLIERS: Record<SONAProfile, number> = {
+    'real-time': 0.5,
+    'batch': 1.0,
+    'research': 1.25,
+    'edge': 0.5,
+    'balanced': 1.0,
+    'custom': 1.0,
+  };
+
+  private static readEwcLambdaBase(fallback: number): number {
+    try {
+      const configPath = resolve(process.cwd(), '.claude-flow', 'config.json');
+      const raw = readFileSync(configPath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      const val = parsed?.neural?.ewcLambda;
+      if (typeof val === 'number' && val > 0) return val;
+    } catch {
+      // Config not found or unreadable — use fallback
+    }
+    return fallback;
+  }
+
   /**
    * Resolve configuration from profile or custom settings
    */
   private resolveConfig(config?: Partial<SONAConfig>): SONAConfig {
     const profile = config?.profile || 'balanced';
 
+    // ADR-0069 A5: config-chain EWC lambda with per-profile multipliers
+    const ewcBase = SONAService.readEwcLambdaBase(2000);
+    const ewcForProfile = (p: SONAProfile) => ewcBase * SONAService.EWC_LAMBDA_MULTIPLIERS[p];
+
     // Profile-based configurations (from vibecast KEY_FINDINGS.md)
     const profiles: Record<SONAProfile, Partial<SONAConfig>> = {
-      // Real-Time: Rank-2, 25 clusters, 0.7 threshold → 2200 ops/sec, <0.5ms
+      // Real-Time: Rank-2, 25 clusters, 0.7 threshold -> 2200 ops/sec, <0.5ms
       'real-time': {
         hiddenDim: 3072,
         embeddingDim: 1536,
@@ -143,7 +174,7 @@ export class SONAService extends EventEmitter {
         baseLoraRank: 4,
         microLoraLr: 0.001,
         baseLoraLr: 0.0001,
-        ewcLambda: 1000,
+        ewcLambda: ewcForProfile('real-time'), // ADR-0069 A5
         patternClusters: 25,
         trajectoryCapacity: 1000,
         backgroundIntervalMs: 3600000,
@@ -159,7 +190,7 @@ export class SONAService extends EventEmitter {
         baseLoraRank: 8,
         microLoraLr: 0.002,
         baseLoraLr: 0.0001,
-        ewcLambda: 2000,
+        ewcLambda: ewcForProfile('batch'), // ADR-0069 A5
         patternClusters: 50,
         trajectoryCapacity: 5000,
         backgroundIntervalMs: 1800000,
@@ -176,7 +207,7 @@ export class SONAService extends EventEmitter {
         baseLoraRank: 16,
         microLoraLr: 0.002,  // Sweet spot for quality gains
         baseLoraLr: 0.0001,
-        ewcLambda: 2500,
+        ewcLambda: ewcForProfile('research'), // ADR-0069 A5
         patternClusters: 100,
         trajectoryCapacity: 10000,
         backgroundIntervalMs: 900000,
@@ -184,7 +215,7 @@ export class SONAService extends EventEmitter {
         enableSimd: true
       },
 
-      // Edge/Mobile: Rank-1, 200 capacity, 15 clusters → <5MB memory
+      // Edge/Mobile: Rank-1, 200 capacity, 15 clusters -> <5MB memory
       'edge': {
         hiddenDim: 768,
         embeddingDim: 384,
@@ -192,7 +223,7 @@ export class SONAService extends EventEmitter {
         baseLoraRank: 2,
         microLoraLr: 0.001,
         baseLoraLr: 0.0001,
-        ewcLambda: 1000,
+        ewcLambda: ewcForProfile('edge'), // ADR-0069 A5
         patternClusters: 15,
         trajectoryCapacity: 200,
         backgroundIntervalMs: 7200000,
@@ -200,7 +231,7 @@ export class SONAService extends EventEmitter {
         enableSimd: false
       },
 
-      // Balanced: Rank-2, rank-8, 0.4 threshold → 18ms, +25% quality
+      // Balanced: Rank-2, rank-8, 0.4 threshold -> 18ms, +25% quality
       'balanced': {
         hiddenDim: 3072,
         embeddingDim: 1536,
@@ -208,7 +239,7 @@ export class SONAService extends EventEmitter {
         baseLoraRank: 8,
         microLoraLr: 0.002,
         baseLoraLr: 0.0001,
-        ewcLambda: 2000,
+        ewcLambda: ewcForProfile('balanced'), // ADR-0069 A5
         patternClusters: 50,
         trajectoryCapacity: 5000,
         backgroundIntervalMs: 1800000,
@@ -229,7 +260,7 @@ export class SONAService extends EventEmitter {
       baseLoraRank: 8,
       microLoraLr: 0.002,
       baseLoraLr: 0.0001,
-      ewcLambda: 2000,
+      ewcLambda: ewcBase, // ADR-0069 A5: config-chain EWC lambda
       patternClusters: 50,
       trajectoryCapacity: 5000,
       backgroundIntervalMs: 1800000,

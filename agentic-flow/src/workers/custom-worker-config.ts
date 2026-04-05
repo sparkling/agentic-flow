@@ -8,6 +8,9 @@
  */
 
 import { WorkerTrigger, WorkerPriority, WorkerResults, WorkerContext } from './types.js';
+// ADR-0069 A3: config-chain worker timeouts — import canonical values
+// so presets never diverge from trigger-detector.ts
+import { resolveWorkerTimeout } from './trigger-detector.js';
 
 // ============================================================================
 // Phase System - Composable analysis phases
@@ -195,12 +198,15 @@ export interface CustomWorkerDefinition {
 // Worker Template Presets
 // ============================================================================
 
+// ADR-0069 A3: config-chain worker timeouts — presets that map to known triggers
+// use resolveWorkerTimeout() so they can never diverge from trigger-detector.ts.
+// Presets without a trigger counterpart keep their own timeout.
 export const WORKER_PRESETS: Record<string, Partial<CustomWorkerDefinition>> = {
   /** Quick file scan - fast discovery only */
   'quick-scan': {
     description: 'Quick file discovery and basic stats',
     priority: 'low',
-    timeout: 30000,
+    timeout: 30000,  // no trigger counterpart — standalone preset
     phases: [
       { type: 'file-discovery' },
       { type: 'summarization' }
@@ -216,7 +222,7 @@ export const WORKER_PRESETS: Record<string, Partial<CustomWorkerDefinition>> = {
   'deep-analysis': {
     description: 'Comprehensive code analysis with all capabilities',
     priority: 'medium',
-    timeout: 300000,
+    timeout: resolveWorkerTimeout('optimize'),  // ADR-0069 A3: aligned with optimize trigger
     phases: [
       { type: 'file-discovery' },
       { type: 'static-analysis' },
@@ -234,7 +240,7 @@ export const WORKER_PRESETS: Record<string, Partial<CustomWorkerDefinition>> = {
   'security-scan': {
     description: 'Security-focused analysis',
     priority: 'high',
-    timeout: 120000,
+    timeout: resolveWorkerTimeout('audit'),  // ADR-0069 A3: aligned with audit trigger
     phases: [
       { type: 'file-discovery' },
       { type: 'security-analysis' },
@@ -252,7 +258,7 @@ export const WORKER_PRESETS: Record<string, Partial<CustomWorkerDefinition>> = {
   'learning': {
     description: 'Pattern learning and memory storage',
     priority: 'low',
-    timeout: 180000,
+    timeout: 180000,  // no trigger counterpart — standalone preset
     phases: [
       { type: 'file-discovery' },
       { type: 'pattern-extraction' },
@@ -272,7 +278,7 @@ export const WORKER_PRESETS: Record<string, Partial<CustomWorkerDefinition>> = {
   'api-docs': {
     description: 'API endpoint discovery and documentation',
     priority: 'medium',
-    timeout: 120000,
+    timeout: resolveWorkerTimeout('document'),  // ADR-0069 A3: aligned with document trigger
     phases: [
       { type: 'file-discovery', options: { include: ['**/*.{ts,js}'] } },
       { type: 'api-discovery' },
@@ -288,7 +294,7 @@ export const WORKER_PRESETS: Record<string, Partial<CustomWorkerDefinition>> = {
   'test-analysis': {
     description: 'Test file discovery and coverage analysis',
     priority: 'medium',
-    timeout: 90000,
+    timeout: resolveWorkerTimeout('testgaps'),  // ADR-0069 A3: aligned with testgaps trigger
     phases: [
       { type: 'file-discovery', options: { pattern: '**/*.{test,spec}.{ts,js}' } },
       { type: 'static-analysis' },

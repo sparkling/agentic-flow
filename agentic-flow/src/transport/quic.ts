@@ -69,11 +69,11 @@ export class QuicClient {
   constructor(config: QuicConfig = {}) {
     this.config = {
       host: config.host || '0.0.0.0',
-      port: config.port || 4433,
+      port: config.port || parseInt(process.env.QUIC_PORT || '') || 4433, // ADR-0069 H6: config-chain ports
       certPath: config.certPath || './certs/cert.pem',
       keyPath: config.keyPath || './certs/key.pem',
       serverHost: config.serverHost || 'localhost',
-      serverPort: config.serverPort || 4433,
+      serverPort: config.serverPort || parseInt(process.env.QUIC_PORT || '') || 4433, // ADR-0069 H6: config-chain ports
       verifyPeer: config.verifyPeer ?? true,
       maxConnections: config.maxConnections || 100,
       connectionTimeout: config.connectionTimeout || 30000,
@@ -333,11 +333,11 @@ export class QuicServer {
   constructor(config: QuicConfig = {}) {
     this.config = {
       host: config.host || '0.0.0.0',
-      port: config.port || 4433,
+      port: config.port || parseInt(process.env.QUIC_PORT || '') || 4433, // ADR-0069 H6: config-chain ports
       certPath: config.certPath || './certs/cert.pem',
       keyPath: config.keyPath || './certs/key.pem',
       serverHost: config.serverHost || 'localhost',
-      serverPort: config.serverPort || 4433,
+      serverPort: config.serverPort || parseInt(process.env.QUIC_PORT || '') || 4433, // ADR-0069 H6: config-chain ports
       verifyPeer: config.verifyPeer ?? false,
       maxConnections: config.maxConnections || 1000,
       connectionTimeout: config.connectionTimeout || 30000,

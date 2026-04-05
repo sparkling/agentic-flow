@@ -171,9 +171,12 @@ export class FederationHub {
       };
 
       // Parse endpoint (quic://host:port -> https://host:port for fallback)
+      // ADR-0069 H6: config-chain ports — use env vars instead of hardcoded string-replace
+      const quicPort = String(parseInt(process.env.QUIC_PORT || '') || 4433);
+      const fedPort = String(parseInt(process.env.FEDERATION_PORT || '') || 8443);
       const httpEndpoint = this.config.endpoint
         .replace('quic://', 'https://')
-        .replace(':4433', ':8443'); // Map QUIC port to HTTPS port
+        .replace(`:${quicPort}`, `:${fedPort}`); // Map QUIC port to HTTPS port
 
       // Send message (placeholder - actual implementation would use QUIC)
       // For now, log the message that would be sent
