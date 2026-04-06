@@ -85,6 +85,10 @@ export class AgentDB {
   private batchOperations?: BatchOperations;
   private hierarchicalMemory?: HierarchicalMemory;
   private memoryConsolidation?: MemoryConsolidation;
+  // ADR-0069 F1: Phase 2 RuVector controllers (set externally or null)
+  private gnnLearning: any = null;
+  private semanticRouter: any = null;
+  private sonaService: any = null;
   private initialized = false;
   private config: AgentDBConfig;
   private usingWasm = false;
@@ -287,8 +291,41 @@ export class AgentDB {
           this.getController('hierarchicalMemory'),
           this.embedder,
         ));
+      // ADR-0069 F1: Phase 2 RuVector controllers (lazy, null if unavailable)
+      case 'gnnLearning':
+      case 'ruvectorLearning':
+        return this.gnnLearning ?? null;
+      case 'semanticRouter':
+        return this.semanticRouter ?? null;
+      case 'sona':
+      case 'sonaService':
+        return this.sonaService ?? null;
       default:
         throw new Error(`Unknown controller: ${name}`);
+    }
+  }
+
+  /**
+   * ADR-0069 F1: Register an externally-constructed controller.
+   * Used by AgentDBService to inject Phase 2 RuVector controllers
+   * (gnnLearning, semanticRouter, sonaService) so getController()
+   * returns the single canonical instance.
+   */
+  setController(name: string, instance: any): void {
+    switch (name) {
+      case 'gnnLearning':
+      case 'ruvectorLearning':
+        this.gnnLearning = instance;
+        break;
+      case 'semanticRouter':
+        this.semanticRouter = instance;
+        break;
+      case 'sona':
+      case 'sonaService':
+        this.sonaService = instance;
+        break;
+      default:
+        throw new Error(`Cannot set unknown controller: ${name}`);
     }
   }
 

@@ -314,12 +314,20 @@ export class AgentDBService {
           console.warn(`[AgentDBService] MutationGuard unavailable (${msg}), vectorBackend disabled`);
         }
       }
-      this.reflexionMemory = new agentdb.ReflexionMemory(database, this.embeddingService, controllerVB);
-      this.skillLibrary = new agentdb.SkillLibrary(database, this.embeddingService, controllerVB);
-      this.reasoningBank = new agentdb.ReasoningBank(database, this.embeddingService, controllerVB);
-      this.causalGraph = new agentdb.CausalMemoryGraph(database);
-      this.causalRecall = new agentdb.CausalRecall(database, this.embeddingService);
-      this.learningSystem = new agentdb.LearningSystem(database, this.embeddingService);
+      // ADR-0069 F1: Delegate to AgentDB.getController() for single-instance controllers.
+      // Fall back to direct construction if getController() returns null.
+      this.reflexionMemory = this.db.getController('reflexion')
+        ?? new agentdb.ReflexionMemory(database, this.embeddingService, controllerVB);
+      this.skillLibrary = this.db.getController('skills')
+        ?? new agentdb.SkillLibrary(database, this.embeddingService, controllerVB);
+      this.reasoningBank = this.db.getController('reasoning')
+        ?? new agentdb.ReasoningBank(database, this.embeddingService, controllerVB);
+      this.causalGraph = this.db.getController('causalGraph')
+        ?? new agentdb.CausalMemoryGraph(database);
+      this.causalRecall = this.db.getController('causalRecall')
+        ?? new agentdb.CausalRecall(database, this.embeddingService);
+      this.learningSystem = this.db.getController('learning')
+        ?? new agentdb.LearningSystem(database, this.embeddingService);
       this.backendName = 'agentdb';
       console.log('[AgentDBService] Initialized with real AgentDB backend');
 
@@ -342,41 +350,46 @@ export class AgentDBService {
       }
 
       // ADR-066 P2-3: Initialize Hierarchical Memory System
+      // ADR-0069 F1: Prefer AgentDB.getController() with fallback to direct construction
       try {
-        const { HierarchicalMemory } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/HierarchicalMemory.js'
-        );
-        const { MemoryConsolidation } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/MemoryConsolidation.js'
-        );
+        this.hierarchicalMemory = this.db.getController('hierarchicalMemory');
+        if (!this.hierarchicalMemory) {
+          const { HierarchicalMemory } = await import(
+            /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/HierarchicalMemory.js'
+          );
+          const graphBackend: any = null;
+          this.hierarchicalMemory = new HierarchicalMemory(
+            database,
+            this.embeddingService,
+            vectorBackend,
+            graphBackend,
+            {
+              workingMemoryLimit: 1024 * 1024, // 1MB
+              episodicWindow: 7 * 24 * 60 * 60 * 1000, // 7 days
+              autoConsolidate: true,
+            }
+          );
+        }
 
-        // TODO: Initialize graphBackend when graph-node integration is ready
-        const graphBackend: any = null;
-
-        this.hierarchicalMemory = new HierarchicalMemory(
-          database,
-          this.embeddingService,
-          vectorBackend,
-          graphBackend,
-          {
-            workingMemoryLimit: 1024 * 1024, // 1MB
-            episodicWindow: 7 * 24 * 60 * 60 * 1000, // 7 days
-            autoConsolidate: true,
-          }
-        );
-
-        this.memoryConsolidation = new MemoryConsolidation(
-          database,
-          this.hierarchicalMemory,
-          this.embeddingService,
-          vectorBackend,
-          graphBackend,
-          {
-            clusterThreshold: 0.75,
-            importanceThreshold: 0.6,
-            enableSpacedRepetition: true,
-          }
-        );
+        this.memoryConsolidation = this.db.getController('memoryConsolidation');
+        if (!this.memoryConsolidation) {
+          const { MemoryConsolidation } = await import(
+            /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/MemoryConsolidation.js'
+          );
+          const graphBackend: any = null;
+          this.memoryConsolidation = new MemoryConsolidation(
+            database,
+            this.hierarchicalMemory,
+            this.embeddingService,
+            vectorBackend,
+            graphBackend,
+            {
+              clusterThreshold: 0.75,
+              importanceThreshold: 0.6,
+              enableSpacedRepetition: true,
+            }
+          );
+        }
 
         console.log('[AgentDBService] HierarchicalMemory + MemoryConsolidation initialized (3-tier memory system)');
       } catch (err) {
@@ -396,18 +409,22 @@ export class AgentDBService {
    */
   private async initializePhase1Controllers(database: any): Promise<void> {
     // 1. AttentionService - Advanced attention mechanisms with @ruvector/attention
+    // ADR-0069 F1: Prefer AgentDB.getController() with fallback to direct construction
     try {
-      const { AttentionService } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/AttentionService.js'
-      );
-      this.attentionService = new AttentionService({
-        numHeads: 8,
-        headDim: 48,
-        embedDim: 768,
-        useFlash: true,
-        dropout: 0.1,
-      });
-      await this.attentionService.initialize();
+      this.attentionService = this.db.getController('attentionService');
+      if (!this.attentionService) {
+        const { AttentionService } = await import(
+          /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/AttentionService.js'
+        );
+        this.attentionService = new AttentionService({
+          numHeads: 8,
+          headDim: 48,
+          embedDim: 768,
+          useFlash: true,
+          dropout: 0.1,
+        });
+        await this.attentionService.initialize();
+      }
       console.log('[AgentDBService] AttentionService initialized');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -497,19 +514,25 @@ export class AgentDBService {
    */
   private async initializePhase2RuVectorPackages(database: any): Promise<void> {
     // 1. @ruvector/gnn - GNN-enhanced learning
+    // ADR-0069 F1: Prefer AgentDB.getController() with fallback to direct construction
     try {
-      const { RuVectorLearning } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/ruvector/RuVectorLearning.js'
-      );
+      this.gnnLearning = this.db.getController('gnnLearning');
+      if (!this.gnnLearning) {
+        const { RuVectorLearning } = await import(
+          /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/ruvector/RuVectorLearning.js'
+        );
 
-      this.gnnLearning = new RuVectorLearning({
-        inputDim: 768,
-        hiddenDim: 256,
-        heads: 4,
-        dropout: 0.1
-      });
+        this.gnnLearning = new RuVectorLearning({
+          inputDim: 768,
+          hiddenDim: 256,
+          heads: 4,
+          dropout: 0.1
+        });
 
-      await this.gnnLearning.initialize();
+        await this.gnnLearning.initialize();
+        // Register back into AgentDB so getController() works for others
+        this.db.setController('gnnLearning', this.gnnLearning);
+      }
       this.gnnEnabled = true;
       console.log('✅ [AgentDBService] Phase 2.1: GNN-enhanced learning active (@ruvector/gnn)');
     } catch (err) {
@@ -519,24 +542,33 @@ export class AgentDBService {
     }
 
     // 2. @ruvector/router - Semantic routing
+    // ADR-0069 F1: Prefer AgentDB.getController() with fallback to direct construction
     try {
-      const { SemanticRouter } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/services/SemanticRouter.js'
-      );
+      this.semanticRouter = this.db.getController('semanticRouter');
+      if (!this.semanticRouter) {
+        const { SemanticRouter } = await import(
+          /* webpackIgnore: true */ '../../../packages/agentdb/src/services/SemanticRouter.js'
+        );
 
-      this.semanticRouter = new SemanticRouter();
-      const initialized = await this.semanticRouter.initialize();
-      this.routerEnabled = initialized;
+        this.semanticRouter = new SemanticRouter();
+        const initialized = await this.semanticRouter.initialize();
+        this.routerEnabled = initialized;
 
-      if (initialized) {
-        // Add default routes for tier routing
-        await this.semanticRouter.addRoute('tier1', 'Simple transforms and basic operations', ['transform', 'convert', 'format']);
-        await this.semanticRouter.addRoute('tier2', 'Moderate complexity tasks', ['implement', 'create', 'build']);
-        await this.semanticRouter.addRoute('tier3', 'Complex reasoning and architecture', ['design', 'architect', 'optimize']);
+        if (initialized) {
+          // Add default routes for tier routing
+          await this.semanticRouter.addRoute('tier1', 'Simple transforms and basic operations', ['transform', 'convert', 'format']);
+          await this.semanticRouter.addRoute('tier2', 'Moderate complexity tasks', ['implement', 'create', 'build']);
+          await this.semanticRouter.addRoute('tier3', 'Complex reasoning and architecture', ['design', 'architect', 'optimize']);
 
-        console.log('✅ [AgentDBService] Phase 2.2: Semantic routing active (@ruvector/router)');
+          // Register back into AgentDB so getController() works for others
+          this.db.setController('semanticRouter', this.semanticRouter);
+          console.log('✅ [AgentDBService] Phase 2.2: Semantic routing active (@ruvector/router)');
+        } else {
+          console.warn('[AgentDBService] Phase 2.2: Router using keyword fallback');
+        }
       } else {
-        console.warn('[AgentDBService] Phase 2.2: Router using keyword fallback');
+        this.routerEnabled = true;
+        console.log('✅ [AgentDBService] Phase 2.2: Semantic routing active (via getController)');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -545,24 +577,30 @@ export class AgentDBService {
     }
 
     // 3. @ruvector/graph-node - Native hypergraph database
+    // ADR-0069 F1: Prefer AgentDB.getController() with fallback to direct construction
     try {
-      const { GraphDatabaseAdapter } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/graph/GraphDatabaseAdapter.js'
-      );
+      this.graphAdapter = this.db.getController('graphAdapter');
+      if (!this.graphAdapter) {
+        const { GraphDatabaseAdapter } = await import(
+          /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/graph/GraphDatabaseAdapter.js'
+        );
 
-      const graphPath = path.join(process.cwd(), '.claude-flow', 'agentdb', 'graph.db');
-      this.graphAdapter = new GraphDatabaseAdapter(
-        {
-          storagePath: graphPath,
-          dimensions: embCfg.dimension, // ADR-0069: config-chain-aware
-          distanceMetric: 'Cosine'
-        },
-        this.embeddingService
-      );
+        const graphPath = path.join(process.cwd(), '.claude-flow', 'agentdb', 'graph.db');
+        this.graphAdapter = new GraphDatabaseAdapter(
+          {
+            storagePath: graphPath,
+            dimensions: embCfg.dimension, // ADR-0069: config-chain-aware
+            distanceMetric: 'Cosine'
+          },
+          this.embeddingService
+        );
 
-      await this.graphAdapter.initialize();
-      this.graphEnabled = true;
-      console.log('✅ [AgentDBService] Phase 2.3: Native hypergraph DB active (@ruvector/graph-node)');
+        await this.graphAdapter.initialize();
+      }
+      this.graphEnabled = !!this.graphAdapter;
+      if (this.graphEnabled) {
+        console.log('✅ [AgentDBService] Phase 2.3: Native hypergraph DB active (@ruvector/graph-node)');
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[AgentDBService] Phase 2.3: Graph DB unavailable (${msg})`);
@@ -570,19 +608,28 @@ export class AgentDBService {
     }
 
     // 4. @ruvector/sona - RL trajectory learning
+    // ADR-0069 F1: Prefer AgentDB.getController() with fallback to direct construction
     try {
-      const { SonaTrajectoryService } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/services/SonaTrajectoryService.js'
-      );
+      this.sonaService = this.db.getController('sonaService');
+      if (!this.sonaService) {
+        const { SonaTrajectoryService } = await import(
+          /* webpackIgnore: true */ '../../../packages/agentdb/src/services/SonaTrajectoryService.js'
+        );
 
-      this.sonaService = new SonaTrajectoryService();
-      const initialized = await this.sonaService.initialize();
-      this.sonaEnabled = initialized;
+        this.sonaService = new SonaTrajectoryService();
+        const initialized = await this.sonaService.initialize();
+        this.sonaEnabled = initialized;
 
-      if (initialized) {
-        console.log('✅ [AgentDBService] Phase 2.4: Sona RL trajectory learning active (@ruvector/sona)');
+        if (initialized) {
+          // Register back into AgentDB so getController() works for others
+          this.db.setController('sonaService', this.sonaService);
+          console.log('✅ [AgentDBService] Phase 2.4: Sona RL trajectory learning active (@ruvector/sona)');
+        } else {
+          console.warn('[AgentDBService] Phase 2.4: Sona using in-memory fallback');
+        }
       } else {
-        console.warn('[AgentDBService] Phase 2.4: Sona using in-memory fallback');
+        this.sonaEnabled = true;
+        console.log('✅ [AgentDBService] Phase 2.4: Sona RL trajectory learning active (via getController)');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -635,23 +682,27 @@ export class AgentDBService {
     }
 
     // 2. NightlyLearner - Automated causal discovery
+    // ADR-0069 F1: Prefer AgentDB.getController() with fallback to direct construction
     try {
-      const { NightlyLearner } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/NightlyLearner.js'
-      );
-      // ADR-0069 A7: config-chain similarity threshold
-      const _cfgSimThreshold = (() => { try { const c = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); return c?.memory?.similarityThreshold; } catch { return undefined; } })();
-      this.nightlyLearner = new NightlyLearner(database, this.embeddingService, {
-        minSimilarity: _cfgSimThreshold ?? 0.7,
-        minSampleSize: 30,
-        confidenceThreshold: 0.6,
-        upliftThreshold: 0.05,
-        pruneOldEdges: true,
-        edgeMaxAgeDays: 90,
-        autoExperiments: true,
-        experimentBudget: 10,
-        ENABLE_FLASH_CONSOLIDATION: false,
-      });
+      this.nightlyLearner = this.db.getController('nightlyLearner');
+      if (!this.nightlyLearner) {
+        const { NightlyLearner } = await import(
+          /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/NightlyLearner.js'
+        );
+        // ADR-0069 A7: config-chain similarity threshold
+        const _cfgSimThreshold = (() => { try { const c = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); return c?.memory?.similarityThreshold; } catch { return undefined; } })();
+        this.nightlyLearner = new NightlyLearner(database, this.embeddingService, {
+          minSimilarity: _cfgSimThreshold ?? 0.7,
+          minSampleSize: 30,
+          confidenceThreshold: 0.6,
+          upliftThreshold: 0.05,
+          pruneOldEdges: true,
+          edgeMaxAgeDays: 90,
+          autoExperiments: true,
+          experimentBudget: 10,
+          ENABLE_FLASH_CONSOLIDATION: false,
+        });
+      }
       console.log('[AgentDBService] NightlyLearner initialized');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -659,13 +710,17 @@ export class AgentDBService {
     }
 
     // 3. ExplainableRecall - Merkle provenance chains
+    // ADR-0069 F1: Prefer AgentDB.getController() with fallback to direct construction
     try {
-      const { ExplainableRecall } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/ExplainableRecall.js'
-      );
-      this.explainableRecall = new ExplainableRecall(database, this.embeddingService, {
-        ENABLE_GRAPH_ROPE: false,
-      });
+      this.explainableRecall = this.db.getController('explainableRecall');
+      if (!this.explainableRecall) {
+        const { ExplainableRecall } = await import(
+          /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/ExplainableRecall.js'
+        );
+        this.explainableRecall = new ExplainableRecall(database, this.embeddingService, {
+          ENABLE_GRAPH_ROPE: false,
+        });
+      }
       console.log('[AgentDBService] ExplainableRecall initialized');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
