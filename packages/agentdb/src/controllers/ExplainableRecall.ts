@@ -86,6 +86,10 @@ export interface ProvenanceSource {
   metadata?: Record<string, any>;
 }
 
+// ADR-0076 A4: Dual-instance guard — prevent duplicate construction
+// when both ControllerRegistry and AgentDBService create this controller
+let _singleton: InstanceType<typeof ExplainableRecall> | null = null;
+
 export class ExplainableRecall {
   private db: Database;
   private attentionService?: AttentionService;
@@ -98,12 +102,21 @@ export class ExplainableRecall {
    * v1 mode: new ExplainableRecall(db)
    * v2 mode: new ExplainableRecall(db, embedder, config)
    */
+  static _resetSingleton(): void { _singleton = null; }
+
   constructor(
     db: Database,
     embedder?: EmbeddingService,
     config?: ExplainableRecallConfig,
     attentionService?: AttentionService,
   ) {
+    if (_singleton) {
+      if (process.env.CLAUDE_FLOW_DEBUG) {
+        console.warn(`[${this.constructor.name}] Duplicate construction detected — returning existing instance`);
+      }
+      return _singleton as any;
+    }
+    _singleton = this;
     this.db = db;
     this.embedder = embedder;
     this.config = {

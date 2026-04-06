@@ -50,6 +50,10 @@ export interface ReflexionQuery {
   timeWindowDays?: number;
 }
 
+// ADR-0076 A4: Dual-instance guard — prevent duplicate construction
+// when both ControllerRegistry and AgentDBService create this controller
+let _singleton: InstanceType<typeof ReflexionMemory> | null = null;
+
 export class ReflexionMemory {
   private db: IDatabaseConnection;
   private embedder: EmbeddingService;
@@ -57,6 +61,8 @@ export class ReflexionMemory {
   private learningBackend?: LearningBackend;
   private graphBackend?: GraphBackend;
   private queryCache: QueryCache;
+
+  static _resetSingleton(): void { _singleton = null; }
 
   constructor(
     db: IDatabaseConnection,
@@ -66,6 +72,13 @@ export class ReflexionMemory {
     graphBackend?: GraphBackend,
     cacheConfig?: QueryCacheConfig
   ) {
+    if (_singleton) {
+      if (process.env.CLAUDE_FLOW_DEBUG) {
+        console.warn(`[${this.constructor.name}] Duplicate construction detected — returning existing instance`);
+      }
+      return _singleton as any;
+    }
+    _singleton = this;
     this.db = db;
     this.embedder = embedder;
     this.vectorBackend = vectorBackend;

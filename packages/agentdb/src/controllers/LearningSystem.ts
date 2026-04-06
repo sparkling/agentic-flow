@@ -72,6 +72,10 @@ export interface TrainingResult {
   trainingTimeMs: number;
 }
 
+// ADR-0076 A4: Dual-instance guard — prevent duplicate construction
+// when both ControllerRegistry and AgentDBService create this controller
+let _singleton: InstanceType<typeof LearningSystem> | null = null;
+
 export class LearningSystem {
   private db: Database;
   private embedder: EmbeddingService;
@@ -84,7 +88,16 @@ export class LearningSystem {
   private gnnEnabled: boolean = false;
   private sonaEnabled: boolean = false;
 
+  static _resetSingleton(): void { _singleton = null; }
+
   constructor(db: Database, embedder: EmbeddingService) {
+    if (_singleton) {
+      if (process.env.CLAUDE_FLOW_DEBUG) {
+        console.warn(`[${this.constructor.name}] Duplicate construction detected — returning existing instance`);
+      }
+      return _singleton as any;
+    }
+    _singleton = this;
     this.db = db;
     this.embedder = embedder;
     this.initializeSchema();

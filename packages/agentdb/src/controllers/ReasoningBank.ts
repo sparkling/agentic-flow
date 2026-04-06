@@ -86,6 +86,10 @@ export interface LearningBackend {
   }>;
 }
 
+// ADR-0076 A4: Dual-instance guard — prevent duplicate construction
+// when both ControllerRegistry and AgentDBService create this controller
+let _singleton: InstanceType<typeof ReasoningBank> | null = null;
+
 export class ReasoningBank {
   private db: IDatabaseConnection;
   private embedder: EmbeddingService;
@@ -108,12 +112,21 @@ export class ReasoningBank {
    * New mode (v2 - with VectorBackend):
    *   new ReasoningBank(db, embedder, vectorBackend, learningBackend?)
    */
+  static _resetSingleton(): void { _singleton = null; }
+
   constructor(
     db: IDatabaseConnection,
     embedder: EmbeddingService,
     vectorBackend?: VectorBackend,
     learningBackend?: LearningBackend
   ) {
+    if (_singleton) {
+      if (process.env.CLAUDE_FLOW_DEBUG) {
+        console.warn(`[${this.constructor.name}] Duplicate construction detected — returning existing instance`);
+      }
+      return _singleton as any;
+    }
+    _singleton = this;
     this.db = db;
     this.embedder = embedder;
     this.vectorBackend = vectorBackend;

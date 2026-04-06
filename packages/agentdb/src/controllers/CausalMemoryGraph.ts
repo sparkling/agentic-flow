@@ -100,6 +100,10 @@ export interface CausalQuery {
   minUplift?: number;
 }
 
+// ADR-0076 A4: Dual-instance guard — prevent duplicate construction
+// when both ControllerRegistry and AgentDBService create this controller
+let _singleton: InstanceType<typeof CausalMemoryGraph> | null = null;
+
 export class CausalMemoryGraph {
   private db: IDatabaseConnection;
   private graphBackend?: any; // GraphBackend or GraphDatabaseAdapter
@@ -120,6 +124,8 @@ export class CausalMemoryGraph {
    * @param config - Optional configuration for hyperbolic attention
    * @param vectorBackend - Optional vector backend for optimized similarity search (150x faster than SQLite)
    */
+  static _resetSingleton(): void { _singleton = null; }
+
   constructor(
     db: IDatabaseConnection,
     graphBackend?: any,
@@ -128,6 +134,13 @@ export class CausalMemoryGraph {
     vectorBackend?: VectorBackend,
     attentionService?: AttentionService,
   ) {
+    if (_singleton) {
+      if (process.env.CLAUDE_FLOW_DEBUG) {
+        console.warn(`[${this.constructor.name}] Duplicate construction detected — returning existing instance`);
+      }
+      return _singleton as any;
+    }
+    _singleton = this;
     this.db = db;
     this.graphBackend = graphBackend;
     this.embedder = embedder;
