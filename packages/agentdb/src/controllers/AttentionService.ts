@@ -128,6 +128,7 @@ export class AttentionService {
   private runtime: RuntimeEnvironment;
   private napiModule: any = null;
   private wasmModule: any = null;
+  private wasmInstances: Map<string, any> = new Map();
   private initialized: boolean = false;
   private engineType: 'napi' | 'wasm' | 'fallback' = 'fallback';
 
@@ -175,8 +176,12 @@ export class AttentionService {
 
     try {
       if (this.runtime === 'nodejs') {
-        // Try to load NAPI module for Node.js
+        // Try NAPI first (fastest), then WASM fallback, then JS fallback
         await this.loadNAPIModule();
+        if (!this.napiModule) {
+          // NAPI unavailable — try WASM as intermediate fallback (ADR-0069 F3)
+          await this.loadWASMModule();
+        }
       } else if (this.runtime === 'browser') {
         // Load WASM module for browsers
         await this.loadWASMModule();
@@ -243,21 +248,114 @@ export class AttentionService {
   }
 
   /**
-   * Load WASM module for browser runtime
+   * Load WASM module — tries unified (18+ mechanisms) first, then basic (7 mechanisms).
+   * Works in both Node.js and browser runtimes (ADR-0069 F3).
    */
   private async loadWASMModule(): Promise<void> {
+    // Strategy 1: Try @ruvector/attention-unified-wasm (18+ mechanisms)
     try {
       // @ts-ignore - Optional dependency
-      this.wasmModule = await import('ruvector-attention-wasm');
-      await this.wasmModule.default(); // Initialize WASM
+      const mod = await import('@ruvector/attention-unified-wasm');
+      if (this.runtime === 'nodejs') {
+        // Node.js: use initSync with buffer for WASM loading
+        const { readFileSync } = await import('node:fs');
+        const { createRequire } = await import('node:module');
+        const require = createRequire(import.meta.url);
+        const wasmPath = require.resolve('@ruvector/attention-unified-wasm/ruvector_attention_unified_wasm_bg.wasm');
+        const wasmBuffer = readFileSync(wasmPath);
+        mod.initSync({ module: wasmBuffer });
+      } else {
+        await mod.default();
+      }
+      this.wasmModule = { ...mod, _isUnified: true };
       this.engineType = 'wasm';
-      console.log('[AttentionService] Using ruvector-attention-wasm');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.warn(`[AttentionService] WASM not available: ${errorMessage}`);
-      this.wasmModule = null;
+      console.log('[AttentionService] Using @ruvector/attention-unified-wasm (18+ mechanisms)');
+      return;
+    } catch {
+      // Not available, try basic
+    }
+
+    // Strategy 2: Try ruvector-attention-wasm (7 mechanisms)
+    try {
+      // @ts-ignore - Optional dependency
+      const mod = await import('ruvector-attention-wasm');
+      if (this.runtime === 'nodejs') {
+        const { readFileSync } = await import('node:fs');
+        const { createRequire } = await import('node:module');
+        const require = createRequire(import.meta.url);
+        const wasmPath = require.resolve('ruvector-attention-wasm/ruvector_attention_wasm_bg.wasm');
+        const wasmBuffer = readFileSync(wasmPath);
+        mod.initSync({ module: wasmBuffer });
+      } else {
+        await mod.default();
+      }
+      this.wasmModule = mod;
+      this.engineType = 'wasm';
+      console.log('[AttentionService] Using ruvector-attention-wasm (7 mechanisms)');
+      return;
+    } catch {
+      // Not available
+    }
+
+    console.warn('[AttentionService] No WASM modules available, using JS fallback');
+    this.wasmModule = null;
+    if (this.engineType !== 'napi') {
       this.engineType = 'fallback';
     }
+  }
+
+  /**
+   * Get or create a cached WASM mechanism instance.
+   * WASM modules use class-based APIs (e.g. WasmMultiHeadAttention) — this
+   * lazily instantiates and caches them for reuse across calls.
+   */
+  private getWasmInstance(mechanism: string): any {
+    if (this.wasmInstances.has(mechanism)) {
+      return this.wasmInstances.get(mechanism);
+    }
+    if (!this.wasmModule) return null;
+
+    const dim = this.config.embedDim;
+    let instance: any = null;
+
+    try {
+      switch (mechanism) {
+        case 'multi-head':
+          if (this.wasmModule.WasmMultiHeadAttention) {
+            instance = new this.wasmModule.WasmMultiHeadAttention(dim, this.config.numHeads);
+          }
+          break;
+        case 'flash':
+          if (this.wasmModule.WasmFlashAttention) {
+            instance = new this.wasmModule.WasmFlashAttention(dim, 256);
+          }
+          break;
+        case 'hyperbolic':
+          if (this.wasmModule.WasmHyperbolicAttention) {
+            instance = new this.wasmModule.WasmHyperbolicAttention(dim, -1.0);
+          }
+          break;
+        case 'moe':
+          if (this.wasmModule.WasmMoEAttention) {
+            instance = new this.wasmModule.WasmMoEAttention(
+              dim, this.config.numExperts || 8, this.config.topK || 2
+            );
+          }
+          break;
+        case 'linear':
+          if (this.wasmModule.WasmLinearAttention) {
+            instance = new this.wasmModule.WasmLinearAttention(dim, 256);
+          }
+          break;
+      }
+    } catch {
+      // Constructor failed — mechanism not available in this WASM build
+    }
+
+    if (instance) {
+      this.wasmInstances.set(mechanism, instance);
+    }
+    return instance;
   }
 
   /**
@@ -283,7 +381,7 @@ export class AttentionService {
     const startTime = Date.now();
 
     try {
-      let output: Float32Array;
+      let output: Float32Array | undefined;
       let weights: Float32Array | undefined;
       let runtime: 'napi' | 'wasm' | 'fallback' = 'fallback';
 
@@ -301,22 +399,16 @@ export class AttentionService {
         weights = result.weights;
         runtime = 'napi';
       }
-      // Try WASM (for browsers)
-      else if (this.wasmModule && this.wasmModule.multiHeadAttention) {
-        const result = this.wasmModule.multiHeadAttention(
-          query,
-          key,
-          value,
-          this.config.numHeads,
-          this.config.headDim,
-          mask
-        );
-        output = result.output;
-        weights = result.weights;
-        runtime = 'wasm';
+      // Try WASM (class-based API from ruvector-attention-*-wasm)
+      if (!output && this.wasmModule) {
+        const mha = this.getWasmInstance('multi-head');
+        if (mha) {
+          output = mha.compute(query, [key], [value]);
+          runtime = 'wasm';
+        }
       }
       // Fallback to JavaScript implementation
-      else {
+      if (!output) {
         const result = this.multiHeadAttentionFallback(query, key, value, mask);
         output = result.output;
         weights = result.weights;
@@ -368,7 +460,7 @@ export class AttentionService {
     performance.mark('flash-start');
 
     try {
-      let output: Float32Array;
+      let output: Float32Array | undefined;
       let runtime: 'napi' | 'wasm' | 'fallback' = 'fallback';
 
       // Try NAPI first
@@ -383,20 +475,16 @@ export class AttentionService {
         );
         runtime = 'napi';
       }
-      // Try WASM
-      else if (this.wasmModule && this.wasmModule.flashAttention) {
-        output = this.wasmModule.flashAttention(
-          query,
-          key,
-          value,
-          this.config.numHeads,
-          this.config.headDim,
-          mask
-        );
-        runtime = 'wasm';
+      // Try WASM (class-based API)
+      if (!output && this.wasmModule) {
+        const flash = this.getWasmInstance('flash');
+        if (flash) {
+          output = flash.compute(query, [key], [value]);
+          runtime = 'wasm';
+        }
       }
       // Fallback (same as multi-head for now)
-      else {
+      if (!output) {
         const result = this.multiHeadAttentionFallback(query, key, value, mask);
         output = result.output;
         runtime = 'fallback';
@@ -444,7 +532,7 @@ export class AttentionService {
     performance.mark('linear-start');
 
     try {
-      let output: Float32Array;
+      let output: Float32Array | undefined;
       let runtime: 'napi' | 'wasm' | 'fallback' = 'fallback';
 
       // Try NAPI first
@@ -458,19 +546,16 @@ export class AttentionService {
         );
         runtime = 'napi';
       }
-      // Try WASM
-      else if (this.wasmModule && this.wasmModule.linearAttention) {
-        output = this.wasmModule.linearAttention(
-          query,
-          key,
-          value,
-          this.config.numHeads,
-          this.config.headDim
-        );
-        runtime = 'wasm';
+      // Try WASM (class-based API)
+      if (!output && this.wasmModule) {
+        const lin = this.getWasmInstance('linear');
+        if (lin) {
+          output = lin.compute(query, [key], [value]);
+          runtime = 'wasm';
+        }
       }
       // Fallback
-      else {
+      if (!output) {
         output = this.linearAttentionFallback(query, key, value);
         runtime = 'fallback';
       }
@@ -519,7 +604,7 @@ export class AttentionService {
     performance.mark('hyperbolic-start');
 
     try {
-      let output: Float32Array;
+      let output: Float32Array | undefined;
       let runtime: 'napi' | 'wasm' | 'fallback' = 'fallback';
 
       // Try NAPI first
@@ -534,20 +619,16 @@ export class AttentionService {
         );
         runtime = 'napi';
       }
-      // Try WASM
-      else if (this.wasmModule && this.wasmModule.hyperbolicAttention) {
-        output = this.wasmModule.hyperbolicAttention(
-          query,
-          key,
-          value,
-          this.config.numHeads,
-          this.config.headDim,
-          curvature
-        );
-        runtime = 'wasm';
+      // Try WASM (class-based API)
+      if (!output && this.wasmModule) {
+        const hyp = this.getWasmInstance('hyperbolic');
+        if (hyp) {
+          output = hyp.compute(query, [key], [value]);
+          runtime = 'wasm';
+        }
       }
       // Fallback (use standard attention)
-      else {
+      if (!output) {
         const result = this.multiHeadAttentionFallback(query, key, value);
         output = result.output;
         runtime = 'fallback';
@@ -597,7 +678,7 @@ export class AttentionService {
     performance.mark('moe-start');
 
     try {
-      let output: Float32Array;
+      let output: Float32Array | undefined;
       let runtime: 'napi' | 'wasm' | 'fallback' = 'fallback';
 
       const numExperts = this.config.numExperts || 8;
@@ -617,22 +698,16 @@ export class AttentionService {
         );
         runtime = 'napi';
       }
-      // Try WASM
-      else if (this.wasmModule && this.wasmModule.moeAttention) {
-        output = this.wasmModule.moeAttention(
-          query,
-          key,
-          value,
-          this.config.numHeads,
-          this.config.headDim,
-          numExperts,
-          topK,
-          mask
-        );
-        runtime = 'wasm';
+      // Try WASM (class-based API)
+      if (!output && this.wasmModule) {
+        const moe = this.getWasmInstance('moe');
+        if (moe) {
+          output = moe.compute(query, [key], [value]);
+          runtime = 'wasm';
+        }
       }
       // Fallback (use standard attention)
-      else {
+      if (!output) {
         const result = this.multiHeadAttentionFallback(query, key, value, mask);
         output = result.output;
         runtime = 'fallback';
@@ -855,13 +930,13 @@ export class AttentionService {
       return Array.from(output);
     }
 
-    // Try WASM
-    if (this.wasmModule && typeof this.wasmModule.flashAttention === 'function') {
+    // Try WASM (class-based API)
+    const flash = this.getWasmInstance('flash');
+    if (flash) {
       const startNs = performance.now();
-      const result = this.wasmModule.flashAttention(
-        queryBuf, keysBuf, valuesBuf,
-        heads, dimPerHead
-      );
+      const keysArr = keys.map(k => new Float32Array(k));
+      const valsArr = values.map(v => new Float32Array(v));
+      const result = flash.compute(queryBuf, keysArr, valsArr);
       const elapsed = performance.now() - startNs;
       this.updateStats('flash', 'wasm', elapsed, queryBuf.byteLength);
       const output = result instanceof Float32Array ? result : new Float32Array(result);
@@ -916,6 +991,19 @@ export class AttentionService {
       return { attention: output, weights };
     }
 
+    // Try WASM (class-based API)
+    const mha = this.getWasmInstance('multi-head');
+    if (mha) {
+      const startNs = performance.now();
+      const ctxArrays = context.map(c => new Float32Array(c));
+      const result = mha.compute(queryBuf, ctxArrays, ctxArrays);
+      const elapsed = performance.now() - startNs;
+      this.updateStats('multi-head', 'wasm', elapsed, queryBuf.byteLength);
+      const output = result instanceof Float32Array ? Array.from(result) : Array.from(new Float32Array(result));
+      const weights = this.computeFallbackWeights(query, context);
+      return { attention: output, weights };
+    }
+
     // JS fallback: compute attention via dot-product scoring per head
     return this.applyMultiHeadJS(query, context, heads);
   }
@@ -959,6 +1047,18 @@ export class AttentionService {
         ? Array.from(result.gating instanceof Float32Array ? result.gating as Float32Array : new Float32Array(result.gating))
         : this.computeGatingWeights(input, experts, k);
 
+      return { output, expertWeights: gating };
+    }
+
+    // Try WASM (class-based API)
+    const moe = this.getWasmInstance('moe');
+    if (moe) {
+      const startNs = performance.now();
+      const result = moe.compute(inputBuf, [inputBuf], [inputBuf]);
+      const elapsed = performance.now() - startNs;
+      this.updateStats('moe', 'wasm', elapsed, inputBuf.byteLength);
+      const output = result instanceof Float32Array ? Array.from(result) : Array.from(new Float32Array(result));
+      const gating = this.computeGatingWeights(input, experts, k);
       return { output, expertWeights: gating };
     }
 
