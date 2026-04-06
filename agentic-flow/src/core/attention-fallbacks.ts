@@ -1,8 +1,10 @@
 /**
  * Attention Module Fallbacks
  *
- * Since @ruvector/attention is completely broken, provide JavaScript fallbacks
- * Performance will be slower but functionality will work
+ * JavaScript fallback implementations for environments without
+ * @ruvector/attention WASM or NAPI bindings. The AttentionService
+ * runtime detection chain (NAPI → WASM → JS) uses these as the
+ * final fallback tier. Slower than native/WASM but fully functional.
  */
 
 export interface AttentionConfig {
