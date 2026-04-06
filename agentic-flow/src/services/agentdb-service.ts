@@ -101,29 +101,9 @@ export interface ServiceMetrics {
   uptime: number;
 }
 
-// -- In-memory fallback store -----------------------------------------------
-
-class InMemoryStore<T extends { id: number }> {
-  private items = new Map<number, T>();
-  private nextId = 1;
-
-  add(item: Omit<T, 'id'>): number {
-    const id = this.nextId++;
-    this.items.set(id, { ...item, id } as unknown as T);
-    return id;
-  }
-
-  search(predicate: (item: T) => boolean, limit: number): T[] {
-    const out: T[] = [];
-    for (const item of this.items.values()) {
-      if (predicate(item)) out.push(item);
-      if (out.length >= limit) break;
-    }
-    return out;
-  }
-
-  get size(): number { return this.items.size; }
-}
+// -- ADR-0076 Phase 5: InMemoryStore removed (silent data loss fallback) ----
+// Controller-unavailable paths now throw or return empty instead of silently
+// storing data in memory that vanishes on process exit.
 
 // -- Service ----------------------------------------------------------------
 
@@ -173,9 +153,10 @@ export class AgentDBService {
   // ADR-064: Cost Optimizer for 90% savings via intelligent model routing
   private costOptimizer: CostOptimizerService | null = null;
 
-  private episodeStore = new InMemoryStore<Episode>();
-  private skillStore = new InMemoryStore<Skill>();
-  private patternStore = new InMemoryStore<Pattern>();
+  // ADR-0076: counters track fallback operations (no data stored in-memory)
+  private fallbackEpisodeCount = 0;
+  private fallbackSkillCount = 0;
+  private fallbackPatternCount = 0;
   private causalEdges: Array<{ from: string; to: string; metadata: unknown }> = [];
   private trajectories: Array<{ steps: TrajectoryStep[]; reward: number }> = [];
 
@@ -756,7 +737,9 @@ export class AgentDBService {
         return String(await this.reflexionMemory.storeEpisode(episode));
       } catch { this.reflexionMemory = null; }
     }
-    return String(this.episodeStore.add({ ...episode, ts: Date.now(), id: 0 } as Episode));
+    // ADR-0076: no silent in-memory fallback — log warning, return placeholder
+    console.warn('[AgentDBService] storeEpisode: ReflexionMemory unavailable, episode not persisted');
+    return String(++this.fallbackEpisodeCount);
   }
 
   async recallEpisodes(query: string, limit = 5, filters?: Record<string, any>): Promise<Episode[]> {
@@ -782,8 +765,8 @@ export class AgentDBService {
         return episodes.slice(0, limit);
       } catch { this.reflexionMemory = null; }
     }
-    const q = query.toLowerCase();
-    return this.episodeStore.search((ep) => ep.task.toLowerCase().includes(q), limit);
+    // ADR-0076: no silent in-memory fallback — return empty
+    return [];
   }
 
   /**
@@ -840,7 +823,9 @@ export class AgentDBService {
         }));
       } catch { this.skillLibrary = null; }
     }
-    return String(this.skillStore.add({ ...skill, id: 0, uses: 0, avgReward: 0 } as Skill));
+    // ADR-0076: no silent in-memory fallback
+    console.warn('[AgentDBService] storeSkill: SkillLibrary unavailable, skill not persisted');
+    return String(++this.fallbackSkillCount);
   }
 
   async findSkills(description: string, limit = 5, filters?: Record<string, any>): Promise<Skill[]> {
@@ -865,11 +850,8 @@ export class AgentDBService {
         return skills.slice(0, limit);
       } catch { this.skillLibrary = null; }
     }
-    const q = description.toLowerCase();
-    return this.skillStore.search(
-      (s) => s.name.toLowerCase().includes(q) || (s.description ?? '').toLowerCase().includes(q),
-      limit,
-    );
+    // ADR-0076: no silent in-memory fallback — return empty
+    return [];
   }
 
   // -- Patterns -------------------------------------------------------------
@@ -883,7 +865,9 @@ export class AgentDBService {
         }));
       } catch { this.reasoningBank = null; }
     }
-    return String(this.patternStore.add({ ...pattern, id: 0, uses: 0 } as Pattern));
+    // ADR-0076: no silent in-memory fallback
+    console.warn('[AgentDBService] storePattern: ReasoningBank unavailable, pattern not persisted');
+    return String(++this.fallbackPatternCount);
   }
 
   async searchPatterns(query: string, limit = 5, diverse = false): Promise<Pattern[]> {
@@ -915,11 +899,8 @@ export class AgentDBService {
         return patterns.slice(0, limit).map(({ embedding, ...rest }: any) => rest);
       } catch { this.reasoningBank = null; }
     }
-    const q = query.toLowerCase();
-    return this.patternStore.search(
-      (p) => p.taskType.toLowerCase().includes(q) || p.approach.toLowerCase().includes(q),
-      limit,
-    );
+    // ADR-0076: no silent in-memory fallback — return empty
+    return [];
   }
 
   // -- Causal ---------------------------------------------------------------
@@ -1171,9 +1152,9 @@ export class AgentDBService {
   // -- Metrics --------------------------------------------------------------
 
   async getMetrics(): Promise<ServiceMetrics> {
-    let episodes = this.episodeStore.size;
-    let skills = this.skillStore.size;
-    let patterns = this.patternStore.size;
+    let episodes = this.fallbackEpisodeCount;
+    let skills = this.fallbackSkillCount;
+    let patterns = this.fallbackPatternCount;
     try {
       if (this.reflexionMemory) episodes = (await this.reflexionMemory.getEpisodeCount?.()) ?? episodes;
     } catch { /* use in-memory count */ }
@@ -1539,7 +1520,7 @@ export class AgentDBService {
    */
   async pruneStaleMemories(): Promise<{ pruned: number; remaining: number }> {
     if (!this.rvfOptimizer) {
-      return { pruned: 0, remaining: this.episodeStore.size };
+      return { pruned: 0, remaining: this.fallbackEpisodeCount };
     }
 
     // Get all episodes
@@ -1566,7 +1547,7 @@ export class AgentDBService {
 
     return {
       pruned,
-      remaining: this.episodeStore.size - pruned
+      remaining: this.fallbackEpisodeCount - pruned
     };
   }
 
@@ -1576,7 +1557,7 @@ export class AgentDBService {
    */
   async previewPruning(): Promise<{ pruned: number; remaining: number }> {
     if (!this.rvfOptimizer) {
-      return { pruned: 0, remaining: this.episodeStore.size };
+      return { pruned: 0, remaining: this.fallbackEpisodeCount };
     }
 
     const episodes = await this.recallEpisodes('*', 10000);
