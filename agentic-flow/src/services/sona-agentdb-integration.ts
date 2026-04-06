@@ -6,9 +6,25 @@
  */
 
 import { EventEmitter } from 'events';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { SonaEngine } from '@ruvector/sona';
 import agentdb from 'agentdb';
 import { SONAEngine, SONAStats, LearnResult, ValidationUtils } from './sona-types.js';
+
+// ADR-0069 A5: config-chain EWC lambda
+function readEwcLambdaFromConfig(fallback: number): number {
+  try {
+    const configPath = resolve(process.cwd(), '.claude-flow', 'config.json');
+    const raw = readFileSync(configPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const val = parsed?.neural?.ewcLambda;
+    if (typeof val === 'number' && val > 0) return val;
+  } catch {
+    // Config not found or unreadable — use fallback
+  }
+  return fallback;
+}
 
 export interface AgentDBSONAConfig {
   // SONA config
@@ -59,7 +75,7 @@ export class SONAAgentDBTrainer extends EventEmitter {
       microLoraRank: 2,
       baseLoraRank: 16,
       microLoraLr: 0.002,
-      ewcLambda: 2000,
+      ewcLambda: readEwcLambdaFromConfig(2000), // ADR-0069 A5: config-chain EWC lambda
       patternClusters: 100,
 
       // AgentDB defaults

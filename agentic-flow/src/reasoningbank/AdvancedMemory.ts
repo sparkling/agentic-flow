@@ -63,7 +63,8 @@ export class AdvancedMemorySystem {
 
     // Initialize NightlyLearner with optimized config
     this.learner = new NightlyLearner(db, embedder, {
-      minSimilarity: 0.7,
+      // ADR-0069 A7: config-chain similarity threshold
+      minSimilarity: (() => { try { const c = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); return c?.memory?.similarityThreshold; } catch { return undefined; } })() ?? 0.7,
       minSampleSize: 5,
       confidenceThreshold: 0.6,
       upliftThreshold: 0.1,

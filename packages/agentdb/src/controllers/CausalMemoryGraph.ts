@@ -125,7 +125,8 @@ export class CausalMemoryGraph {
     graphBackend?: any,
     embedder?: EmbeddingService,
     config?: CausalMemoryGraphConfig,
-    vectorBackend?: VectorBackend
+    vectorBackend?: VectorBackend,
+    attentionService?: AttentionService,
   ) {
     this.db = db;
     this.graphBackend = graphBackend;
@@ -136,8 +137,10 @@ export class CausalMemoryGraph {
       ...config,
     };
 
-    // Initialize AttentionService if embedder provided
-    if (embedder && this.config.ENABLE_HYPERBOLIC_ATTENTION) {
+    // Use injected AttentionService if provided, else create one when needed
+    if (attentionService) {
+      this.attentionService = attentionService;
+    } else if (embedder && this.config.ENABLE_HYPERBOLIC_ATTENTION) {
       this.attentionService = new AttentionService(db, {
         hyperbolic: {
           enabled: true,

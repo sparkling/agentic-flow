@@ -12,6 +12,7 @@
  */
 
 import { AgentDB } from 'agentdb';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 import type {
   AgentDBConfig,
   VectorEntry,
@@ -105,7 +106,7 @@ export class EnhancedAgentDBWrapper {
     this.config = {
       dbPath: config.dbPath || ':memory:',
       namespace: config.namespace || 'default',
-      dimension: config.dimension || 384,
+      dimension: config.dimension || getEmbeddingConfig().dimension, // ADR-0069: config-chain-aware
       hnswConfig: {
         M: config.hnswConfig?.M || 16,
         efConstruction: config.hnswConfig?.efConstruction || 200,
@@ -116,7 +117,7 @@ export class EnhancedAgentDBWrapper {
         type: config.attentionConfig?.type || 'flash',
         numHeads: config.attentionConfig?.numHeads || 8,
         headDim: config.attentionConfig?.headDim || 64,
-        embedDim: config.attentionConfig?.embedDim || config.dimension || 384,
+        embedDim: config.attentionConfig?.embedDim || config.dimension || 768,
         dropout: config.attentionConfig?.dropout || 0.1,
         curvature: config.attentionConfig?.curvature,
         numExperts: config.attentionConfig?.numExperts || 8,
@@ -125,7 +126,7 @@ export class EnhancedAgentDBWrapper {
       enableGNN: config.enableGNN || false,
       gnnConfig: {
         enabled: config.gnnConfig?.enabled || false,
-        inputDim: config.gnnConfig?.inputDim || config.dimension || 384,
+        inputDim: config.gnnConfig?.inputDim || config.dimension || 768,
         hiddenDim: config.gnnConfig?.hiddenDim || 256,
         numLayers: config.gnnConfig?.numLayers || 3,
         numHeads: config.gnnConfig?.numHeads || 8,

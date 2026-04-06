@@ -91,7 +91,7 @@ export class RVFOptimizer {
       compression: {
         enabled: config.compression?.enabled ?? true,
         quantizeBits: config.compression?.quantizeBits ?? 8,
-        deduplicationThreshold: config.compression?.deduplicationThreshold ?? 0.98,
+        deduplicationThreshold: config.compression?.deduplicationThreshold ?? 0.95, // ADR-0069 A11: aligned to 0.95
         adaptive: config.compression?.adaptive ?? true,
         progressive: config.compression?.progressive ?? true,
       },

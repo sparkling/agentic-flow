@@ -12,6 +12,8 @@
  * @module agentdb-wrapper
  */
 
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+
 let AgentDB: any = null;
 let agentdbAvailable = false;
 
@@ -47,14 +49,14 @@ import type {
  * ```typescript
  * const wrapper = new AgentDBWrapper({
  *   dbPath: ':memory:',
- *   dimension: 384,
+ *   dimension: 768,
  *   hnswConfig: { M: 16, efConstruction: 200 }
  * });
  *
  * await wrapper.initialize();
  *
  * // Insert a vector
- * const vector = new Float32Array(384);
+ * const vector = new Float32Array(768);
  * await wrapper.insert({ vector, metadata: { type: 'test' } });
  *
  * // Search
@@ -87,7 +89,7 @@ export class AgentDBWrapper {
     this.config = {
       dbPath: config.dbPath || ':memory:',
       namespace: config.namespace || 'default',
-      dimension: config.dimension || 384,
+      dimension: config.dimension || getEmbeddingConfig().dimension, // ADR-0069: config-chain-aware
       hnswConfig: {
         M: config.hnswConfig?.M || 16,
         efConstruction: config.hnswConfig?.efConstruction || 200,

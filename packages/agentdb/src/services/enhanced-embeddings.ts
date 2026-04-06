@@ -127,7 +127,7 @@ export interface EnhancedEmbeddingConfig {
   /** Embedding provider (default: 'transformers') */
   provider?: EmbeddingProvider;
 
-  /** Model name (default: 'all-MiniLM-L6-v2') */
+  /** Model name (default: 'all-mpnet-base-v2') */
   model?: SupportedModel;
 
   /** Vector dimension (auto-detected from model if not specified) */
@@ -548,8 +548,8 @@ export class EnhancedEmbeddingService {
     // Set defaults
     this.config = {
       provider: config.provider ?? 'transformers',
-      model: config.model ?? 'all-MiniLM-L6-v2',
-      dimension: config.dimension ?? getModelDimension(config.model ?? 'all-MiniLM-L6-v2'),
+      model: config.model ?? 'all-mpnet-base-v2',
+      dimension: config.dimension ?? getModelDimension(config.model ?? 'all-mpnet-base-v2'),
       apiKey: config.apiKey ?? '',
       customEmbedder: config.customEmbedder,
       cache: {

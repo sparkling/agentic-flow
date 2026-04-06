@@ -51,7 +51,7 @@ async function startDaemon(args: string[]): Promise<void> {
   }
   ensureDir();
   const flags = parseFlags(args);
-  const port = parseInt(flags.port || '3000', 10);
+  const port = parseInt(flags.port || process.env.MCP_PORT || '3000', 10); // ADR-0069 A6
   const workers = parseInt(flags.workers || '4', 10);
 
   console.log(`Starting daemon... Port: ${port}, Workers: ${workers}`);
@@ -73,7 +73,9 @@ async function startDaemon(args: string[]): Promise<void> {
     srv.on('error', (e) => { log('Server error: ' + e.message); if (e.code === 'EADDRINUSE') { log('Port in use'); process.exit(1); } });
     process.on('SIGTERM', () => { log('SIGTERM received'); srv.close(() => process.exit(0)); });
     process.on('SIGINT', () => { log('SIGINT received'); srv.close(() => process.exit(0)); });
-    setInterval(() => log('Daemon running (uptime: ' + Math.floor(process.uptime()) + 's)'), 60000);
+    // ADR-0069 A13: configurable cleanup interval
+    var heartbeatMs = 60000; try { var _c = JSON.parse(fs.readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); heartbeatMs = _c && _c.memory && _c.memory.cleanupIntervalMs || 60000; } catch(_e) {}
+    setInterval(() => log('Daemon running (uptime: ' + Math.floor(process.uptime()) + 's)'), heartbeatMs);
   `;
 
   writeFileSync(LOG_FILE, '', 'utf-8');

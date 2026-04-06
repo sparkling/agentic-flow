@@ -392,7 +392,7 @@ console.error('🌐 Starting HTTP/SSE transport...');
 server.start({
   transportType: 'httpStream',
   httpStream: {
-    port: 8080
+    port: parseInt(process.env.MCP_SSE_PORT || process.env.HEALTH_PORT || '', 10) || 8080, // ADR-0069 A6
   }
 }).then(() => {
   console.error('✅ Agentic-Flow MCP Server running!');

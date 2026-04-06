@@ -7,6 +7,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { CostOptimizerService } from './cost-optimizer-service.js';
+import { getEmbeddingConfig, deriveHNSWParams } from '../../../packages/agentdb/src/config/embedding-config.js'; // ADR-0069
 
 // -- Public interfaces ------------------------------------------------------
 
@@ -211,8 +212,9 @@ export class AgentDBService {
       await this.db.initialize();
 
       const EmbeddingSvc = agentdb.EmbeddingService;
+      const embCfg = getEmbeddingConfig(); // ADR-0069: config-chain-aware
       this.embeddingService = new EmbeddingSvc({
-        model: 'Xenova/all-MiniLM-L6-v2', dimension: 384, provider: 'transformers',
+        model: embCfg.model, dimension: embCfg.dimension, provider: embCfg.provider,
       });
       await this.embeddingService.initialize();
 
@@ -221,11 +223,19 @@ export class AgentDBService {
         const { RVFOptimizer } = await import(
           /* webpackIgnore: true */ '../../../packages/agentdb/src/optimizations/RVFOptimizer.js'
         );
+        // ADR-0069 A11: config-chain dedup threshold
+        let _dedupThreshold = 0.95;
+        try {
+          const _cfg = JSON.parse(fs.readFileSync(
+            path.join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8'));
+          _dedupThreshold = _cfg.memory?.dedupThreshold ?? 0.95;
+        } catch { /* use default */ }
+
         this.rvfOptimizer = new RVFOptimizer({
           compression: {
             enabled: true,
             quantizeBits: 8,  // 4x memory reduction, minimal quality loss
-            deduplicationThreshold: 0.98,  // 98% similarity = duplicate
+            deduplicationThreshold: _dedupThreshold,  // ADR-0069 A11: was 0.98, now config-chain-aware
             adaptive: true,
             progressive: true
           },
@@ -258,12 +268,13 @@ export class AgentDBService {
         const { createBackend } = await import(
           /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/factory.js'
         );
+        const hnswParams = deriveHNSWParams(embCfg.dimension); // ADR-0069: config-chain-aware
         vectorBackend = await createBackend('auto', {
-          dimension: 384,
+          dimension: embCfg.dimension,
           metric: 'cosine',
-          maxElements: 10000,
-          efConstruction: 200,
-          M: 16,
+          maxElements: hnswParams.maxElements, // ADR-0069: use config-chain capacity
+          efConstruction: hnswParams.efConstruction,
+          M: hnswParams.M,
         });
         this.vectorBackend = vectorBackend;
         console.log('[AgentDBService] VectorBackend initialized');
@@ -288,8 +299,8 @@ export class AgentDBService {
             /* webpackIgnore: true */ '../../../packages/agentdb/src/security/AttestationLog.js'
           );
           const guard = new MutationGuard({
-            dimension: 384,
-            maxElements: 10000,
+            dimension: embCfg.dimension, // ADR-0069: config-chain-aware
+            maxElements: hnswParams.maxElements, // ADR-0069: use config-chain capacity
             enableWasmProofs: true,
             enableAttestationLog: true,
             defaultNamespace: 'agentdb',
@@ -392,7 +403,7 @@ export class AgentDBService {
       this.attentionService = new AttentionService({
         numHeads: 8,
         headDim: 48,
-        embedDim: 384,
+        embedDim: 768,
         useFlash: true,
         dropout: 0.1,
       });
@@ -457,10 +468,11 @@ export class AgentDBService {
       );
 
       // Create enhanced version with same config
+      const upgradeCfg = getEmbeddingConfig(); // ADR-0069: config-chain-aware
       const enhanced = new EnhancedEmbeddingService({
-        model: 'Xenova/all-MiniLM-L6-v2',
-        dimension: 384,
-        provider: 'transformers',
+        model: upgradeCfg.model,
+        dimension: upgradeCfg.dimension,
+        provider: upgradeCfg.provider,
         enableWASM: true,
         enableBatchProcessing: true,
         batchSize: 100,
@@ -491,7 +503,7 @@ export class AgentDBService {
       );
 
       this.gnnLearning = new RuVectorLearning({
-        inputDim: 384,
+        inputDim: 768,
         hiddenDim: 256,
         heads: 4,
         dropout: 0.1
@@ -542,7 +554,7 @@ export class AgentDBService {
       this.graphAdapter = new GraphDatabaseAdapter(
         {
           storagePath: graphPath,
-          dimensions: 384,
+          dimensions: embCfg.dimension, // ADR-0069: config-chain-aware
           distanceMetric: 'Cosine'
         },
         this.embeddingService
@@ -627,8 +639,10 @@ export class AgentDBService {
       const { NightlyLearner } = await import(
         /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/NightlyLearner.js'
       );
+      // ADR-0069 A7: config-chain similarity threshold
+      const _cfgSimThreshold = (() => { try { const c = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); return c?.memory?.similarityThreshold; } catch { return undefined; } })();
       this.nightlyLearner = new NightlyLearner(database, this.embeddingService, {
-        minSimilarity: 0.7,
+        minSimilarity: _cfgSimThreshold ?? 0.7,
         minSampleSize: 30,
         confidenceThreshold: 0.6,
         upliftThreshold: 0.05,

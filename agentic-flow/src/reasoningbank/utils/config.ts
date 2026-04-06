@@ -94,7 +94,7 @@ const DEFAULT_CONFIG: ReasoningBankConfig = {
     confidence_prior_failure: 0.60
   },
   consolidate: {
-    duplicate_threshold: 0.95,
+    duplicate_threshold: 0.95, // ADR-0069 A11: canonical default, overridden by config chain below
     contradiction_threshold: 0.85,
     trigger_threshold: 20,
     prune_age_days: 180,
@@ -193,7 +193,12 @@ export function loadConfig(): ReasoningBankConfig {
         confidence_prior_failure: raw.distill?.failure_confidence_prior ?? 0.60
       },
       consolidate: {
-        duplicate_threshold: raw.consolidate?.dedup_similarity_threshold ?? 0.95,
+        duplicate_threshold: raw.consolidate?.dedup_similarity_threshold ?? (() => { // ADR-0069 A11: config-chain fallback
+          try {
+            const _cfg = JSON.parse(readFileSync(join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8'));
+            return _cfg.memory?.dedupThreshold ?? 0.95;
+          } catch { return 0.95; }
+        })(),
         contradiction_threshold: raw.consolidate?.contradiction_threshold ?? 0.85,
         trigger_threshold: raw.consolidate?.run_every_new_items ?? 20,
         prune_age_days: raw.consolidate?.prune_age_days ?? 180,

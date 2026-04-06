@@ -198,7 +198,7 @@ export class TransformersEmbeddingService extends EmbeddingService {
 
   constructor(config: Omit<EmbeddingConfig, 'provider'>) {
     super({ ...config, provider: 'transformers' });
-    this.modelName = config.model || 'Xenova/all-MiniLM-L6-v2';
+    this.modelName = config.model || 'Xenova/all-mpnet-base-v2';
   }
 
   async initialize(): Promise<void> {
@@ -419,7 +419,7 @@ export async function benchmarkEmbeddings(testText: string = 'Hello world'): Pro
   // Test transformers (if available)
   try {
     const transformersService = new TransformersEmbeddingService({
-      model: 'Xenova/all-MiniLM-L6-v2'
+      model: 'Xenova/all-mpnet-base-v2'
     });
     const transformersResult = await transformersService.embed(testText);
     results.transformers = {

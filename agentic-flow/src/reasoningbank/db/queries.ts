@@ -32,6 +32,8 @@ export async function runMigrations(): Promise<void> {
   // Create database file
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
+  db.pragma('cache_size = -64000'); // ADR-0069 A1: 64MB cache
   db.pragma('foreign_keys = ON');
 
   // Create tables
@@ -134,6 +136,8 @@ export function getDb(): Database {
 
   dbInstance = new Database(dbPath);
   dbInstance.pragma('journal_mode = WAL');
+  dbInstance.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
+  dbInstance.pragma('cache_size = -64000'); // ADR-0069 A1: 64MB cache
   dbInstance.pragma('foreign_keys = ON');
 
   logger.info('Connected to ReasoningBank database', { path: dbPath });

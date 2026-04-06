@@ -80,7 +80,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
     const actualDbPath = inMemory ? ':memory:' : dbPath;
 
     // Determine embedding model (with dimension-aware defaults)
-    const embeddingModel = model || (dimension === getEmbeddingConfig().dimension ? getEmbeddingConfig().model : 'Xenova/all-MiniLM-L6-v2');
+    const embeddingModel = model || (dimension === getEmbeddingConfig().dimension ? getEmbeddingConfig().model : 'Xenova/all-mpnet-base-v2');
 
     console.log(`\n${colors.bright}${colors.cyan}🚀 Initializing AgentDB${colors.reset}\n`);
     console.log(`  Database:      ${colors.blue}${actualDbPath}${colors.reset}`);
@@ -97,6 +97,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
 
     // Configure for performance
     db.pragma('journal_mode = WAL');
+    db.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
     db.pragma('synchronous = NORMAL');
     db.pragma('cache_size = -64000');
 

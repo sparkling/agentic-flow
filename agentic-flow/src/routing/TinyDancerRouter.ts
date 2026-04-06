@@ -84,7 +84,7 @@ export interface RouterMetrics {
 }
 
 export interface TinyDancerConfig {
-  /** Embedding dimension (default: 384 for all-MiniLM-L6-v2) */
+  /** Embedding dimension (default: 768 for all-mpnet-base-v2) */
   embeddingDim?: number;
   /** Number of agents to route to */
   numAgents?: number;
@@ -155,7 +155,7 @@ export class TinyDancerRouter {
 
   constructor(config?: TinyDancerConfig) {
     this.config = {
-      embeddingDim: config?.embeddingDim ?? 384,
+      embeddingDim: config?.embeddingDim ?? 768,
       numAgents: config?.numAgents ?? 10,
       temperature: config?.temperature ?? 1.0,
       enableUncertainty: config?.enableUncertainty ?? true,

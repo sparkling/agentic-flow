@@ -11,6 +11,8 @@
 
 // Main AgentDB class
 export { AgentDB } from './core/AgentDB.js';
+import { AgentDB as AgentDBClass } from './core/AgentDB.js';
+export default AgentDBClass;
 
 // Core controllers
 export { CausalMemoryGraph } from './controllers/CausalMemoryGraph.js';
@@ -65,6 +67,11 @@ export {
   ValidationError,
 } from './security/input-validation.js';
 
+// Security infrastructure (ADR-0061 Phase 0)
+export { ResourceTracker, RateLimiter, CircuitBreaker, SecurityError } from './security/limits.js';
+export { TelemetryManager } from './observability/telemetry.js';
+export type { TelemetryConfig } from './observability/telemetry.js';
+
 // Services - RuVector package integrations
 export { SemanticRouter } from './services/SemanticRouter.js';
 export { SonaTrajectoryService } from './services/SonaTrajectoryService.js';
@@ -113,9 +120,9 @@ export type { AuditEventType, AuditEvent } from './services/audit-logger.service
 export { FederatedLearningManager } from './services/federated-learning.js';
 export type { FederatedAgentState, FederatedConfig } from './services/federated-learning.js';
 
-// Quantized vector store (ADR-0050 F4)
-export { QuantizedVectorStore } from './optimizations/Quantization.js';
-export type { QuantizationConfig, QuantizationType } from './optimizations/Quantization.js';
+// Quantized vector store — memory-efficient version (ADR-0061 Bug #9, was optimizations/Quantization.js)
+export { QuantizedVectorStore } from './quantization/vector-quantization.js';
+export type { QuantizedVectorStoreConfig, QuantizedSearchResult } from './quantization/vector-quantization.js';
 
 // Self-learning RVF backend (ADR-0050 remaining controllers)
 export { SelfLearningRvfBackend } from './backends/rvf/SelfLearningRvfBackend.js';

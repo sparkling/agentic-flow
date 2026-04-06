@@ -15,12 +15,15 @@ export interface EmbeddingConfig {
   taskPrefixQuery: string;
   taskPrefixIndex: string;
   contextWindow: number;
+  // ADR-0069: config-chain capacity — HNSW max elements from embeddings.json hnsw block
+  maxElements: number;
 }
 
 export interface HNSWParams {
   M: number;
   efConstruction: number;
   efSearch: number;
+  maxElements: number; // ADR-0069: config-chain capacity
 }
 
 export interface ModelInfo {
@@ -73,6 +76,7 @@ const DEFAULT_CONFIG: EmbeddingConfig = {
   taskPrefixQuery: 'search_query: ',
   taskPrefixIndex: 'search_document: ',
   contextWindow: 8192,
+  maxElements: 100000, // ADR-0069: config-chain capacity
 };
 
 // ===== Config resolution =====
@@ -104,6 +108,9 @@ export function getEmbeddingConfig(overrides?: Partial<EmbeddingConfig>): Embedd
         if (fileConfig.taskPrefixQuery !== undefined) config.taskPrefixQuery = fileConfig.taskPrefixQuery;
         if (fileConfig.taskPrefixIndex !== undefined) config.taskPrefixIndex = fileConfig.taskPrefixIndex;
         if (fileConfig.contextWindow) config.contextWindow = fileConfig.contextWindow;
+        // ADR-0069: config-chain capacity — read maxElements from hnsw block or top-level
+        if (fileConfig.hnsw?.maxElements) config.maxElements = fileConfig.hnsw.maxElements;
+        if (fileConfig.maxElements) config.maxElements = fileConfig.maxElements;
         break; // Use first found config
       }
     } catch { /* config file may not exist or be invalid */ }
@@ -113,6 +120,8 @@ export function getEmbeddingConfig(overrides?: Partial<EmbeddingConfig>): Embedd
   if (process.env.AGENTDB_EMBEDDING_MODEL) config.model = process.env.AGENTDB_EMBEDDING_MODEL;
   if (process.env.AGENTDB_EMBEDDING_DIM) config.dimension = parseInt(process.env.AGENTDB_EMBEDDING_DIM, 10);
   if (process.env.AGENTDB_EMBEDDING_PROVIDER) config.provider = process.env.AGENTDB_EMBEDDING_PROVIDER as any;
+  // ADR-0069: config-chain capacity
+  if (process.env.AGENTDB_MAX_ELEMENTS) config.maxElements = parseInt(process.env.AGENTDB_MAX_ELEMENTS, 10);
 
   // Layer 4: Auto-derive dimension from MODEL_REGISTRY if model changed but dimension wasn't explicit
   const modelInfo = MODEL_REGISTRY[config.model];
@@ -180,11 +189,13 @@ export function applyTaskPrefix(text: string, intent: 'query' | 'document'): str
  * efConstruction = 4 * M, clamped to [100, 500]
  * efSearch = 2 * M, clamped to [50, 400]
  */
-export function deriveHNSWParams(dimension?: number): HNSWParams {
+export function deriveHNSWParams(dimension?: number, maxElements?: number): HNSWParams {
   const dim = dimension ?? getEmbeddingConfig().dimension;
   const rawM = Math.floor(Math.sqrt(dim) / 1.2);
   const M = Math.max(8, Math.min(48, rawM));
   const efConstruction = Math.max(100, Math.min(500, 4 * M));
   const efSearch = Math.max(50, Math.min(400, 2 * M));
-  return { M, efConstruction, efSearch };
+  // ADR-0069: config-chain capacity
+  const resolvedMaxElements = maxElements ?? getEmbeddingConfig().maxElements;
+  return { M, efConstruction, efSearch, maxElements: resolvedMaxElements };
 }

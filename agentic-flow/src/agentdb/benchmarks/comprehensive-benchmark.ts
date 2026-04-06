@@ -57,6 +57,7 @@ export class ComprehensiveBenchmark {
 
     // Configure for performance
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
     this.db.pragma('synchronous = NORMAL');
     this.db.pragma('cache_size = -64000'); // 64MB cache
     this.db.pragma('temp_store = MEMORY');

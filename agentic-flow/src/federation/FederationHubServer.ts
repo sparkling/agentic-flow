@@ -50,7 +50,7 @@ export class FederationHubServer {
 
   constructor(config: HubConfig) {
     this.config = {
-      port: 8443,
+      port: parseInt(process.env.FEDERATION_PORT || '') || 8443, // ADR-0069 H6: config-chain ports
       dbPath: ':memory:',
       maxAgents: 1000,
       syncInterval: 5000,

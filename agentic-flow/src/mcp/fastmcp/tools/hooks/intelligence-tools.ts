@@ -312,7 +312,7 @@ export const intelligenceStatsTool: ToolDefinition = {
             enabled: stats.features?.includes('sona') ?? false,
             microLora: 'rank-1 (~0.05ms)',
             baseLora: 'rank-8',
-            ewcLambda: 1000.0,
+            ewcLambda: (() => { try { const c = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); return c?.neural?.ewcLambda ?? 2000; } catch { return 2000; } })(), // ADR-0069 A5: config-chain EWC lambda
           },
           attention: {
             type: 'moe',

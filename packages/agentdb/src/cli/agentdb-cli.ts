@@ -149,6 +149,7 @@ class AgentDBCLI {
 
     // Configure for performance
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
     this.db.pragma('synchronous = NORMAL');
     this.db.pragma('cache_size = -64000');
 
@@ -890,7 +891,7 @@ class AgentDBCLI {
           key: params.key,
         },
         rateLimit: {
-          maxRequestsPerMinute: 60,
+          maxRequestsPerMinute: 100, // ADR-0069 A2: aligned with QUICServer default
           maxBytesPerMinute: 10 * 1024 * 1024, // 10MB
         },
       };
@@ -3160,7 +3161,7 @@ ${colors.bright}CORE COMMANDS:${colors.reset}
   ${colors.cyan}init${colors.reset} [options]              Initialize database with backend detection
     --backend <type>           Backend: auto (default), ruvector, hnswlib
     --dimension <n>            Vector dimension (default: 384)
-    --model <name>             Embedding model (default: Xenova/all-MiniLM-L6-v2)
+    --model <name>             Embedding model (default: Xenova/all-mpnet-base-v2)
                                Popular: Xenova/bge-base-en-v1.5 (768d production)
                                         Xenova/bge-small-en-v1.5 (384d best quality)
     --dry-run                  Show detection info without initializing
@@ -3181,8 +3182,8 @@ ${colors.bright}SETUP COMMANDS:${colors.reset}
   agentdb init [db-path] [--dimension 384] [--model <name>] [--preset small|medium|large] [--in-memory]
     Initialize a new AgentDB database (default: ./agentdb.db)
     Options:
-      --dimension <n>     Vector dimension (default: 384 for all-MiniLM, 768 for bge-base)
-      --model <name>      Embedding model (default: Xenova/all-MiniLM-L6-v2)
+      --dimension <n>     Vector dimension (default: 768 for all-mpnet, 384 for bge-small)
+      --model <name>      Embedding model (default: Xenova/all-mpnet-base-v2)
                           Examples:
                             Xenova/bge-small-en-v1.5 (384d) - Best quality at 384-dim
                             Xenova/bge-base-en-v1.5 (768d)  - Production quality

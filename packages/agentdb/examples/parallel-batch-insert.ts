@@ -15,6 +15,8 @@ async function main() {
   // Initialize database
   const db = new Database('./examples/data/parallel-demo.db');
   db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
+  db.pragma('cache_size = -64000'); // ADR-0069 A1: 64MB cache
 
   // Load schemas
   const schemaPath = path.join(__dirname, '../src/schemas/schema.sql');

@@ -14,6 +14,8 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join, dirname, resolve, normalize } from 'path';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
+// ADR-0069 A12: import canonical embedding config chain
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config';
 
 // ============================================================================
 // Security Constants
@@ -35,13 +37,19 @@ export interface EmbedderConfig {
   autoDownload: boolean;
 }
 
+// ADR-0069 A12: default model comes from config chain (all-mpnet-base-v2, 768d)
+const _embCfg = getEmbeddingConfig();
 export const DEFAULT_CONFIG: EmbedderConfig = {
-  modelId: 'all-MiniLM-L6-v2',
-  dimension: 384,
+  modelId: _embCfg.model.replace(/^Xenova\//, ''),
+  dimension: _embCfg.dimension,
   cacheSize: 256,
   modelDir: join(homedir(), '.agentic-flow', 'models'),
   autoDownload: true
 };
+
+// ADR-0069 A12: canonical model is getEmbeddingConfig().model (default: all-mpnet-base-v2)
+// ADR-0069 A16: model registry base URL configurable for air-gapped/private deployments
+const MODEL_REGISTRY_BASE = process.env.MODEL_REGISTRY_URL || 'https://huggingface.co';
 
 // Model registry with download URLs and integrity checksums
 const MODEL_REGISTRY: Record<string, {
@@ -51,26 +59,36 @@ const MODEL_REGISTRY: Record<string, {
   quantized?: boolean;
   sha256?: string; // Optional integrity checksum
 }> = {
+  'all-mpnet-base-v2': {
+    url: `${MODEL_REGISTRY_BASE}/Xenova/all-mpnet-base-v2/resolve/main/onnx/model_quantized.onnx`,
+    dimension: 768,
+    size: '33MB',
+    quantized: true
+  },
+  'all-mpnet-base-v2-full': {
+    url: `${MODEL_REGISTRY_BASE}/Xenova/all-mpnet-base-v2/resolve/main/onnx/model.onnx`,
+    dimension: 768,
+    size: '110MB'
+  },
   'all-MiniLM-L6-v2': {
-    url: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx',
+    url: `${MODEL_REGISTRY_BASE}/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx`,
     dimension: 384,
     size: '23MB',
     quantized: true
-    // sha256: 'to-be-computed-on-first-download'
   },
   'all-MiniLM-L6-v2-full': {
-    url: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx',
+    url: `${MODEL_REGISTRY_BASE}/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx`,
     dimension: 384,
     size: '91MB'
   },
   'bge-small-en-v1.5': {
-    url: 'https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model_quantized.onnx',
+    url: `${MODEL_REGISTRY_BASE}/Xenova/bge-small-en-v1.5/resolve/main/onnx/model_quantized.onnx`,
     dimension: 384,
     size: '33MB',
     quantized: true
   },
   'gte-small': {
-    url: 'https://huggingface.co/Xenova/gte-small/resolve/main/onnx/model_quantized.onnx',
+    url: `${MODEL_REGISTRY_BASE}/Xenova/gte-small/resolve/main/onnx/model_quantized.onnx`,
     dimension: 384,
     size: '33MB',
     quantized: true

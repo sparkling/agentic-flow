@@ -44,9 +44,12 @@ export class FederationHubClient {
     return new Promise((resolve, reject) => {
       try {
         // Convert quic:// to ws:// for WebSocket connection
+        // ADR-0069 H6: config-chain ports — use env vars instead of hardcoded string-replace
+        const quicPort = String(parseInt(process.env.QUIC_PORT || '') || 4433);
+        const fedPort = String(parseInt(process.env.FEDERATION_PORT || '') || 8443);
         const wsEndpoint = this.config.endpoint
           .replace('quic://', 'ws://')
-          .replace(':4433', ':8443'); // Map QUIC port to WebSocket port
+          .replace(`:${quicPort}`, `:${fedPort}`); // Map QUIC port to WebSocket port
 
         logger.info('Connecting to federation hub', {
           endpoint: wsEndpoint,

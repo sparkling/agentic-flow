@@ -13,6 +13,12 @@ import { LearningSystem } from '../controllers/LearningSystem.js';
 import { ExplainableRecall } from '../controllers/ExplainableRecall.js';
 import { NightlyLearner } from '../controllers/NightlyLearner.js';
 import { EmbeddingService } from '../controllers/EmbeddingService.js';
+import { AttentionService } from '../controllers/AttentionService.js';
+import { QueryOptimizer } from '../optimizations/QueryOptimizer.js';
+import { BatchOperations } from '../optimizations/BatchOperations.js';
+import { HierarchicalMemory } from '../controllers/HierarchicalMemory.js';
+import { MemoryConsolidation } from '../controllers/MemoryConsolidation.js';
+import { AuditLogger } from '../services/audit-logger.service.js';
 import { getEmbeddingConfig } from '../config/embedding-config.js';
 import { createGuardedBackend } from '../backends/factory.js';
 import type { VectorBackend } from '../backends/VectorBackend.js';
@@ -41,6 +47,19 @@ export interface AgentDBConfig {
   vectorDimension?: number;
   /** Embedding model ID (default: 'nomic-ai/nomic-embed-text-v1.5') */
   embeddingModel?: string;
+  /** HNSW M parameter - connections per layer (forwarded to vector backend) */
+  hnswM?: number;
+  /** HNSW efConstruction - build quality (forwarded to vector backend) */
+  hnswEfConstruction?: number;
+  /** HNSW efSearch - search quality (forwarded to vector backend) */
+  hnswEfSearch?: number;
+  /** ADR-0069 A1: config-chain SQLite pragmas */
+  sqlite?: {
+    cacheSize?: number;      // default: -64000 (64MB)
+    busyTimeoutMs?: number;  // default: 5000
+    journalMode?: string;    // default: 'WAL'
+    synchronous?: string;    // default: 'NORMAL'
+  };
 }
 
 export class AgentDB {
@@ -60,6 +79,12 @@ export class AgentDB {
   private attestationLog: AttestationLog | null = null;
   private graphTransformer!: GraphTransformerService;
   private graphAdapter: any = null;
+  private attentionService: AttentionService | null = null;
+  private queryOptimizer?: QueryOptimizer;
+  private auditLogger?: AuditLogger;
+  private batchOperations?: BatchOperations;
+  private hierarchicalMemory?: HierarchicalMemory;
+  private memoryConsolidation?: MemoryConsolidation;
   private initialized = false;
   private config: AgentDBConfig;
   private usingWasm = false;
@@ -74,16 +99,25 @@ export class AgentDB {
 
     // Dynamic import: try better-sqlite3 (native), fallback to sql.js (WASM)
     const dbPath = this.config.dbPath || ':memory:';
+    // ADR-0069 A1: config-chain SQLite pragmas
+    const sq = this.config.sqlite;
     try {
       const Database = (await import('better-sqlite3')).default;
       this.db = new Database(dbPath);
-      this.db.pragma('journal_mode = WAL');
+      this.db.pragma(`journal_mode = ${sq?.journalMode ?? 'WAL'}`);
+      this.db.pragma(`synchronous = ${sq?.synchronous ?? 'NORMAL'}`);
+      this.db.pragma(`cache_size = ${sq?.cacheSize ?? -64000}`);
+      this.db.pragma(`busy_timeout = ${sq?.busyTimeoutMs ?? 5000}`);
       console.log('✅ Using better-sqlite3 (native performance)');
     } catch {
       console.log('⚠️  better-sqlite3 unavailable, using sql.js (WASM fallback)');
       const { getDatabaseImplementation } = await import('../db-fallback.js');
       const DatabaseImpl = await getDatabaseImplementation();
       this.db = new DatabaseImpl(dbPath);
+      // ADR-0069 A1: config-chain SQLite pragmas (WASM — skip journal_mode=WAL, not supported)
+      this.db.pragma(`cache_size = ${sq?.cacheSize ?? -64000}`);
+      this.db.pragma(`busy_timeout = ${sq?.busyTimeoutMs ?? 5000}`);
+      this.usingWasm = true;
     }
 
     // Resolve embedding config from layered sources (env, file, registry, overrides)
@@ -129,7 +163,10 @@ export class AgentDB {
       const { backend, guard, log } = await createGuardedBackend('auto', {
         dimensions: dim,
         metric: 'cosine',
-        maxElements: this.config.maxElements ?? 10000,
+        maxElements: this.config.maxElements ?? getEmbeddingConfig().maxElements, // ADR-0069: config-chain capacity
+        ...(this.config.hnswM !== undefined && { M: this.config.hnswM }),
+        ...(this.config.hnswEfConstruction !== undefined && { efConstruction: this.config.hnswEfConstruction }),
+        ...(this.config.hnswEfSearch !== undefined && { efSearch: this.config.hnswEfSearch }),
         database: this.db,
       });
       this.guardedBackend = backend;
@@ -142,15 +179,39 @@ export class AgentDB {
       controllerVB = null;
     }
 
+    // Initialize shared AttentionService singleton (W1-5)
+    if (this.config.enableAttention !== false) {
+      this.attentionService = new AttentionService({
+        numHeads: 8,
+        headDim: Math.floor(dim / 8),
+        embedDim: dim,
+        useFlash: true,
+      });
+    }
+
     // Initialize controllers — wire vectorBackend where supported
     this.reflexion = new ReflexionMemory(this.db, this.embedder, controllerVB ?? undefined);
     this.skills = new SkillLibrary(this.db, this.embedder, controllerVB ?? undefined);
     this.reasoning = new ReasoningBank(this.db, this.embedder, controllerVB ?? undefined);
-    this.causalGraph = new CausalMemoryGraph(this.db);
-    this.causalRecall = new CausalRecall(this.db, this.embedder);
+    this.causalGraph = new CausalMemoryGraph(
+      this.db, undefined, undefined, undefined, undefined,
+      this.attentionService,
+    );
+    this.explainableRecall = new ExplainableRecall(
+      this.db, this.embedder, undefined,
+      this.attentionService,
+    );
     this.learningSystem = new LearningSystem(this.db, this.embedder);
-    this.explainableRecall = new ExplainableRecall(this.db, this.embedder);
-    this.nightlyLearner = new NightlyLearner(this.db, this.embedder);
+    this.causalRecall = new CausalRecall(
+      this.db, this.embedder, controllerVB ?? undefined,
+      undefined, // config — use default
+      this.causalGraph, this.explainableRecall,
+    );
+    this.nightlyLearner = new NightlyLearner(
+      this.db, this.embedder, undefined, // config — use default
+      this.causalGraph, this.reflexion, this.skills,
+      this.attentionService,
+    );
 
     // Initialize optional graph database adapter
     try {
@@ -210,6 +271,22 @@ export class AgentDB {
         return this.attestationLog;
       case 'vectorBackend':
         return this.vectorBackend;
+      case 'queryOptimizer':
+        return (this.queryOptimizer ??= new QueryOptimizer(this.db));
+      case 'auditLogger':
+        return (this.auditLogger ??= new AuditLogger());
+      case 'batchOperations':
+        return (this.batchOperations ??= new BatchOperations(this.db, this.embedder));
+      case 'attentionService':
+        return this.attentionService;
+      case 'hierarchicalMemory':
+        return (this.hierarchicalMemory ??= new HierarchicalMemory(this.db, this.embedder));
+      case 'memoryConsolidation':
+        return (this.memoryConsolidation ??= new MemoryConsolidation(
+          this.db,
+          this.getController('hierarchicalMemory'),
+          this.embedder,
+        ));
       default:
         throw new Error(`Unknown controller: ${name}`);
     }
@@ -225,6 +302,10 @@ export class AgentDB {
 
   getMutationGuard(): MutationGuard | null {
     return this.mutationGuard;
+  }
+
+  getEmbeddingService(): EmbeddingService | null {
+    return this.embedder ?? null;
   }
 
   async close(): Promise<void> {

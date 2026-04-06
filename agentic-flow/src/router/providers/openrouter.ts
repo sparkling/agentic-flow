@@ -30,7 +30,7 @@ export class OpenRouterProvider implements LLMProvider {
     }
 
     this.client = axios.create({
-      baseURL: config.baseUrl || 'https://openrouter.ai/api/v1',
+      baseURL: config.baseUrl || process.env.OPENROUTER_URL || 'https://openrouter.ai/api/v1', // ADR-0069 A15
       headers: {
         'Authorization': `Bearer ${config.apiKey}`,
         'HTTP-Referer': 'https://github.com/ruvnet/agentic-flow',

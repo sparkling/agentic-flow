@@ -18,7 +18,7 @@ import {
   WorkerContext
 } from './types.js';
 import { getWorkerRegistry, WorkerRegistry } from './worker-registry.js';
-import { getResourceGovernor, ResourceGovernor } from './resource-governor.js';
+import { getResourceGovernor, ResourceGovernor, loadGlobalWorkerTimeout } from './resource-governor.js';
 import { getTriggerDetector, TriggerDetector } from './trigger-detector.js';
 import {
   getRuVectorWorkerIntegration,
@@ -327,7 +327,7 @@ export class WorkerDispatchService extends EventEmitter {
    */
   async awaitCompletion(
     workerId: WorkerId,
-    timeout: number = 300000
+    timeout: number = loadGlobalWorkerTimeout() // ADR-0069 A3: config-chain worker timeout
   ): Promise<WorkerInfo | null> {
     return new Promise((resolve) => {
       const checkInterval = setInterval(() => {

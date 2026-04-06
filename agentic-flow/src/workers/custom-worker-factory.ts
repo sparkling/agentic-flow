@@ -9,6 +9,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { resolveWorkerTimeout } from './trigger-detector.js';
 import {
   CustomWorkerDefinition,
   WorkerConfigFile,
@@ -220,7 +221,7 @@ export function createFromPreset(
     description: preset.description || `Worker from ${presetName} preset`,
     triggers: overrides?.triggers || [presetName],
     priority: preset.priority || 'medium',
-    timeout: preset.timeout || 120000,
+    timeout: preset.timeout || resolveWorkerTimeout(presetName) || 120000, // ADR-0069 A3
     phases: overrides?.phases || preset.phases || [],
     capabilities: { ...preset.capabilities, ...overrides?.capabilities },
     fileFilter: { ...preset.fileFilter, ...overrides?.fileFilter },

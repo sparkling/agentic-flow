@@ -237,6 +237,8 @@ export class IntelligenceStore {
       const db = new Database(this.dbPath);
       db.pragma('journal_mode = WAL');
       db.pragma('synchronous = NORMAL');
+      db.pragma('cache_size = -64000'); // ADR-0069 A1: 64MB, consistent across all sites
+      db.pragma('busy_timeout = 5000'); // ADR-0069 A1: prevent SQLITE_BUSY under concurrency
       this.db = new BetterSqliteWrapper(db);
       this.initialized = true;
       this.initSchema();

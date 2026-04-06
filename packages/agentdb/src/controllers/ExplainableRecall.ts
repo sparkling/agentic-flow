@@ -101,7 +101,8 @@ export class ExplainableRecall {
   constructor(
     db: Database,
     embedder?: EmbeddingService,
-    config?: ExplainableRecallConfig
+    config?: ExplainableRecallConfig,
+    attentionService?: AttentionService,
   ) {
     this.db = db;
     this.embedder = embedder;
@@ -110,8 +111,10 @@ export class ExplainableRecall {
       ...config,
     };
 
-    // Initialize AttentionService if GraphRoPE enabled
-    if (embedder && this.config.ENABLE_GRAPH_ROPE) {
+    // Use injected AttentionService if provided, else create one when needed
+    if (attentionService) {
+      this.attentionService = attentionService;
+    } else if (embedder && this.config.ENABLE_GRAPH_ROPE) {
       this.attentionService = new AttentionService(db, {
         graphRoPE: {
           enabled: true,

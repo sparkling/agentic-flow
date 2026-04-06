@@ -5,12 +5,28 @@
 import { WorkerId, WorkerTrigger, WorkerInfo, ResourceLimits, ResourceStats } from './types.js';
 import { getWorkerRegistry } from './worker-registry.js';
 import { TRIGGER_CONFIGS } from './trigger-detector.js';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+// ADR-0069 A3: config-chain worker timeouts — global fallback is config-aware
+export function loadGlobalWorkerTimeout(): number {
+  try {
+    const configPath = resolve(process.cwd(), '.claude-flow', 'config.json');
+    const raw = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(raw);
+    const globalTimeout = config?.workers?.globalTimeout;
+    if (typeof globalTimeout === 'number' && globalTimeout > 0) return globalTimeout;
+  } catch {
+    // Config absent — use hardcoded default
+  }
+  return 600000; // 10 minutes
+}
 
 const DEFAULT_LIMITS: ResourceLimits = {
   maxConcurrentWorkers: 10,
   maxPerTrigger: 3,
   maxHeapMB: 1024,
-  workerTimeout: 600000  // 10 minutes
+  workerTimeout: loadGlobalWorkerTimeout()  // ADR-0069 A3: config-chain aware
 };
 
 export class ResourceGovernor {

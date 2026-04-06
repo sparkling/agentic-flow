@@ -7,7 +7,10 @@
  * Security Fix: Addresses HIGH-003 (Rate Limiting & DoS - INSUFFICIENT)
  */
 
-interface RateLimitConfig {
+// ADR-0069 A2: config-chain rate limits
+import { getRateLimitPreset } from '../../config/rate-limiter-config.js';
+
+export interface RateLimitConfig {
   /**
    * Maximum number of requests allowed in the time window
    * @default 100
@@ -44,9 +47,11 @@ export class RateLimiter {
   private readonly refillRate: number; // tokens per ms
 
   constructor(config?: Partial<RateLimitConfig>) {
+    // ADR-0069 A2: config-chain rate limits — resolve defaults from config chain
+    const _defaultPreset = getRateLimitPreset('default');
     this.config = {
-      maxRequests: config?.maxRequests ?? 100,
-      windowMs: config?.windowMs ?? 60000,
+      maxRequests: config?.maxRequests ?? _defaultPreset.maxRequests,
+      windowMs: config?.windowMs ?? _defaultPreset.windowMs,
       blockOnExceed: config?.blockOnExceed ?? true,
       message: config?.message ?? 'Rate limit exceeded. Please try again later.'
     };
@@ -203,18 +208,22 @@ export class RateLimiter {
   }
 }
 
+// ADR-0069 A2: config-chain rate limits — singletons read from config chain
+const _defaultCfg = getRateLimitPreset('default');
+const _authCfg = getRateLimitPreset('auth');
+
 // Export singleton instance with default config
 export const defaultRateLimiter = new RateLimiter({
-  maxRequests: 100,
-  windowMs: 60000,
+  maxRequests: _defaultCfg.maxRequests,
+  windowMs: _defaultCfg.windowMs,
   blockOnExceed: true,
   message: 'Rate limit exceeded. Please try again later.'
 });
 
 // Export per-tool rate limiters for critical operations
 export const criticalRateLimiter = new RateLimiter({
-  maxRequests: 10,
-  windowMs: 60000,
+  maxRequests: _authCfg.maxRequests,
+  windowMs: _authCfg.windowMs,
   blockOnExceed: true,
   message: 'Rate limit exceeded for critical operation. Please try again later.'
 });
