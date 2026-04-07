@@ -55,12 +55,23 @@ let directBridge: DirectCallBridge | null = null;
     console.error('[DirectCallBridge] Initialized (100-200x faster than CLI spawning)');
 
     // ADR-0076 Phase 4: Connect controller bridge to ControllerRegistry
+    // Use the existing registry from memory-bridge (if available) to avoid
+    // creating a second ControllerRegistry with a separate AgentDB connection.
     try {
-      const [{ setRegistry }, { ControllerRegistry }] = await Promise.all([
-        import('../../../services/controller-bridge.js'),
-        import('@claude-flow/memory'),
-      ]);
-      const registry = new ControllerRegistry();
+      const { setRegistry } = await import('../../../services/controller-bridge.js');
+      let registry: any = null;
+      try {
+        const bridgeModule = await import(
+          /* webpackIgnore: true */ '../../../../cli/src/memory/memory-bridge.js'
+        );
+        registry = await bridgeModule.getControllerRegistry?.();
+      } catch { /* memory-bridge not available */ }
+      if (!registry) {
+        // Fallback: create and initialize a fresh registry
+        const { ControllerRegistry } = await import('@claude-flow/memory');
+        registry = new ControllerRegistry();
+        await registry.initialize({ dbPath: agentDB.getDbPath?.() });
+      }
       setRegistry(registry);
       console.error('[ControllerBridge] Connected to ControllerRegistry');
     } catch { /* controller-bridge wiring is best-effort */ }
