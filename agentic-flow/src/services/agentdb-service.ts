@@ -295,20 +295,48 @@ export class AgentDBService {
           console.warn(`[AgentDBService] MutationGuard unavailable (${msg}), vectorBackend disabled`);
         }
       }
+      // ADR-0076 Phase 4: Import getOrCreate from @claude-flow/memory to share
+      // controller instances with ControllerRegistry (prevents dual construction).
+      let getOrCreate: ((name: string, factory: () => any) => any) | null = null;
+      try {
+        const intercept = await import(/* webpackIgnore: true */ '@claude-flow/memory');
+        getOrCreate = intercept.getOrCreate ?? null;
+      } catch { /* @claude-flow/memory not available */ }
+
       // ADR-0069 F1: Delegate to AgentDB.getController() for single-instance controllers.
       // Fall back to direct construction if getController() returns null.
-      this.reflexionMemory = this.db.getController('reflexion')
-        ?? new agentdb.ReflexionMemory(database, this.embeddingService, controllerVB);
-      this.skillLibrary = this.db.getController('skills')
-        ?? new agentdb.SkillLibrary(database, this.embeddingService, controllerVB);
-      this.reasoningBank = this.db.getController('reasoning')
-        ?? new agentdb.ReasoningBank(database, this.embeddingService, controllerVB);
-      this.causalGraph = this.db.getController('causalGraph')
-        ?? new agentdb.CausalMemoryGraph(database);
-      this.causalRecall = this.db.getController('causalRecall')
-        ?? new agentdb.CausalRecall(database, this.embeddingService);
-      this.learningSystem = this.db.getController('learning')
-        ?? new agentdb.LearningSystem(database, this.embeddingService);
+      // ADR-0076 Phase 4: Wrap with getOrCreate() so ControllerRegistry and
+      // AgentDBService share the same controller instances.
+      this.reflexionMemory = getOrCreate
+        ? getOrCreate('reflexion', () => this.db.getController('reflexion')
+            ?? new agentdb.ReflexionMemory(database, this.embeddingService, controllerVB))
+        : this.db.getController('reflexion')
+            ?? new agentdb.ReflexionMemory(database, this.embeddingService, controllerVB);
+      this.skillLibrary = getOrCreate
+        ? getOrCreate('skills', () => this.db.getController('skills')
+            ?? new agentdb.SkillLibrary(database, this.embeddingService, controllerVB))
+        : this.db.getController('skills')
+            ?? new agentdb.SkillLibrary(database, this.embeddingService, controllerVB);
+      this.reasoningBank = getOrCreate
+        ? getOrCreate('reasoningBank', () => this.db.getController('reasoning')
+            ?? new agentdb.ReasoningBank(database, this.embeddingService, controllerVB))
+        : this.db.getController('reasoning')
+            ?? new agentdb.ReasoningBank(database, this.embeddingService, controllerVB);
+      this.causalGraph = getOrCreate
+        ? getOrCreate('causalGraph', () => this.db.getController('causalGraph')
+            ?? new agentdb.CausalMemoryGraph(database))
+        : this.db.getController('causalGraph')
+            ?? new agentdb.CausalMemoryGraph(database);
+      this.causalRecall = getOrCreate
+        ? getOrCreate('causalRecall', () => this.db.getController('causalRecall')
+            ?? new agentdb.CausalRecall(database, this.embeddingService))
+        : this.db.getController('causalRecall')
+            ?? new agentdb.CausalRecall(database, this.embeddingService);
+      this.learningSystem = getOrCreate
+        ? getOrCreate('learningSystem', () => this.db.getController('learning')
+            ?? new agentdb.LearningSystem(database, this.embeddingService))
+        : this.db.getController('learning')
+            ?? new agentdb.LearningSystem(database, this.embeddingService);
       this.backendName = 'agentdb';
       console.log('[AgentDBService] Initialized with real AgentDB backend');
 

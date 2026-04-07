@@ -53,6 +53,17 @@ let directBridge: DirectCallBridge | null = null;
     const swarm = new SwarmService(hooks, agentDB);
     directBridge = new DirectCallBridge(agentDB, swarm);
     console.error('[DirectCallBridge] Initialized (100-200x faster than CLI spawning)');
+
+    // ADR-0076 Phase 4: Connect controller bridge to ControllerRegistry
+    try {
+      const [{ setRegistry }, { ControllerRegistry }] = await Promise.all([
+        import('../../../services/controller-bridge.js'),
+        import('@claude-flow/memory'),
+      ]);
+      const registry = new ControllerRegistry();
+      setRegistry(registry);
+      console.error('[ControllerBridge] Connected to ControllerRegistry');
+    } catch { /* controller-bridge wiring is best-effort */ }
   } catch (err) {
     console.error('[DirectCallBridge] Initialization failed, tools will fall back to CLI:', err);
   }
