@@ -60,6 +60,8 @@ export interface AgentDBConfig {
     journalMode?: string;    // default: 'WAL'
     synchronous?: string;    // default: 'NORMAL'
   };
+  /** Enable graph database adapter (creates .graph file). Default: false */
+  enableGraph?: boolean;
 }
 
 export class AgentDB {
@@ -217,22 +219,24 @@ export class AgentDB {
       this.attentionService,
     );
 
-    // Initialize optional graph database adapter
-    try {
-      const { GraphDatabaseAdapter } = await import('../backends/graph/GraphDatabaseAdapter.js');
-      const storagePath = this.config.dbPath && this.config.dbPath !== ':memory:'
-        ? this.config.dbPath.replace(/\.db$/, '') + '.graph'
-        : null;
+    // Initialize optional graph database adapter (gated by enableGraph config)
+    if (this.config.enableGraph) {
+      try {
+        const { GraphDatabaseAdapter } = await import('../backends/graph/GraphDatabaseAdapter.js');
+        const storagePath = this.config.dbPath && this.config.dbPath !== ':memory:'
+          ? this.config.dbPath.replace(/\.db$/, '') + '.graph'
+          : null;
 
-      if (storagePath) {
-        this.graphAdapter = new GraphDatabaseAdapter(
-          { storagePath, dimensions: dim },
-          this.embedder
-        );
-        await this.graphAdapter.initialize();
+        if (storagePath) {
+          this.graphAdapter = new GraphDatabaseAdapter(
+            { storagePath, dimensions: dim },
+            this.embedder
+          );
+          await this.graphAdapter.initialize();
+        }
+      } catch {
+        this.graphAdapter = null;
       }
-    } catch {
-      this.graphAdapter = null;
     }
 
     this.initialized = true;
