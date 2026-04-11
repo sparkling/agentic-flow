@@ -68,14 +68,14 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
 
 // ===== Default config =====
 
-const DEFAULT_MODEL = 'nomic-ai/nomic-embed-text-v1.5';
+const DEFAULT_MODEL = 'Xenova/all-mpnet-base-v2'; // ADR-0080: canonical model
 const DEFAULT_CONFIG: EmbeddingConfig = {
   model: DEFAULT_MODEL,
   dimension: 768,
   provider: 'transformers',
-  taskPrefixQuery: 'search_query: ',
-  taskPrefixIndex: 'search_document: ',
-  contextWindow: 8192,
+  taskPrefixQuery: '',
+  taskPrefixIndex: '',
+  contextWindow: 512,
   maxElements: 100000, // ADR-0069: config-chain capacity
 };
 
