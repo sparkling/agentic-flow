@@ -59,7 +59,7 @@ export class AgentDB {
             const DatabaseImpl = await getDatabaseImplementation();
             this.db = new DatabaseImpl(dbPath);
         }
-        const dim = this.config.dimension ?? 384;
+        const dim = this.config.dimension ?? 768;
         // Load schemas
         const schemaPath = path.join(__dirname, '../../schemas/schema.sql');
         if (fs.existsSync(schemaPath)) {
@@ -73,7 +73,7 @@ export class AgentDB {
         }
         // Initialize embedder
         this.embedder = new EmbeddingService({
-            model: 'Xenova/all-MiniLM-L6-v2',
+            model: 'Xenova/all-mpnet-base-v2',
             dimension: dim,
             provider: 'transformers'
         });

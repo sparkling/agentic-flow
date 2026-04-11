@@ -41,7 +41,7 @@ export const gnnMatchSkillsTool = {
     task: z.object({
       id: z.string().describe('Task ID'),
       description: z.string().describe('Task description'),
-      embedding: z.array(z.number()).describe('Task embedding vector (384-dim)'),
+      embedding: z.array(z.number()).describe('Task embedding vector (768-dim)'),
       priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
       estimatedComplexity: z.number().min(0).max(1).default(0.5),
     }),

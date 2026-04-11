@@ -28,7 +28,7 @@ export function createSONACommand(): Command {
     .description('Begin a new learning trajectory')
     .option('-r, --route <model>', 'LLM route (e.g., claude-sonnet-4-5)')
     .option('-e, --embedding <file>', 'Embedding file (JSON array)')
-    .option('-d, --dimension <number>', 'Embedding dimension', '1536')
+    .option('-d, --dimension <number>', 'Embedding dimension', '768')
     .action(async (options) => {
       let embedding: number[];
 

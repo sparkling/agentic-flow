@@ -54,7 +54,7 @@ export async function createONNXAgentDB(config: {
 }) {
   // Initialize ONNX embedder
   const onnxEmbedder = new ONNXEmbeddingService({
-    modelName: config.modelName || 'Xenova/all-MiniLM-L6-v2',
+    modelName: config.modelName || 'Xenova/all-mpnet-base-v2',
     useGPU: config.useGPU ?? true,
     batchSize: config.batchSize || 32,
     cacheSize: config.cacheSize || 10000

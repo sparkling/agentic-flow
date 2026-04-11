@@ -1175,7 +1175,7 @@ FEDERATION COMMANDS:
   Hub stores memories permanently; agents access past learnings from dead agents.
 
 EMBEDDINGS COMMANDS:
-  npx agentic-flow embeddings init       Download and initialize embeddings (default: all-MiniLM-L6-v2)
+  npx agentic-flow embeddings init       Download and initialize embeddings (default: all-mpnet-base-v2)
   npx agentic-flow embeddings download   Download a specific model
   npx agentic-flow embeddings list       List available embedding models
   npx agentic-flow embeddings benchmark  Run embedding performance benchmarks

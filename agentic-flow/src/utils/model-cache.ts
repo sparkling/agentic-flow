@@ -208,7 +208,7 @@ export async function getCachedOnnxEmbedder(): Promise<any> {
 
 export async function getCachedTransformersPipeline(
   task: string = 'feature-extraction',
-  model: string = 'Xenova/all-MiniLM-L6-v2'
+  model: string = 'Xenova/all-mpnet-base-v2'
 ): Promise<any> {
   return modelCache.getOrLoad(
     `transformers:${task}:${model}`,

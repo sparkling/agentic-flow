@@ -15,7 +15,7 @@ import { join, dirname, resolve, normalize } from 'path';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
 // ADR-0069 A12: import canonical embedding config chain
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // ============================================================================
 // Security Constants

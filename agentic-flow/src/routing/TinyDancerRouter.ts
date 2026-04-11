@@ -17,6 +17,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // TinyDancer module state
 let tinyDancerModule: TinyDancerModule | null = null;
@@ -155,7 +156,7 @@ export class TinyDancerRouter {
 
   constructor(config?: TinyDancerConfig) {
     this.config = {
-      embeddingDim: config?.embeddingDim ?? 768,
+      embeddingDim: config?.embeddingDim ?? getEmbeddingConfig()?.dimension ?? 768,
       numAgents: config?.numAgents ?? 10,
       temperature: config?.temperature ?? 1.0,
       enableUncertainty: config?.enableUncertainty ?? true,

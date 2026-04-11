@@ -31,6 +31,8 @@
  *   - Background learning: Non-blocking
  */
 
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+
 // Optional imports - graceful fallback on Windows/platforms without native binaries
 let SonaEngine: any = null;
 let sonaAvailable = false;
@@ -133,7 +135,7 @@ export interface MoEConfig {
  * Intelligence Layer Configuration
  */
 export interface RuVectorIntelligenceConfig {
-  /** Embedding dimension (default: 384 for all-MiniLM-L6-v2) */
+  /** Embedding dimension (default: 768 for all-mpnet-base-v2) */
   embeddingDim?: number;
 
   /** Hidden dimension for SONA (default: 256) */
@@ -304,7 +306,7 @@ export class RuVectorIntelligence {
 
   constructor(config?: RuVectorIntelligenceConfig) {
     this.config = {
-      embeddingDim: config?.embeddingDim ?? 384,
+      embeddingDim: config?.embeddingDim ?? getEmbeddingConfig()?.dimension ?? 768,
       hiddenDim: config?.hiddenDim ?? 256,
       enableSona: config?.enableSona ?? true,
       sonaConfig: config?.sonaConfig ?? {},
@@ -352,7 +354,7 @@ export class RuVectorIntelligence {
         // Ensure all values are explicitly defined (no undefined values)
         const sonaConfig: JsSonaConfig = {
           hiddenDim: this.config.hiddenDim ?? 256,
-          embeddingDim: dim ?? 384,
+          embeddingDim: dim ?? getEmbeddingConfig()?.dimension ?? 768,
           microLoraRank: 1, // Ultra-fast rank-1
           baseLoraRank: 8,
           microLoraLr: 0.001,

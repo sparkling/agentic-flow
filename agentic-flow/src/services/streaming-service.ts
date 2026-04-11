@@ -18,6 +18,7 @@
 import { EventEmitter } from 'events';
 import type { Server as HTTPServer } from 'http';
 import type { WebSocket, WebSocketServer } from 'ws';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // -- Types ------------------------------------------------------------------
 
@@ -595,7 +596,7 @@ export class StreamingService extends EventEmitter {
 
   private async generatePartialEmbedding(text: string): Promise<number[]> {
     // Mock embedding generation - in production, use real embedding service
-    const dimension = 384;
+    const dimension = getEmbeddingConfig()?.dimension ?? 768;
     const embedding = new Array(dimension);
     for (let i = 0; i < dimension; i++) {
       embedding[i] = Math.random() * 2 - 1;

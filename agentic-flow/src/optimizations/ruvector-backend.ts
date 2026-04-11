@@ -12,6 +12,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 interface RuVectorConfig {
   enabled: boolean;
@@ -82,7 +83,7 @@ export class RuVectorBackend extends EventEmitter {
       backend: 'rust',
       fallback: true,
       indexType: 'hnsw',
-      dimensions: 1536, // OpenAI embedding dimension
+      dimensions: getEmbeddingConfig()?.dimension ?? 768, // ADR-0069: config-chain-aware
       distanceMetric: 'cosine',
       hnsw: {
         m: 16,
@@ -577,7 +578,7 @@ export async function exampleUsage() {
   // Example 1: Insert vectors
   const vectors: VectorInsert[] = Array.from({ length: 1000 }, (_, i) => ({
     id: `vec-${i}`,
-    vector: Array.from({ length: 1536 }, () => Math.random()),
+    vector: Array.from({ length: getEmbeddingConfig()?.dimension ?? 768 }, () => Math.random()),
     metadata: { category: i % 10, timestamp: Date.now() }
   }));
 
@@ -590,7 +591,7 @@ export async function exampleUsage() {
 
   // Example 2: Search
   const query: VectorSearchQuery = {
-    vector: Array.from({ length: 1536 }, () => Math.random()),
+    vector: Array.from({ length: getEmbeddingConfig()?.dimension ?? 768 }, () => Math.random()),
     k: 10,
     filter: { category: 5 }
   };

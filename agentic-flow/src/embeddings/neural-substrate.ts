@@ -8,6 +8,7 @@
  */
 
 import { getOptimizedEmbedder, cosineSimilarity, euclideanDistance } from './optimized-embedder.js';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // ============================================================================
 // Security Constants
@@ -384,7 +385,7 @@ export class EmbeddingStateMachine {
   private agents: Map<string, AgentState> = new Map();
   private stateRegions: Map<string, Float32Array> = new Map();
 
-  constructor(private dimension = 384) {}
+  constructor(private dimension = getEmbeddingConfig()?.dimension ?? 768) {}
 
   async init() {
     await this.embedder.init();
@@ -496,7 +497,7 @@ export class SwarmCoordinator {
   private embedder = getOptimizedEmbedder();
   private stateMachine: EmbeddingStateMachine;
 
-  constructor(dimension = 384) {
+  constructor(dimension = getEmbeddingConfig()?.dimension ?? 768) {
     this.stateMachine = new EmbeddingStateMachine(dimension);
   }
 
@@ -723,7 +724,7 @@ export class NeuralSubstrate {
     driftThreshold?: number;
     decayRate?: number;
   } = {}) {
-    const { dimension = 384, driftThreshold = 0.15, decayRate = 0.01 } = config;
+    const { dimension = getEmbeddingConfig()?.dimension ?? 768, driftThreshold = 0.15, decayRate = 0.01 } = config;
 
     this.drift = new SemanticDriftDetector(driftThreshold);
     this.memory = new MemoryPhysics(decayRate);

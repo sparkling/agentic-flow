@@ -27,7 +27,7 @@ export class AttentionService {
         this.hyperbolicConfig = {
             enabled: false,
             curvature: 1.0,
-            dimension: 384,
+            dimension: 768,
             temperature: 1.0,
             ...configs?.hyperbolic,
         };
@@ -45,7 +45,7 @@ export class AttentionService {
             baseFreq: 10000,
             ...configs?.graphRoPE,
         };
-        const dim = this.hyperbolicConfig.dimension ?? 384;
+        const dim = this.hyperbolicConfig.dimension ?? 768;
         this.delegate = new ControllersAttentionService({
             numHeads: 1,
             headDim: dim,
@@ -56,7 +56,7 @@ export class AttentionService {
     }
     async hyperbolicAttention(queries, keys, values, hierarchyLevels) {
         const startTime = Date.now();
-        const dim = this.hyperbolicConfig.dimension ?? 384;
+        const dim = this.hyperbolicConfig.dimension ?? 768;
         const numKeys = keys.length / dim;
         try {
             const result = await this.delegate.hyperbolicAttention(queries, keys, values, this.hyperbolicConfig.curvature ?? 1.0);
@@ -142,7 +142,7 @@ export class AttentionService {
         };
     }
     fallbackFlashAttention(queries, keys, values, startTime) {
-        const dim = 384;
+        const dim = 768;
         const numQueries = queries.length / dim;
         const numKeys = keys.length / dim;
         const blockSize = this.flashConfig.blockSize;
@@ -186,7 +186,7 @@ export class AttentionService {
         };
     }
     fallbackGraphRoPE(queries, keys, hopDistances, startTime) {
-        const dim = 384;
+        const dim = 768;
         const numQueries = queries.length / dim;
         const numKeys = keys.length / dim;
         const encodedQueries = new Float32Array(queries);

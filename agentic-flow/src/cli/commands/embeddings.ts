@@ -137,7 +137,7 @@ function handleList(): void {
   }
 
   console.log('└─────────────────────────┴───────────┴─────────┴───────────┴────────────┘');
-  console.log('\nRecommended: all-MiniLM-L6-v2 (quantized, 23MB, best speed/quality)');
+  console.log('\nRecommended: all-mpnet-base-v2 (768d, best quality)');
 }
 
 async function handleBenchmark(args: string[]): Promise<void> {
@@ -414,7 +414,7 @@ USAGE:
   agentic-flow embeddings <command> [options]
 
 COMMANDS:
-  init [model]      Download and initialize embeddings (default: all-MiniLM-L6-v2)
+  init [model]      Download and initialize embeddings (default: all-mpnet-base-v2)
   download <model>  Download a specific model
   list              List available models
   benchmark [n]     Run embedding benchmarks (default: 100 iterations)
@@ -435,7 +435,8 @@ EXAMPLES:
   agentic-flow embeddings neural demo
 
 MODELS:
-  all-MiniLM-L6-v2      384d, 23MB, quantized (recommended)
+  all-mpnet-base-v2     768d, 80MB, quantized (recommended)
+  all-MiniLM-L6-v2      384d, 23MB, quantized
   all-MiniLM-L6-v2-full 384d, 91MB, full precision
   bge-small-en-v1.5     384d, 33MB, quantized
   gte-small             384d, 33MB, quantized

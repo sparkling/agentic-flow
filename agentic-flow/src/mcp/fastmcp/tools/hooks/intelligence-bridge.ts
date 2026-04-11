@@ -18,6 +18,7 @@ import {
   type Trajectory,
   type LearningOutcome,
 } from '../../../../intelligence/index.js';
+import { getEmbeddingConfig } from '../../../../../../packages/agentdb/src/config/embedding-config.js';
 
 import { getIntelligenceStore, type IntelligenceStore } from '../../../../intelligence/IntelligenceStore.js';
 import { getEmbeddingService, type EmbeddingService } from '../../../../intelligence/EmbeddingService.js';
@@ -1320,7 +1321,7 @@ export async function getAttentionForUseCase(
   const AttentionClass = ruvectorModule[type];
 
   if (AttentionClass) {
-    return { type, instance: new AttentionClass(384, 4) };
+    return { type, instance: new AttentionClass(getEmbeddingConfig()?.dimension ?? 768, 4) };
   }
 
   return { type: 'fallback', instance: null };

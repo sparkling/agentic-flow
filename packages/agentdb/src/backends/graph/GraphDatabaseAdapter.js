@@ -54,7 +54,7 @@ export class GraphDatabaseAdapter {
             // Create new database
             this.db = new GraphDatabase({
                 distanceMetric: this.config.distanceMetric || 'Cosine',
-                dimensions: this.config.dimensions || 384, // Default to 384 (all-MiniLM-L6-v2 standard)
+                dimensions: this.config.dimensions || 768, // ADR-0069: canonical dimension (all-mpnet-base-v2)
                 storagePath: this.config.storagePath
             });
             console.log('✅ Created new RuVector graph database');

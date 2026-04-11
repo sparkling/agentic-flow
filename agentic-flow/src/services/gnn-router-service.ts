@@ -10,6 +10,8 @@
  * ADR-065 Phase P1-1 Implementation
  */
 
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+
 // Interface for GNNService
 interface IGNNService {
   initialize?(): Promise<void>;
@@ -45,7 +47,7 @@ class GNNServiceStub implements IGNNService {
     return nodes.map(() => nodes.map(() => 0.5));
   }
   async getNodeEmbedding(nodeId: string): Promise<Float32Array> {
-    return new Float32Array(768);
+    return new Float32Array(getEmbeddingConfig()?.dimension ?? 768);
   }
   async understandContextGAT(embedding: Float32Array, contextNodes: Float32Array[]): Promise<{
     attentionWeights: Record<string, number>;
@@ -128,7 +130,7 @@ export class GNNRouterService {
 
   constructor() {
     this.gnnService = new GNNService({
-      inputDim: 384, // Divisible by 1, 2, 3, 4, 6, 8, 12, 16, etc.
+      inputDim: getEmbeddingConfig()?.dimension ?? 768, // ADR-0069: config-chain-aware
       hiddenDim: 256, // Divisible by 1, 2, 4, 8, 16, 32, 64, 128, 256
       outputDim: 128, // Divisible by 1, 2, 4, 8, 16, 32, 64, 128
       heads: 8, // FIXED: Use heads parameter (hiddenDim 256 % 8 = 0 ✓)

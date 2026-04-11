@@ -17,6 +17,7 @@ import { SonaEngine } from '@ruvector/sona';
 import { EventEmitter } from 'events';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 /**
  * SONA Configuration Profiles
@@ -28,7 +29,7 @@ export interface SONAConfig {
 
   // Model dimensions
   hiddenDim: number;          // Must match model dimensions (e.g., 3072 for Phi-4)
-  embeddingDim: number;       // Embedding dimension (e.g., 1536 for OpenAI)
+  embeddingDim: number;       // Embedding dimension (e.g., 768 for all-mpnet-base-v2)
 
   // LoRA configuration
   microLoraRank: number;      // Rank-2 is faster than rank-1 (SIMD optimization)
@@ -217,8 +218,8 @@ export class SONAService extends EventEmitter {
 
       // Edge/Mobile: Rank-1, 200 capacity, 15 clusters -> <5MB memory
       'edge': {
-        hiddenDim: 768,
-        embeddingDim: 384,
+        hiddenDim: getEmbeddingConfig()?.dimension ?? 768,
+        embeddingDim: getEmbeddingConfig()?.dimension ?? 768,
         microLoraRank: 1,
         baseLoraRank: 2,
         microLoraLr: 0.001,

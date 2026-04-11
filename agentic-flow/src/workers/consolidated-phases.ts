@@ -11,6 +11,7 @@
 import { WorkerContext } from './types.js';
 import { PhaseResult, FileFilterConfig, DEFAULT_FILE_FILTER } from './custom-worker-config.js';
 import { getCachedOnnxEmbedder } from '../utils/model-cache.js';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // ============================================================================
 // Unified Phase Context
@@ -203,7 +204,7 @@ registerUnifiedPhase('embedding-generation', async (workerContext, phaseContext,
     success: true,
     data: {
       embeddingsGenerated,
-      dimension: 384,
+      dimension: getEmbeddingConfig()?.dimension ?? 768,
       durationMs,
       throughputPerSec: embeddingsGenerated > 0 ? (embeddingsGenerated / (durationMs / 1000)).toFixed(1) : '0',
       usingSIMD: true
@@ -227,7 +228,7 @@ registerUnifiedPhase('vector-storage', async (workerContext, phaseContext, optio
     data: {
       vectorsStored,
       indexSize: vectorsStored,
-      dimension: 384
+      dimension: getEmbeddingConfig()?.dimension ?? 768
     }
   };
 });

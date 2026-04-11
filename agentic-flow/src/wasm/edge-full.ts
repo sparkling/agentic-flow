@@ -22,6 +22,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // Module state
 let edgeFullModule: EdgeFullModule | null = null;
@@ -680,7 +681,7 @@ export class EdgeFullOnnxEmbeddings {
     return edgeFullModule?.onnx?.isReady?.() ?? false;
   }
 
-  private simpleEmbed(text: string, dim: number = 384): Float32Array {
+  private simpleEmbed(text: string, dim: number = getEmbeddingConfig()?.dimension ?? 768): Float32Array {
     const embedding = new Float32Array(dim);
     for (let i = 0; i < text.length; i++) {
       const code = text.charCodeAt(i);

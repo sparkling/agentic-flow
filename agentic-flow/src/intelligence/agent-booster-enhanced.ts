@@ -23,6 +23,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { extname, join, dirname, basename } from 'path';
 import { homedir } from 'os';
 import { promisify } from 'util';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 const execAsync = promisify(exec);
 
@@ -197,7 +198,7 @@ export class EnhancedAgentBooster {
     // Initialize RuVector intelligence if available
     if (createIntelligenceEngine) {
       this.intelligence = createIntelligenceEngine({
-        embeddingDim: 384,  // Higher dim for ONNX
+        embeddingDim: getEmbeddingConfig()?.dimension ?? 768,  // ADR-0069: config-chain-aware
         maxMemories: this.maxPatterns,
         maxEpisodes: 50000,
         enableSona: options.enableSona !== false,
@@ -1027,7 +1028,7 @@ export class EnhancedAgentBooster {
    * Hash-based embedding fallback
    */
   private hashEmbed(text: string): Float32Array {
-    const dim = 384;
+    const dim = getEmbeddingConfig()?.dimension ?? 768;
     const embedding = new Float32Array(dim);
     const tokens = text.toLowerCase().split(/\s+/);
 
@@ -1129,7 +1130,7 @@ export class EnhancedAgentBooster {
 
     for (const pattern of this.patterns.values()) {
       const tier = pattern.compressionTier || 'none';
-      const embeddingSize = pattern.embedding?.length || 384;
+      const embeddingSize = pattern.embedding?.length || getEmbeddingConfig()?.dimension ?? 768;
 
       // Calculate uncompressed size (float32 = 4 bytes per element)
       totalUncompressedSize += embeddingSize * 4;

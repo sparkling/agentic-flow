@@ -10,6 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { WorkerContext, WorkerResults, WorkerTrigger } from './types.js';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // Types for lazy-loaded modules
 type SONAService = any;
@@ -34,7 +35,7 @@ export interface RuVectorWorkerConfig {
   /** SONA learning profile */
   sonaProfile: 'real-time' | 'batch' | 'balanced';
 
-  /** Embedding dimension (default: 384) */
+  /** Embedding dimension (default: 768) */
   embeddingDim: number;
 
   /** HNSW parameters */
@@ -50,7 +51,7 @@ const DEFAULT_CONFIG: RuVectorWorkerConfig = {
   enableReasoningBank: true,
   enableHnsw: true,
   sonaProfile: 'batch',
-  embeddingDim: 384,
+  embeddingDim: getEmbeddingConfig()?.dimension ?? 768,
   hnswM: 16,
   hnswEfConstruction: 200,
   qualityThreshold: 0.6

@@ -190,7 +190,7 @@ export interface AgentDBConfig {
   dbPath?: string;
   /** Namespace for organizing data */
   namespace?: string;
-  /** Vector dimension (default: 384) */
+  /** Vector dimension (default: 768) */
   dimension?: number;
   /** HNSW index configuration */
   hnswConfig?: HNSWConfig;

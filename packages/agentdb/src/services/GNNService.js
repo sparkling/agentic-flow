@@ -22,7 +22,7 @@ export class GNNService {
         // Default to 8 heads (128 % 8 = 0, valid for MultiHeadAttention)
         const heads = config?.heads ?? config?.layers ?? 8;
         this.config = {
-            inputDim: config?.inputDim ?? 384,
+            inputDim: config?.inputDim ?? 768,
             hiddenDim: config?.hiddenDim ?? 128,
             outputDim: config?.outputDim ?? 64,
             heads,

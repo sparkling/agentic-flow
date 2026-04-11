@@ -177,8 +177,8 @@ export class EmbeddingService {
   private constructor() {
     // Default to 'auto' which will detect ONNX and use it if available
     this.backend = (process.env.AGENTIC_FLOW_EMBEDDINGS as EmbeddingBackend) || 'auto';
-    this.modelName = process.env.AGENTIC_FLOW_EMBEDDING_MODEL || 'all-mpnet-base-v2';
-    this.dimension = 256; // Will be updated when ONNX loads (768)
+    this.modelName = process.env.AGENTIC_FLOW_EMBEDDING_MODEL || getEmbeddingConfig()?.model ?? 'all-mpnet-base-v2';
+    this.dimension = getEmbeddingConfig()?.dimension ?? 768; // ADR-0069: config-chain-aware
     this.cacheEnabled = process.env.AGENTIC_FLOW_EMBEDDING_CACHE !== 'false';
     this.persistentCacheEnabled = process.env.AGENTIC_FLOW_PERSISTENT_CACHE !== 'false';
     this.cache = new LRUCache(1000);
@@ -575,7 +575,7 @@ export class EmbeddingService {
   /**
    * Simple hash-based embedding (fast, not semantic)
    */
-  simpleEmbed(text: string, dim: number = 256): Float32Array {
+  simpleEmbed(text: string, dim: number = getEmbeddingConfig()?.dimension ?? 768): Float32Array {
     const embedding = new Float32Array(dim);
 
     // Multi-pass hash for better distribution
@@ -1571,7 +1571,7 @@ export class EmbeddingService {
         if (mod.HyperbolicAttention && selectedAttention === 'hyperbolic') {
           try {
             // Hyperbolic attention for hierarchical code structure
-            const attention = new mod.HyperbolicAttention({ dim: 768 });
+            const attention = new mod.HyperbolicAttention({ dim: getEmbeddingConfig()?.dimension ?? 768 });
 
             // Identify structural patterns (classes, functions, imports)
             const structuralPatterns = [
@@ -1789,7 +1789,7 @@ export async function textSimilarity(text1: string, text2: string): Promise<numb
   return getEmbeddingService().similarity(text1, text2);
 }
 
-export function simpleEmbed(text: string, dim: number = 256): Float32Array {
+export function simpleEmbed(text: string, dim: number = getEmbeddingConfig()?.dimension ?? 768): Float32Array {
   return getEmbeddingService().simpleEmbed(text, dim);
 }
 

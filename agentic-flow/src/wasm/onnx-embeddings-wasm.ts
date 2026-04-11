@@ -22,6 +22,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // Module state
 let wasmModule: OnnxEmbeddingsModule | null = null;
@@ -310,7 +311,7 @@ export function resetStats(): void {
  * Simple hash-based embedding fallback
  * Not semantic, but provides consistent embeddings for testing
  */
-function simpleEmbed(text: string, dim: number = 384): Float32Array {
+function simpleEmbed(text: string, dim: number = getEmbeddingConfig()?.dimension ?? 768): Float32Array {
   const embedding = new Float32Array(dim);
 
   // Multi-pass hash for better distribution

@@ -346,7 +346,7 @@ export class RuVectorBackend {
         }
         return {
             count,
-            dimension: this.config.dimension || 384,
+            dimension: this.config.dimension || 768,
             metric: this.config.metric,
             backend: 'ruvector',
             memoryUsage: 0,

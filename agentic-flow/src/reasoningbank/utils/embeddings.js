@@ -39,7 +39,7 @@ async function openaiEmbed(text, model) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
         console.warn('[WARN] OPENAI_API_KEY not set, falling back to hash embeddings');
-        return hashEmbed(text, 1536); // OpenAI default dimension
+        return hashEmbed(text, 768); // ADR-0069: canonical dimension (all-mpnet-base-v2)
     }
     try {
         const response = await fetch('https://api.openai.com/v1/embeddings', {
@@ -62,7 +62,7 @@ async function openaiEmbed(text, model) {
     catch (error) {
         console.error('[ERROR] OpenAI embedding failed:', error);
         console.warn('[WARN] Falling back to hash embeddings');
-        return hashEmbed(text, 1536);
+        return hashEmbed(text, 768);
     }
 }
 /**

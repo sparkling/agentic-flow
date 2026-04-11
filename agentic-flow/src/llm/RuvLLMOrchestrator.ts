@@ -17,6 +17,7 @@
 // Note: ReasoningPattern is not exported from agentdb, define locally
 import type { ReasoningBank } from 'agentdb';
 import type { EmbeddingService } from 'agentdb';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // Local type definition for ReasoningPattern
 // Extended to include all fields used in this module
@@ -126,7 +127,7 @@ export class RuvLLMOrchestrator {
 
     // Initialize adaptive state
     this.agentPerformance = new Map();
-    this.adaptiveWeights = new Float32Array(384).fill(1.0); // Default: equal weights
+    this.adaptiveWeights = new Float32Array(getEmbeddingConfig()?.dimension ?? 768).fill(1.0); // Default: equal weights
     this.reasoningCache = new Map();
   }
 

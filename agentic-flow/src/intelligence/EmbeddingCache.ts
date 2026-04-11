@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, statSync, readFileSync, writeFileSync, unlinkSyn
 import { join } from 'path';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 export interface CacheStats {
   totalEntries: number;
@@ -32,7 +33,7 @@ export interface CacheConfig {
   maxEntries?: number;      // Max cache entries (default: 10000)
   maxAgeDays?: number;      // Max age before eviction (default: 30)
   dbPath?: string;          // Custom database path
-  dimension?: number;       // Embedding dimension (default: 384)
+  dimension?: number;       // Embedding dimension (default: 768)
   forceMemory?: boolean;    // Force in-memory cache (no persistence)
 }
 
@@ -41,7 +42,7 @@ const DEFAULT_CONFIG: Required<CacheConfig> = {
   maxEntries: 10000,
   maxAgeDays: 30,
   dbPath: join(homedir(), '.agentic-flow', 'embedding-cache.db'),
-  dimension: 384,
+  dimension: getEmbeddingConfig()?.dimension ?? 768,
   forceMemory: false,
 };
 
@@ -139,7 +140,7 @@ class MemoryCache {
       hits: this.hits,
       misses: this.misses,
       hitRate: this.hits + this.misses > 0 ? this.hits / (this.hits + this.misses) : 0,
-      dbSizeBytes: this.cache.size * 384 * 4, // Approximate
+      dbSizeBytes: this.cache.size * (getEmbeddingConfig()?.dimension ?? 768) * 4, // Approximate
       oldestEntry: oldest,
       newestEntry: newest,
       backend: 'memory',

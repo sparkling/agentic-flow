@@ -165,7 +165,7 @@ export class HNSWLibBackend {
         const activeCount = this.idToLabel.size - this.deletedIds.size;
         return {
             count: activeCount,
-            dimension: this.config.dimension || 384,
+            dimension: this.config.dimension || 768,
             metric: this.config.metric,
             backend: 'hnswlib',
             memoryUsage: 0, // hnswlib doesn't expose memory usage

@@ -17,6 +17,7 @@ import { NightlyLearner } from '../controllers/NightlyLearner.js';
 import { ReflexionMemory, Episode, ReflexionQuery, ReflexionCritiqueSummary, ReflexionPruneConfig } from '../controllers/ReflexionMemory.js';
 import { SkillLibrary, Skill, SkillQuery } from '../controllers/SkillLibrary.js';
 import { EmbeddingService } from '../controllers/EmbeddingService.js';
+import { getEmbeddingConfig } from '../../../../packages/agentdb/src/config/embedding-config.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -68,8 +69,8 @@ class AgentDBCLI {
 
     // Initialize embedding service (ONNX WASM preferred for performance)
     this.embedder = new EmbeddingService({
-      model: 'all-MiniLM-L6-v2',
-      dimension: 384,
+      model: getEmbeddingConfig()?.model ?? 'all-mpnet-base-v2',
+      dimension: getEmbeddingConfig()?.dimension ?? 768,
       provider: 'onnx-wasm' // Falls back to transformers if ONNX not available
     });
     await this.embedder.initialize();

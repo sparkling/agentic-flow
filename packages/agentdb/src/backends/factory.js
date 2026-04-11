@@ -254,7 +254,7 @@ export async function createGuardedBackend(type, config) {
     // Enable proofs if graph-transformer is available or explicitly requested
     const enableWasmProofs = config.enableProofs ?? detection.ruvector.graphTransformer ?? true;
     const guard = new MutationGuard({
-        dimension: config.dimension ?? config.dimensions ?? 384,
+        dimension: config.dimension ?? config.dimensions ?? 768,
         maxElements: config.maxElements ?? 10000,
         enableWasmProofs,
         enableAttestationLog: true,

@@ -2022,7 +2022,7 @@ async function main() {
 async function handleInitCommand(args: string[]) {
   // Parse arguments
   let dbPath = './agentdb.db';
-  let dimension = 1536; // Default OpenAI ada-002
+  let dimension = 768; // ADR-0069: canonical dimension (all-mpnet-base-v2)
   let preset: 'small' | 'medium' | 'large' | null = null;
   let inMemory = false;
 
@@ -3160,7 +3160,7 @@ ${colors.bright}${colors.cyan}AgentDB v2 CLI - Vector Intelligence with Auto Bac
 ${colors.bright}CORE COMMANDS:${colors.reset}
   ${colors.cyan}init${colors.reset} [options]              Initialize database with backend detection
     --backend <type>           Backend: auto (default), ruvector, hnswlib
-    --dimension <n>            Vector dimension (default: 384)
+    --dimension <n>            Vector dimension (default: 768)
     --model <name>             Embedding model (default: Xenova/all-mpnet-base-v2)
                                Popular: Xenova/bge-base-en-v1.5 (768d production)
                                         Xenova/bge-small-en-v1.5 (384d best quality)
@@ -3179,7 +3179,7 @@ ${colors.bright}USAGE:${colors.reset}
   agentdb <command> <subcommand> [options]
 
 ${colors.bright}SETUP COMMANDS:${colors.reset}
-  agentdb init [db-path] [--dimension 384] [--model <name>] [--preset small|medium|large] [--in-memory]
+  agentdb init [db-path] [--dimension 768] [--model <name>] [--preset small|medium|large] [--in-memory]
     Initialize a new AgentDB database (default: ./agentdb.db)
     Options:
       --dimension <n>     Vector dimension (default: 768 for all-mpnet, 384 for bge-small)

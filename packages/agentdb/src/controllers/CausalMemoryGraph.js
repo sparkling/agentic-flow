@@ -56,7 +56,7 @@ export class CausalMemoryGraph {
             const graphAdapter = this.graphBackend;
             // Create embedding for causal mechanism
             const mechanismText = edge.mechanism || `${edge.fromMemoryType}-${edge.toMemoryType} causal link`;
-            const embedding = new Float32Array(384).fill(0); // Placeholder - would use embedder in production
+            const embedding = new Float32Array(768).fill(0); // Placeholder - would use embedder in production
             // Convert episode IDs to string format expected by graph database
             // Use NodeIdMapper to get full node IDs from numeric IDs
             const mapper = NodeIdMapper.getInstance();
@@ -349,17 +349,17 @@ export class CausalMemoryGraph {
         }
         // Prepare keys, values, and hierarchy for attention
         const nodeList = Array.from(allNodeIds);
-        const keys = new Float32Array(nodeList.length * 384);
-        const values = new Float32Array(nodeList.length * 384);
+        const keys = new Float32Array(nodeList.length * 768);
+        const values = new Float32Array(nodeList.length * 768);
         const hierarchyArray = [];
         nodeList.forEach((nodeId, idx) => {
             const embedding = nodeEmbeddings.get(nodeId);
-            keys.set(embedding, idx * 384);
-            values.set(embedding, idx * 384);
+            keys.set(embedding, idx * 768);
+            values.set(embedding, idx * 768);
             hierarchyArray.push(hierarchyLevels.get(nodeId) || 0);
         });
         // Apply HyperbolicAttention
-        const queries = new Float32Array(384);
+        const queries = new Float32Array(768);
         queries.set(queryEmbedding);
         const attentionResult = await this.attentionService.hyperbolicAttention(queries, keys, values, hierarchyArray);
         // Re-rank chains by attention weights

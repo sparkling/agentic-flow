@@ -98,7 +98,7 @@ export async function computeEmbedding(text: string): Promise<Float32Array> {
     }
   } else {
     // Fallback to hash-based embeddings
-    const dims = config?.embeddings?.dimensions || 768;
+    const dims = config?.embeddings?.dimensions || getEmbeddingConfig()?.dimension ?? 768;
     embedding = hashEmbed(text, dims);
   }
 

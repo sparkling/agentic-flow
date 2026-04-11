@@ -177,7 +177,7 @@ export class NightlyLearner {
             episodeEmbeddings.push(embedding);
         }
         // Prepare queries (each episode is a query)
-        const dim = 384;
+        const dim = 768;
         const queries = new Float32Array(episodes.length * dim);
         const keys = new Float32Array(episodes.length * dim);
         const values = new Float32Array(episodes.length * dim);

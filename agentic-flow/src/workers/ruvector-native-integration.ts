@@ -14,6 +14,7 @@ import {
   getUnifiedPhase,
   listUnifiedPhases
 } from './consolidated-phases.js';
+import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // Re-export PhaseContext for backwards compatibility
 export type PhaseContext = UnifiedPhaseContext;
@@ -168,7 +169,7 @@ export class RuVectorNativeRunner {
 
   constructor(config: Partial<RuVectorNativeConfig> = {}) {
     this.config = {
-      vectorDimension: 384,
+      vectorDimension: getEmbeddingConfig()?.dimension ?? 768,
       enableSIMD: true,
       cacheEmbeddings: true,
       ...config

@@ -20,7 +20,7 @@ program
   .command('init')
   .description('Initialize a new AgentDB with ONNX embeddings')
   .argument('<db-path>', 'Path to database file')
-  .option('-m, --model <name>', 'Model name', 'Xenova/all-MiniLM-L6-v2')
+  .option('-m, --model <name>', 'Model name', 'Xenova/all-mpnet-base-v2')
   .option('--gpu', 'Enable GPU acceleration')
   .option('-b, --batch-size <size>', 'Batch size', '32')
   .option('-c, --cache-size <size>', 'Cache size', '10000')

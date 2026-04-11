@@ -428,7 +428,7 @@ export class AgentDBService {
         this.attentionService = new AttentionService({
           numHeads: 8,
           headDim: 48,
-          embedDim: 768,
+          embedDim: getEmbeddingConfig()?.dimension ?? 768,
           useFlash: true,
           dropout: 0.1,
         });
@@ -532,7 +532,7 @@ export class AgentDBService {
         );
 
         this.gnnLearning = new RuVectorLearning({
-          inputDim: 768,
+          inputDim: getEmbeddingConfig()?.dimension ?? 768,
           hiddenDim: 256,
           heads: 4,
           dropout: 0.1
