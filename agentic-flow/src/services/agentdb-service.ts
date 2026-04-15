@@ -101,9 +101,29 @@ export interface ServiceMetrics {
   uptime: number;
 }
 
+/**
+ * Fallback / health status surface for MCP health-check tools.
+ * See sparkling/agentic-flow#4 — InMemoryStore data loss fix.
+ */
+export interface FallbackStatus {
+  /** Active backend name — 'agentdb' when healthy, 'in-memory' when init failed */
+  backend: string;
+  /** True when the service is running in degraded (non-persistent) mode */
+  degraded: boolean;
+  /** Captured init error message, or null when init succeeded */
+  initError: string | null;
+  /** Counters for writes that were rejected while in degraded mode */
+  droppedWrites: {
+    episodes: number;
+    skills: number;
+    patterns: number;
+  };
+}
+
 // -- ADR-0076 Phase 5: InMemoryStore removed (silent data loss fallback) ----
-// Controller-unavailable paths now throw or return empty instead of silently
-// storing data in memory that vanishes on process exit.
+// ADR-0076 / sparkling/agentic-flow#4: writes against an uninitialized backend
+// now throw loudly with a captured init error instead of silently returning
+// placeholder IDs.  `getFallbackStatus()` surfaces degraded state to callers.
 
 // -- Service ----------------------------------------------------------------
 
@@ -159,6 +179,10 @@ export class AgentDBService {
   private fallbackPatternCount = 0;
   private causalEdges: Array<{ from: string; to: string; metadata: unknown }> = [];
   private trajectories: Array<{ steps: TrajectoryStep[]; reward: number }> = [];
+
+  // sparkling/agentic-flow#4: captured at end of initialize() catch, non-null
+  // means the service is in degraded mode and all persistent writes must throw.
+  private initError: string | null = null;
 
   private backendName = 'in-memory';
   private startTime = Date.now();
@@ -407,10 +431,50 @@ export class AgentDBService {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[AgentDBService] AgentDB unavailable (${msg}), using in-memory fallback`);
+      // sparkling/agentic-flow#4: capture init error so subsequent writes
+      // throw loudly instead of silently accepting data into a volatile map.
+      this.initError = msg;
+      console.error(
+        `[AgentDBService] AgentDB init failed (${msg}). ` +
+        `Service is in DEGRADED mode — all persistent writes will throw. ` +
+        `Read operations return empty results. Call getFallbackStatus() for details.`,
+      );
       this.backendName = 'in-memory';
     }
     this.initialized = true;
+  }
+
+  /**
+   * Guard for persistent write methods. Throws loudly when the service failed
+   * to initialize a real backend, so callers cannot silently lose data.
+   * See sparkling/agentic-flow#4.
+   */
+  private assertPersistent(operation: string): void {
+    if (this.initError) {
+      throw new Error(
+        `AgentDBService is in degraded mode — ${operation} cannot persist data. ` +
+        `Original init error: ${this.initError}. ` +
+        `Use getFallbackStatus() to check health before calling write methods.`,
+      );
+    }
+  }
+
+  /**
+   * Returns the current fallback/health status for MCP health-check tools.
+   * Callers can use this to decide whether to attempt persistent writes.
+   * See sparkling/agentic-flow#4.
+   */
+  getFallbackStatus(): FallbackStatus {
+    return {
+      backend: this.backendName,
+      degraded: this.initError !== null,
+      initError: this.initError,
+      droppedWrites: {
+        episodes: this.fallbackEpisodeCount,
+        skills: this.fallbackSkillCount,
+        patterns: this.fallbackPatternCount,
+      },
+    };
   }
 
   /**
@@ -765,9 +829,13 @@ export class AgentDBService {
         return String(await this.reflexionMemory.storeEpisode(episode));
       } catch { this.reflexionMemory = null; }
     }
-    // ADR-0076: no silent in-memory fallback — log warning, return placeholder
-    console.warn('[AgentDBService] storeEpisode: ReflexionMemory unavailable, episode not persisted');
-    return String(++this.fallbackEpisodeCount);
+    // sparkling/agentic-flow#4: throw loudly when init failed; never silently
+    // discard episode data.  Callers that want best-effort behaviour must
+    // wrap the call in try/catch themselves.
+    this.fallbackEpisodeCount++;
+    this.assertPersistent('storeEpisode');
+    console.warn('[AgentDBService] storeEpisode: ReflexionMemory controller unavailable after init, episode not persisted');
+    return String(this.fallbackEpisodeCount);
   }
 
   async recallEpisodes(query: string, limit = 5, filters?: Record<string, any>): Promise<Episode[]> {
@@ -851,9 +919,12 @@ export class AgentDBService {
         }));
       } catch { this.skillLibrary = null; }
     }
-    // ADR-0076: no silent in-memory fallback
-    console.warn('[AgentDBService] storeSkill: SkillLibrary unavailable, skill not persisted');
-    return String(++this.fallbackSkillCount);
+    // sparkling/agentic-flow#4: throw loudly when init failed; never silently
+    // discard skill data.
+    this.fallbackSkillCount++;
+    this.assertPersistent('publishSkill');
+    console.warn('[AgentDBService] publishSkill: SkillLibrary controller unavailable after init, skill not persisted');
+    return String(this.fallbackSkillCount);
   }
 
   async findSkills(description: string, limit = 5, filters?: Record<string, any>): Promise<Skill[]> {
@@ -893,9 +964,12 @@ export class AgentDBService {
         }));
       } catch { this.reasoningBank = null; }
     }
-    // ADR-0076: no silent in-memory fallback
-    console.warn('[AgentDBService] storePattern: ReasoningBank unavailable, pattern not persisted');
-    return String(++this.fallbackPatternCount);
+    // sparkling/agentic-flow#4: throw loudly when init failed; never silently
+    // discard pattern data.
+    this.fallbackPatternCount++;
+    this.assertPersistent('storePattern');
+    console.warn('[AgentDBService] storePattern: ReasoningBank controller unavailable after init, pattern not persisted');
+    return String(this.fallbackPatternCount);
   }
 
   async searchPatterns(query: string, limit = 5, diverse = false): Promise<Pattern[]> {

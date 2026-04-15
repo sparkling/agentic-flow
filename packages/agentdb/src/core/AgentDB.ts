@@ -18,6 +18,7 @@ import { QueryOptimizer } from '../optimizations/QueryOptimizer.js';
 import { BatchOperations } from '../optimizations/BatchOperations.js';
 import { HierarchicalMemory } from '../controllers/HierarchicalMemory.js';
 import { MemoryConsolidation } from '../controllers/MemoryConsolidation.js';
+import { WASMVectorSearch } from '../controllers/WASMVectorSearch.js';
 import { AuditLogger } from '../services/audit-logger.service.js';
 import { getEmbeddingConfig } from '../config/embedding-config.js';
 import { createGuardedBackend } from '../backends/factory.js';
@@ -87,6 +88,8 @@ export class AgentDB {
   private batchOperations?: BatchOperations;
   private hierarchicalMemory?: HierarchicalMemory;
   private memoryConsolidation?: MemoryConsolidation;
+  // sparkling/agentic-flow#6: lazy singleton for WASM vector search
+  private wasmVectorSearch: any = null;
   // ADR-0069 F1: Phase 2 RuVector controllers (set externally or null)
   private gnnLearning: any = null;
   private semanticRouter: any = null;
@@ -295,6 +298,22 @@ export class AgentDB {
           this.getController('hierarchicalMemory'),
           this.embedder,
         ));
+      // sparkling/agentic-flow#6: wasmVectorSearch lazy singleton — prevents
+      // AgentDBService from constructing a duplicate instance invisible to the
+      // ControllerRegistry. Falls back to JS cosine similarity internally if WASM
+      // module is unavailable.
+      case 'wasmVectorSearch':
+        return (this.wasmVectorSearch ??= new WASMVectorSearch(this.db, {
+          enableWASM: true,
+          enableSIMD: true,
+          batchSize: 100,
+          indexThreshold: 1000,
+        }));
+      // sparkling/agentic-flow#6: rvfOptimizer safe-null — RVF optimizer is
+      // optional/external. Return null instead of throwing so callers can
+      // attempt delegation and fall back gracefully when it is not initialized.
+      case 'rvfOptimizer':
+        return null;
       // ADR-0069 F1: Phase 2 RuVector controllers (lazy, null if unavailable)
       case 'gnnLearning':
       case 'ruvectorLearning':
