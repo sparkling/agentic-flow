@@ -1,6 +1,6 @@
 {
   "name": "agentic-flow",
-  "version": "2.0.2-alpha-patch.129",
+  "version": "2.0.2-alpha-patch.225",
   "description": "Production-ready AI agent orchestration platform with 66 specialized agents, 213 MCP tools, ReasoningBank learning memory, quantum-resistant Jujutsu VCS, and autonomous multi-agent swarms. Built by @ruvnet with Claude Agent SDK, neural networks, memory persistence, GitHub integration, and distributed consensus protocols.",
   "type": "module",
   "main": "agentic-flow/dist/index.js",
@@ -211,7 +211,7 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react-swc": "^4.2.0",
     "@xenova/transformers": "^2.17.2",
-    "agentdb": "3.0.0-alpha.10-patch.116",
+    "agentdb": "3.0.0-alpha.10-patch.212",
     "agentic-payments": "^0.1.13",
     "autoprefixer": "^10.4.21",
     "axios": "^1.13.0",
@@ -264,7 +264,7 @@
     "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "claude-flow": "2.7.47-patch.106",
+    "claude-flow": "2.7.47-patch.202",
     "flow-nexus": "^1.0.0"
   },
   "peerDependenciesMeta": {
