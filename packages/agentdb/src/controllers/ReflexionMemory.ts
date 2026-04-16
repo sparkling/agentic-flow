@@ -85,6 +85,48 @@ export class ReflexionMemory {
     this.learningBackend = learningBackend;
     this.graphBackend = graphBackend;
     this.queryCache = new QueryCache(cacheConfig);
+
+    // ADR-0090 B5 fix: initialize SQLite schema on construction.
+    // Previously only `agentdb-mcp-server.ts` ran the DDL (separate
+    // boot path, not wired into the ControllerRegistry used by
+    // @claude-flow/cli), so when the fork's memory-router
+    // instantiated ReflexionMemory the `episodes` table was missing
+    // and every `storeEpisode` INSERT failed with `no such table:
+    // episodes`. Mirrors ReasoningBank / LearningSystem /
+    // HierarchicalMemory / MemoryConsolidation / AttestationLog
+    // which already CREATE TABLE IF NOT EXISTS in their constructors.
+    // Schema mirrors schemas/schema.sql:21-50 — idempotent so safe
+    // across restarts.
+    if (this.db && typeof (this.db as any).exec === 'function') {
+      (this.db as any).exec(`
+        CREATE TABLE IF NOT EXISTS episodes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ts INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          session_id TEXT NOT NULL,
+          task TEXT NOT NULL,
+          input TEXT,
+          output TEXT,
+          critique TEXT,
+          reward REAL DEFAULT 0.0,
+          success BOOLEAN DEFAULT 0,
+          latency_ms INTEGER,
+          tokens_used INTEGER,
+          tags TEXT,
+          metadata JSON,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_episodes_ts ON episodes(ts DESC);
+        CREATE INDEX IF NOT EXISTS idx_episodes_session ON episodes(session_id);
+        CREATE INDEX IF NOT EXISTS idx_episodes_reward ON episodes(reward DESC);
+        CREATE INDEX IF NOT EXISTS idx_episodes_task ON episodes(task);
+        CREATE TABLE IF NOT EXISTS episode_embeddings (
+          episode_id INTEGER PRIMARY KEY,
+          embedding BLOB NOT NULL,
+          embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+          FOREIGN KEY(episode_id) REFERENCES episodes(id) ON DELETE CASCADE
+        );
+      `);
+    }
   }
 
   /**
