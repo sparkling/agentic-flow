@@ -85,6 +85,73 @@ export class SkillLibrary {
     this.vectorBackend = vectorBackend || null;
     this.graphBackend = graphBackend;
     this.queryCache = new QueryCache(cacheConfig);
+    // ADR-0090 B5 skillLibrary fix: mirror pattern from ReasoningBank.ts:135,
+    // LearningSystem.ts, MemoryConsolidation etc. Constructor must create
+    // its own SQLite schema, otherwise `INSERT INTO skills` throws
+    // "no such table: skills" (silent in-memory fallback per ADR-0082).
+    // Schema mirrors `schemas/schema.sql:57-101`. Idempotent.
+    this.initializeSchema();
+  }
+
+  /**
+   * Initialize skills / skill_links / skill_embeddings tables.
+   *
+   * Mirrors `packages/agentdb/src/schemas/schema.sql` lines 57-101 so a
+   * freshly-constructed SkillLibrary can immediately accept
+   * `createSkill()` without requiring an external migration step.
+   *
+   * ADR-0090 B5 (2026-04-15): previously this schema only existed in
+   * `mcp/agentdb-mcp-server.js:71`, a separate standalone path never
+   * reached by the CLI-driven `getController('skills')` code path, so
+   * every CLI skill INSERT silently failed. This mirror restores the
+   * "controller constructs its own tables" invariant documented in
+   * ReasoningBank / LearningSystem / MemoryConsolidation / etc.
+   */
+  private initializeSchema(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS skills (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        description TEXT,
+        signature JSON NOT NULL,
+        code TEXT,
+        success_rate REAL DEFAULT 0.0,
+        uses INTEGER DEFAULT 0,
+        avg_reward REAL DEFAULT 0.0,
+        avg_latency_ms INTEGER DEFAULT 0,
+        created_from_episode INTEGER,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+        last_used_at INTEGER,
+        metadata JSON
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_skills_success ON skills(success_rate DESC);
+      CREATE INDEX IF NOT EXISTS idx_skills_uses ON skills(uses DESC);
+      CREATE INDEX IF NOT EXISTS idx_skills_name ON skills(name);
+
+      CREATE TABLE IF NOT EXISTS skill_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        parent_skill_id INTEGER NOT NULL,
+        child_skill_id INTEGER NOT NULL,
+        relationship TEXT NOT NULL,
+        weight REAL DEFAULT 1.0,
+        metadata JSON,
+        FOREIGN KEY(parent_skill_id) REFERENCES skills(id) ON DELETE CASCADE,
+        FOREIGN KEY(child_skill_id) REFERENCES skills(id) ON DELETE CASCADE,
+        UNIQUE(parent_skill_id, child_skill_id, relationship)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_skill_links_parent ON skill_links(parent_skill_id);
+      CREATE INDEX IF NOT EXISTS idx_skill_links_child ON skill_links(child_skill_id);
+
+      CREATE TABLE IF NOT EXISTS skill_embeddings (
+        skill_id INTEGER PRIMARY KEY,
+        embedding BLOB NOT NULL,
+        embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+        FOREIGN KEY(skill_id) REFERENCES skills(id) ON DELETE CASCADE
+      );
+    `);
   }
 
   /**
