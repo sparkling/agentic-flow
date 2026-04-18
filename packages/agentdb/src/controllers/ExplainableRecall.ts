@@ -124,6 +124,46 @@ export class ExplainableRecall {
       ...config,
     };
 
+    // ADR-0090 B5 W2-I3 follow-up: the `recall_certificates` + `justifications`
+    // tables' DDL ships in `packages/agentdb/src/schemas/frontier-schema.sql`
+    // but that schema is run ONLY from the standalone agentdb-mcp-server.ts
+    // boot path. The `memory-router.ts` → ControllerRegistry path instantiates
+    // ExplainableRecall directly without running the DDL. Three downstream
+    // callers (CausalRecall.search/getStats, ExplainableRecall.createCertificate,
+    // NightlyLearner reading justifications) blow up on
+    // "SqliteError: no such table: recall_certificates". Mirrors the
+    // CausalMemoryGraph fix in commit 8238837 and the older ReflexionMemory
+    // pattern (commit 7a977f1).
+    try {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS recall_certificates (
+          id TEXT PRIMARY KEY,
+          query_id TEXT NOT NULL,
+          query_text TEXT NOT NULL,
+          chunk_ids TEXT NOT NULL,
+          chunk_types TEXT NOT NULL,
+          minimal_why TEXT,
+          redundancy_ratio REAL,
+          completeness_score REAL,
+          merkle_root TEXT NOT NULL,
+          source_hashes TEXT,
+          proof_chain TEXT,
+          policy_proof TEXT,
+          policy_version TEXT,
+          access_level TEXT,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          latency_ms INTEGER,
+          metadata TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_recall_certificates_query ON recall_certificates(query_id);
+        CREATE INDEX IF NOT EXISTS idx_recall_certificates_created ON recall_certificates(created_at DESC);
+      `);
+    } catch (err: any) {
+      // Loud — per ADR-0082. Schema creation failing is fatal for this controller.
+      console.error(`[ExplainableRecall] recall_certificates DDL failed: ${err?.message || err}`);
+      throw err;
+    }
+
     // Use injected AttentionService if provided, else create one when needed
     if (attentionService) {
       this.attentionService = attentionService;
