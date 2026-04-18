@@ -150,6 +150,47 @@ export class CausalMemoryGraph {
       ...config,
     };
 
+    // ADR-0090 B5 fix (W2-I3): initialize SQLite schema on construction.
+    // Previously only the standalone agentdb-mcp-server boot path ran the
+    // frontier-schema.sql DDL (line 14-49). When the fork's memory-router
+    // instantiated CausalMemoryGraph via ControllerRegistry the
+    // `causal_edges` table did not exist, so every downstream caller
+    // (CausalRecall.search, CausalRecall.getStats, NightlyLearner.
+    // discoverCausalEdges, ExplainableRecall.recall) threw SqliteError
+    // "no such table: causal_edges". This mirrors the ReflexionMemory fix
+    // in commit 7a977f1 and the class-level pattern used by ReasoningBank
+    // / LearningSystem / HierarchicalMemory / MemoryConsolidation /
+    // AttestationLog / SkillLibrary. Schema lifted verbatim from
+    // schemas/frontier-schema.sql lines 14-49 — idempotent, safe across
+    // restarts, and reflects the upstream source of truth.
+    if (this.db && typeof (this.db as any).exec === 'function') {
+      (this.db as any).exec(`
+        CREATE TABLE IF NOT EXISTS causal_edges (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          from_memory_id INTEGER NOT NULL,
+          from_memory_type TEXT NOT NULL,
+          to_memory_id INTEGER NOT NULL,
+          to_memory_type TEXT NOT NULL,
+          similarity REAL NOT NULL DEFAULT 0.0,
+          uplift REAL,
+          confidence REAL DEFAULT 0.5,
+          sample_size INTEGER,
+          evidence_ids TEXT,
+          experiment_ids TEXT,
+          confounder_score REAL,
+          mechanism TEXT,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          last_validated_at INTEGER,
+          metadata JSON
+        );
+        CREATE INDEX IF NOT EXISTS idx_causal_edges_from ON causal_edges(from_memory_id, from_memory_type);
+        CREATE INDEX IF NOT EXISTS idx_causal_edges_to ON causal_edges(to_memory_id, to_memory_type);
+        CREATE INDEX IF NOT EXISTS idx_causal_edges_uplift ON causal_edges(uplift DESC);
+        CREATE INDEX IF NOT EXISTS idx_causal_edges_confidence ON causal_edges(confidence DESC);
+      `);
+    }
+
     // Use injected AttentionService if provided, else create one when needed
     if (attentionService) {
       this.attentionService = attentionService;
