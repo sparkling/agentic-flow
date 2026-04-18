@@ -90,6 +90,43 @@ export class NightlyLearner {
   ) {
     this.db = db;
     this.embedder = embedder;
+
+    // ADR-0090 B5 W2-I3 follow-up: causal_experiments + causal_observations
+    // DDL ships only in the standalone agentdb-mcp-server.ts boot path
+    // (lines 147-175 of that file). NightlyLearner.discoverCausalEdges +
+    // runExperiment query these tables directly, so the ControllerRegistry
+    // instantiation path blows up with "no such table: causal_experiments".
+    // Mirror the ReflexionMemory (7a977f1) / CausalMemoryGraph (8238837) /
+    // ExplainableRecall (b340e90) pattern — idempotent CREATE TABLE IF NOT
+    // EXISTS in the constructor. Schema lifted verbatim from
+    // packages/agentdb/src/mcp/agentdb-mcp-server.ts:147-175.
+    try {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS causal_experiments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ts INTEGER DEFAULT (strftime('%s', 'now')),
+          intervention_id INTEGER NOT NULL,
+          control_outcome REAL NOT NULL,
+          treatment_outcome REAL NOT NULL,
+          uplift REAL NOT NULL,
+          sample_size INTEGER DEFAULT 1,
+          metadata TEXT
+        );
+        CREATE TABLE IF NOT EXISTS causal_observations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ts INTEGER DEFAULT (strftime('%s', 'now')),
+          action TEXT NOT NULL,
+          outcome TEXT NOT NULL,
+          reward REAL NOT NULL,
+          session_id TEXT,
+          metadata TEXT
+        );
+      `);
+    } catch (err: any) {
+      console.error(`[NightlyLearner] causal_experiments/observations DDL failed: ${err?.message || err}`);
+      throw err;
+    }
+
     // ADR-0040: accept pre-created singletons to avoid duplicate instances
     this.causalGraph = causalGraph || new CausalMemoryGraph(db);
     this.reflexion = reflexion || new ReflexionMemory(db, embedder);
