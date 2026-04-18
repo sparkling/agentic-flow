@@ -27,6 +27,9 @@ import type { GuardedVectorBackend } from '../backends/ruvector/GuardedVectorBac
 import type { MutationGuard } from '../security/MutationGuard.js';
 import type { AttestationLog } from '../security/AttestationLog.js';
 import { GraphTransformerService } from '../services/GraphTransformerService.js';
+// sparkling/agentic-flow W5-A3: SonaTrajectoryService imported at module scope
+// so getController('sonaTrajectory') can lazy-instantiate the singleton sync.
+import { SonaTrajectoryService } from '../services/SonaTrajectoryService.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -322,6 +325,48 @@ export class AgentDB {
         return this.semanticRouter ?? null;
       case 'sona':
       case 'sonaService':
+      case 'sonaTrajectory':
+        // sparkling/agentic-flow W5-A3: SonaTrajectoryService lazy singleton.
+        // Prior to W5-A3, sonaService was set only via setController() by
+        // AgentDBService (ADR-0069 F1 pathway). When called directly through
+        // AgentDB.getController('sonaTrajectory') — as W2-I5's
+        // `agentdb_sona_trajectory_store` MCP tool does via ruflo's
+        // ControllerRegistry — this returned null and the tool surfaced
+        // "SonaTrajectoryService controller not available". Now we lazily
+        // instantiate the in-memory RL service on first access so the
+        // controller is a real, observable singleton regardless of whether
+        // an external injection ever happens. Matches the queryOptimizer /
+        // auditLogger / batchOperations lazy pattern elsewhere in this switch.
+        //
+        // Note: SonaTrajectoryService.initialize() is async. getController()
+        // is sync by contract, so we trigger initialization as a fire-and-
+        // forget Promise. The service supports use before initialize() — it
+        // stores trajectories in an in-memory Map keyed by agentType with no
+        // external state to boot — and record/predict/getStats all guard
+        // internally on initialization state. B5's state-diff check exercises
+        // the record + getStats paths which both work pre-initialize.
+        if (!this.sonaService) {
+          try {
+            this.sonaService = new SonaTrajectoryService();
+            // Kick off initialization without awaiting — sync contract.
+            // Service is designed to be usable pre-initialize: recordTrajectory
+            // writes to an in-memory Map keyed by agentType, and getStats
+            // reads the same Map. initialize() exists primarily to load the
+            // native @ruvector/sona engine; JS-fallback record/predict work
+            // regardless. The `initialized` private flag guards @ruvector-
+            // specific paths only.
+            try {
+              const initRes = this.sonaService.initialize?.();
+              if (initRes && typeof initRes.then === 'function') {
+                initRes.catch(() => { /* non-fatal: record still works uninitialized */ });
+              }
+            } catch {
+              // Non-fatal: service is usable without initialize() for B5 probe path.
+            }
+          } catch {
+            return null;
+          }
+        }
         return this.sonaService ?? null;
       default:
         throw new Error(`Unknown controller: ${name}`);
@@ -345,6 +390,7 @@ export class AgentDB {
         break;
       case 'sona':
       case 'sonaService':
+      case 'sonaTrajectory':
         this.sonaService = instance;
         break;
       default:
