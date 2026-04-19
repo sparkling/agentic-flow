@@ -236,6 +236,24 @@ export class GraphDatabaseAdapter {
   }
 
   /**
+   * Direct node lookup by ID — bypasses the Cypher parser for a fast
+   * O(1) read. Prefer this over `query("MATCH (n) WHERE n.id='...' RETURN n")`:
+   * the Cypher WHERE-expression evaluator in @ruvector/graph-node does not
+   * implement general property filtering, so id-lookup via Cypher returns
+   * empty even for nodes that exist. Returns `null` when absent.
+   */
+  async getNodeById(id: string): Promise<any | null> {
+    if (typeof (this.db as any).getNodeById === 'function') {
+      const node = await (this.db as any).getNodeById(id);
+      return node ?? null;
+    }
+    // Fall back to MATCH (n) RETURN n + client-side filter if the native
+    // binding predates the getNodeById method (e.g., old @ruvector/graph-node).
+    const result = await this.db.query('MATCH (n) RETURN n');
+    return result.nodes?.find((n: any) => n.id === id) ?? null;
+  }
+
+  /**
    * Search for similar episodes by embedding
    */
   async searchSimilarEpisodes(embedding: Float32Array, k: number = 10): Promise<any[]> {
