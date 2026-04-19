@@ -18,6 +18,7 @@
 // Types are defined inline since @ruvector/graph-node doesn't export interfaces properly
 // See node_modules/@ruvector/graph-node/index.d.ts for reference
 
+import { existsSync } from 'node:fs';
 import { getEmbeddingConfig } from '../../config/embedding-config.js';
 
 type GraphDatabase = any; // Will use dynamic import
@@ -127,9 +128,13 @@ export class GraphDatabaseAdapter {
         throw new Error('GraphDatabase class not found in @ruvector/graph-node');
       }
 
-      // Try to open existing database first
+      // Try to open existing database first. Use the imported `existsSync`
+      // from 'node:fs' (ESM-native) rather than `require('fs')` — the latter
+      // throws in strict ESM contexts, skipping the existsSync check and
+      // always taking the "create new" branch. That silently discarded any
+      // previously-persisted graph state across process boundaries.
       try {
-        if (require('fs').existsSync(this.config.storagePath)) {
+        if (existsSync(this.config.storagePath)) {
           this.db = GraphDatabase.open(this.config.storagePath);
           console.log('✅ Opened existing RuVector graph database');
           return;
