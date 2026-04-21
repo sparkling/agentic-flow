@@ -15,7 +15,7 @@ import * as ort from 'onnxruntime-node';
 import { pipeline, env } from '@xenova/transformers';
 import { createHash } from 'crypto';
 // ADR-0069 A12: import canonical embedding config chain
-import { getEmbeddingConfig } from '../../../agentdb/src/config/embedding-config';
+import { getEmbeddingConfig } from '../../../agentdb/src/config/embedding-config.js';
 
 export interface ONNXConfig {
   modelName: string;

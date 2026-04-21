@@ -315,7 +315,7 @@ export const intelligenceStatsTool: ToolDefinition = {
             enabled: stats.features?.includes('sona') ?? false,
             microLora: 'rank-1 (~0.05ms)',
             baseLora: 'rank-8',
-            ewcLambda: readEwcLambdaFromConfig(1000), // ADR-0069 A5: config-chain EWC lambda via shared helper
+            ewcLambda: readEwcLambdaFromConfig(2000), // ADR-0069 A5: config-chain EWC lambda via shared helper
           },
           attention: {
             type: 'moe',
