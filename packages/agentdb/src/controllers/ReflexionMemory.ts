@@ -534,7 +534,25 @@ export class ReflexionMemory {
   }
 
   /**
-   * Build Cypher query with filters
+   * Build Cypher query with filters for the generic GraphBackend path.
+   *
+   * Returns a Cypher MATCH statement that:
+   *   - filters Episode nodes by reward / success / time window
+   *   - returns the node aliased as `e` (caller in `retrieveFromGenericGraph`
+   *     iterates `result.rows` and reads `row.e`)
+   *   - orders by reward desc and limits to k so the backend can enforce
+   *     the top-k cap server-side
+   *
+   * Historical note: the body of this method was previously garbled — the
+   * first 17 lines built the Cypher string correctly but the remainder was
+   * an orphaned paste of the old `retrieveRelevant` vector/SQL body (left
+   * behind when that logic was split into `retrieveFromVectorBackend` and
+   * `retrieveFromSQLFallback`). The orphan referenced an unbound
+   * `queryEmbedding` and returned `EpisodeWithEmbedding[]` from a `: string`
+   * method. The method always fell through to the orphan code instead of
+   * returning `cypherQuery`, so the Cypher path silently produced wrong
+   * results (or threw ReferenceError at runtime) whenever a generic
+   * GraphBackend with `execute` but no `searchSimilarEpisodes` was wired.
    */
   private buildCypherQuery(query: ReflexionQuery): string {
     const { k = 5, minReward, onlyFailures, onlySuccesses, timeWindowDays } = query;
@@ -554,129 +572,8 @@ export class ReflexionMemory {
       cypherQuery += ` AND e.createdAt >= ${cutoff}`;
     }
 
-    // Use optimized vector backend if available (150x faster)
-    if (this.vectorBackend) {
-      try {
-      // Get candidates from vector backend
-      const searchResults = this.vectorBackend.search(queryEmbedding, k * 3, {
-        threshold: 0.0
-      });
-
-      // Fetch full episode data from DB
-      const episodeIds = searchResults.map(r => parseInt(r.id));
-      if (episodeIds.length === 0) {
-        return [];
-      }
-
-      const placeholders = episodeIds.map(() => '?').join(',');
-      const stmt = this.db.prepare(`
-        SELECT * FROM episodes
-        WHERE id IN (${placeholders})
-      `);
-
-      const rows = stmt.all(...episodeIds) as any[];
-      const episodeMap = new Map(rows.map(r => [r.id.toString(), r]));
-
-      // Map results back with similarity scores and apply filters
-      const episodes: EpisodeWithEmbedding[] = [];
-
-      for (const result of searchResults) {
-        const row = episodeMap.get(result.id);
-        if (!row) continue;
-
-        // Apply additional filters
-        if (minReward !== undefined && row.reward < minReward) continue;
-        if (onlyFailures && row.success === 1) continue;
-        if (onlySuccesses && row.success === 0) continue;
-        if (timeWindowDays && row.ts < (Date.now() / 1000 - timeWindowDays * 86400)) continue;
-
-        episodes.push({
-          id: row.id,
-          ts: row.ts,
-          sessionId: row.session_id,
-          task: row.task,
-          input: row.input,
-          output: row.output,
-          critique: row.critique,
-          reward: row.reward,
-          success: row.success === 1,
-          latencyMs: row.latency_ms,
-          tokensUsed: row.tokens_used,
-          tags: row.tags ? JSON.parse(row.tags) : undefined,
-          metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
-          similarity: result.similarity
-        });
-
-        if (episodes.length >= k) break;
-      }
-
-      return episodes;
-      } catch { /* vectorBackend search failed — fall through to SQL */ }
-    }
-
-    // Fallback to SQL-based similarity search
-    const filters: string[] = [];
-    const params: any[] = [];
-
-    if (minReward !== undefined) {
-      filters.push('e.reward >= ?');
-      params.push(minReward);
-    }
-
-    if (onlyFailures) {
-      filters.push('e.success = 0');
-    }
-
-    if (onlySuccesses) {
-      filters.push('e.success = 1');
-    }
-
-    if (timeWindowDays) {
-      filters.push('e.ts > strftime("%s", "now") - ?');
-      params.push(timeWindowDays * 86400);
-    }
-
-    const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
-
-    const stmt = this.db.prepare(`
-      SELECT
-        e.*,
-        ee.embedding
-      FROM episodes e
-      JOIN episode_embeddings ee ON e.id = ee.episode_id
-      ${whereClause}
-      ORDER BY e.reward DESC
-    `);
-
-    const rows = stmt.all(...params) as any[];
-
-    // Calculate similarities manually
-    const episodes: EpisodeWithEmbedding[] = rows.map(row => {
-      const embedding = this.deserializeEmbedding(row.embedding);
-      const similarity = cosineSimilarity(queryEmbedding, embedding);
-
-      return {
-        id: row.id,
-        ts: row.ts,
-        sessionId: row.session_id,
-        task: row.task,
-        input: row.input,
-        output: row.output,
-        critique: row.critique,
-        reward: row.reward,
-        success: row.success === 1,
-        latencyMs: row.latency_ms,
-        tokensUsed: row.tokens_used,
-        tags: row.tags ? JSON.parse(row.tags) : undefined,
-        metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
-        embedding,
-        similarity
-      };
-    });
-
-    // Sort by similarity and return top-k
-    episodes.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
-    return episodes.slice(0, k);
+    cypherQuery += ` RETURN e ORDER BY e.reward DESC LIMIT ${k}`;
+    return cypherQuery;
   }
 
   /**
