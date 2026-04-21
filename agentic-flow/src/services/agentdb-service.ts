@@ -547,18 +547,102 @@ export class AgentDBService {
   }
 
   /**
-   * Upgrade basic EmbeddingService to EnhancedEmbeddingService
+   * Upgrade basic EmbeddingService through a 3-tier fallback chain.
+   *
+   * ADR-0069 F3 §3: chain is ONNX → Enhanced → Basic. Higher tiers are
+   * preferred; a failing tier falls through with a loud warning (ADR-0082:
+   * no silent fallback — every failed tier logs the error kind + message).
+   *
+   *   Tier 1: ONNXEmbeddingService (packages/agentdb-onnx) — local,
+   *           GPU-accelerated via onnxruntime / @xenova/transformers.
+   *   Tier 2: EnhancedEmbeddingService — WASM-accelerated, batch-capable.
+   *   Tier 3: keep the basic EmbeddingService constructed earlier.
    */
   private async upgradeEmbeddingService(): Promise<void> {
     if (!this.embeddingService) return;
 
+    const upgradeCfg = getEmbeddingConfig(); // ADR-0069: config-chain-aware
+    const tierFailures: Array<{ tier: string; error: string }> = [];
+
+    // -------------------------------------------------------------------
+    // Tier 1: ONNXEmbeddingService (ADR-0069 F3 §3 — highest priority)
+    // -------------------------------------------------------------------
+    try {
+      const onnxMod = await import(
+        /* webpackIgnore: true */ '../../../packages/agentdb-onnx/src/services/ONNXEmbeddingService.js'
+      );
+      const ONNXEmbeddingService = (onnxMod as any).ONNXEmbeddingService;
+      if (typeof ONNXEmbeddingService !== 'function') {
+        throw new Error('ONNXEmbeddingService export not found in agentdb-onnx package');
+      }
+
+      // Model name: prefer canonical config, coerce to Xenova/... shape if
+      // no HF-org prefix is present (ONNX service does the same internally).
+      const modelName = upgradeCfg.model.includes('/')
+        ? upgradeCfg.model
+        : `Xenova/${upgradeCfg.model}`;
+
+      const onnx = new ONNXEmbeddingService({
+        modelName,
+        batchSize: 32,
+        cacheSize: 10000,
+        quantization: 'none',
+        useGPU: true,
+      });
+      await onnx.initialize();
+
+      // Adapt ONNX service.embed() -> plain Float32Array shape that
+      // the rest of the codebase (controllers, mmrRanker) expects.
+      const adapter = {
+        model: modelName,
+        dimension: upgradeCfg.dimension,
+        async embed(text: string): Promise<Float32Array> {
+          const r = await onnx.embed(text);
+          return r.embedding;
+        },
+        async embedBatch(texts: string[]): Promise<Float32Array[]> {
+          const r = await onnx.embedBatch(texts);
+          return r.embeddings;
+        },
+        getDimension(): number {
+          return typeof onnx.getDimension === 'function'
+            ? onnx.getDimension()
+            : upgradeCfg.dimension;
+        },
+        _tier: 'onnx' as const,
+        _onnx: onnx,
+      };
+
+      this.embeddingService = adapter as any;
+      // Propagate to the AgentDB instance if it exposes the hook (F1 §1).
+      // Guarded because the upstream hook is not yet merged in every fork
+      // build — guarding preserves the upgrade even when the method is
+      // missing, without silently masking a wired-up failure.
+      if (this.db && typeof (this.db as any).replaceEmbeddingService === 'function') {
+        try {
+          (this.db as any).replaceEmbeddingService(adapter);
+        } catch (propErr) {
+          const m = propErr instanceof Error ? propErr.message : String(propErr);
+          console.warn(`[AgentDBService] ONNX embedder propagation failed: ${m}`);
+        }
+      }
+      console.log('[AgentDBService] Upgraded to ONNXEmbeddingService (local, GPU-accelerated) — tier=onnx');
+      return;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const kind = err instanceof Error ? err.constructor.name : 'UnknownError';
+      tierFailures.push({ tier: 'onnx', error: `${kind}: ${msg}` });
+      console.warn(`[AgentDBService] ONNXEmbeddingService unavailable (${kind}: ${msg}), trying Enhanced tier`);
+    }
+
+    // -------------------------------------------------------------------
+    // Tier 2: EnhancedEmbeddingService
+    // -------------------------------------------------------------------
     try {
       const { EnhancedEmbeddingService } = await import(
         /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/EnhancedEmbeddingService.js'
       );
 
-      // Create enhanced version with same config
-      const upgradeCfg = getEmbeddingConfig(); // ADR-0069: config-chain-aware
       const enhanced = new EnhancedEmbeddingService({
         model: upgradeCfg.model,
         dimension: upgradeCfg.dimension,
@@ -568,13 +652,38 @@ export class AgentDBService {
         batchSize: 100,
       });
       await enhanced.initialize();
+      (enhanced as any)._tier = 'enhanced';
 
       // Replace basic service with enhanced version
       this.embeddingService = enhanced;
-      console.log('[AgentDBService] Upgraded to EnhancedEmbeddingService with WASM acceleration');
+      if (this.db && typeof (this.db as any).replaceEmbeddingService === 'function') {
+        try {
+          (this.db as any).replaceEmbeddingService(enhanced);
+        } catch (propErr) {
+          const m = propErr instanceof Error ? propErr.message : String(propErr);
+          console.warn(`[AgentDBService] Enhanced embedder propagation failed: ${m}`);
+        }
+      }
+      console.log('[AgentDBService] Upgraded to EnhancedEmbeddingService with WASM acceleration — tier=enhanced');
+      return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[AgentDBService] EnhancedEmbeddingService unavailable (${msg}), keeping basic service`);
+      const kind = err instanceof Error ? err.constructor.name : 'UnknownError';
+      tierFailures.push({ tier: 'enhanced', error: `${kind}: ${msg}` });
+      console.warn(`[AgentDBService] EnhancedEmbeddingService unavailable (${kind}: ${msg}), keeping basic service`);
+    }
+
+    // -------------------------------------------------------------------
+    // Tier 3: basic — already set on this.embeddingService; keep as-is.
+    // ADR-0082: emit the full tier-failure trail so the demotion is
+    // visible in the log instead of being silently swallowed.
+    // -------------------------------------------------------------------
+    (this.embeddingService as any)._tier = (this.embeddingService as any)._tier ?? 'basic';
+    if (tierFailures.length > 0) {
+      console.warn(
+        `[AgentDBService] Embedder demoted to basic tier after ${tierFailures.length} failures: ` +
+        tierFailures.map(f => `${f.tier}(${f.error})`).join(' -> ')
+      );
     }
   }
 

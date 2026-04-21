@@ -159,6 +159,43 @@ export function resetEmbeddingConfig(): void {
   _cachedConfig = null;
 }
 
+// ===== EWC lambda config helper (ADR-0069 A4) =====
+
+/**
+ * Read the EWC++ regularization lambda from `.claude-flow/config.json`.
+ * Returns `fallback` when the config file is missing (expected case) or
+ * when `neural.ewcLambda` is absent/invalid.
+ *
+ * ADR-0082: non-existence is a legitimate state (config file is optional),
+ * but unexpected errors (parse failures, non-ENOENT I/O errors) are logged
+ * loudly via console.warn rather than silently swallowed.
+ *
+ * Consolidated from duplicates in:
+ *   - agentic-flow/src/intelligence/RuVectorIntelligence.ts
+ *   - agentic-flow/src/services/sona-agentdb-integration.ts
+ *   - agentic-flow/src/mcp/fastmcp/tools/hooks/intelligence-tools.ts
+ *   - packages/agentdb/src/backends/rvf/SonaLearningBackend.ts
+ */
+export function readEwcLambdaFromConfig(fallback: number): number {
+  const configPath = join(process.cwd(), '.claude-flow', 'config.json');
+  try {
+    if (!existsSync(configPath)) return fallback;
+    const raw = readFileSync(configPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const val = parsed?.neural?.ewcLambda;
+    if (typeof val === 'number' && val > 0) return val;
+    return fallback;
+  } catch (err) {
+    // ADR-0082: log loudly rather than silently swallow. File-not-found is
+    // handled above; reaching this branch means a real parse/IO failure.
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[embedding-config] readEwcLambdaFromConfig failed for ${configPath}: ${(err as Error)?.message ?? err}. Using fallback=${fallback}.`
+    );
+    return fallback;
+  }
+}
+
 /** Look up dimension for a model name */
 export function getModelDimension(model: string): number {
   return MODEL_REGISTRY[model]?.dimension ?? MODEL_REGISTRY[`Xenova/${model}`]?.dimension ?? getEmbeddingConfig().dimension;

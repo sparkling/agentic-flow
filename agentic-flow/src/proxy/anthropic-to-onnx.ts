@@ -4,6 +4,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import { ONNXLocalProvider } from '../router/providers/onnx-local.js';
 import type { Message } from '../router/types.js';
+import { resolvePort } from '../config/ports.js'; // ADR-0069 A6
 
 interface AnthropicMessage {
   role: 'user' | 'assistant';
@@ -45,7 +46,7 @@ export class AnthropicToONNXProxy {
     executionProviders?: string[];
   } = {}) {
     this.app = express();
-    this.port = config.port || parseInt(process.env.ONNX_PROXY_PORT || '', 10) || 3001; // ADR-0069 A6
+    this.port = resolvePort('onnxProxy', 'ONNX_PROXY_PORT', config.port); // ADR-0069 A6: explicit > env > config.ports.onnxProxy > 3001
 
     // Initialize ONNX provider with configuration
     this.onnxProvider = new ONNXLocalProvider({

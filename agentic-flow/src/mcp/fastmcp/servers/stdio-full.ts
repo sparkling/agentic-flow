@@ -27,6 +27,8 @@ import { registerSonaTools } from '../tools/sona-tools.js';
 import { registerMemoryTools } from '../tools/memory-tools.js';
 import { registerQuantizationTools } from '../tools/quantization-tools.js';
 import { registerExplainabilityTools } from '../tools/explainability-tools.js';
+// ADR-0069 F1 follow-up §2: Enhanced Agent Booster tools (WASM <1ms code editing)
+import { registerBoosterTools as registerEnhancedBoosterTools } from '../tools/booster-tools.js';
 // SECURITY: Import rate limiting middleware
 import { withRateLimit, getRateLimitStats } from '../../middleware/apply-rate-limit.js';
 // Import DirectCallBridge to eliminate CLI spawning
@@ -35,7 +37,7 @@ import { SwarmService } from '../../../services/swarm-service.js';
 import { HookService } from '../../../services/hook-service.js';
 
 console.error('Starting FastMCP Full Server (stdio transport)...');
-console.error('Loading 211+ tools: core (12), agentdb (12), session (8), github (8), neural (6), ruvector (6), sona-rvf (11), infrastructure (13), autopilot (10), performance (15), workflow (11), daa (10), attention (6), hidden-controllers (17), quic (4), rvf (5), cost-optimizer (4), streaming (10), sona-rl (8), memory (6), quantization (8), explainability (10)');
+console.error('Loading 220+ tools: core (12), agentdb (12), session (8), github (8), neural (6), ruvector (6), sona-rvf (11), infrastructure (13), autopilot (10), performance (15), workflow (11), daa (10), attention (6), hidden-controllers (17), quic (4), rvf (5), cost-optimizer (4), streaming (10), sona-rl (8), memory (6), quantization (8), explainability (10), enhanced-booster (9)');
 console.error('SECURITY: Rate limiting enabled (100 req/min default, 10 req/min for critical tools)');
 
 // Create server
@@ -877,8 +879,9 @@ registerSonaTools(server);              // 8 tools (SONA RL Loop - ADR-065 P1-2)
 registerMemoryTools(server);            // 6 tools (Hierarchical Memory - ADR-066 P2-3)
 registerQuantizationTools(server);      // 8 tools (Model Quantization - ADR-066 P2-2)
 registerExplainabilityTools(server);    // 10 tools (Explainability Dashboard - ADR-066 P2-4)
+registerEnhancedBoosterTools(server);   // 9 tools (Enhanced Agent Booster WASM - ADR-0069 F1 §2, F3 remaining work)
 
-console.error('Registered 208+ tools successfully');
+console.error('Registered 217+ tools successfully');
 console.error('Starting stdio transport...');
 
 // Start with stdio transport

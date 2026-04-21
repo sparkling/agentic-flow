@@ -24,6 +24,7 @@ import * as dotenv from 'dotenv';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
+import { resolvePort } from '../config/ports.js'; // ADR-0069 A6
 
 // Load environment variables from root .env
 const __filename = fileURLToPath(import.meta.url);
@@ -43,7 +44,7 @@ interface ProxyConfig {
  * Get proxy configuration based on provider
  */
 function getProxyConfig(provider: string, customPort?: number): ProxyConfig {
-  const port = customPort || parseInt(process.env.MCP_PORT || '', 10) || 3000; // ADR-0069 A6
+  const port = resolvePort('mcp', 'MCP_PORT', customPort); // ADR-0069 A6: explicit > env > config.ports.mcp > 3000
   const baseUrl = `http://localhost:${port}`;
 
   switch (provider.toLowerCase()) {

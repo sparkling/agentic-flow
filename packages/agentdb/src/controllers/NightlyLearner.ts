@@ -91,39 +91,115 @@ export class NightlyLearner {
     this.db = db;
     this.embedder = embedder;
 
-    // ADR-0090 B5 W2-I3 follow-up: causal_experiments + causal_observations
-    // DDL ships only in the standalone agentdb-mcp-server.ts boot path
-    // (lines 147-175 of that file). NightlyLearner.discoverCausalEdges +
-    // runExperiment query these tables directly, so the ControllerRegistry
-    // instantiation path blows up with "no such table: causal_experiments".
-    // Mirror the ReflexionMemory (7a977f1) / CausalMemoryGraph (8238837) /
-    // ExplainableRecall (b340e90) pattern — idempotent CREATE TABLE IF NOT
-    // EXISTS in the constructor. Schema lifted verbatim from
-    // packages/agentdb/src/mcp/agentdb-mcp-server.ts:147-175.
+    // ADR-0093 follow-up (advisory A1, 2026-04-21): the original DDL shipped
+    // in commit d7f613a auto-created causal_experiments with the OLD column
+    // list (ts, intervention_id, control_outcome, treatment_outcome, uplift,
+    // sample_size, metadata) lifted verbatim from
+    // packages/agentdb/src/mcp/agentdb-mcp-server.ts:147-175. That old DDL was
+    // out of sync with CausalMemoryGraph.createExperiment (which INSERTs
+    // name/hypothesis/treatment_id/treatment_type/control_id/start_time/
+    // sample_size/status/metadata) and CausalMemoryGraph.calculateUplift
+    // (which UPDATEs treatment_mean/control_mean/p_value/
+    // confidence_interval_low/confidence_interval_high/status). Canonical
+    // schema lives in packages/agentdb/src/schemas/frontier-schema.sql:51-105.
+    //
+    // Because `CREATE TABLE IF NOT EXISTS` is a no-op when the table already
+    // exists, installations that booted against the old DDL silently keep
+    // the old columns and subsequent INSERTs using the new column names fail
+    // at runtime. This block detects the old schema via PRAGMA table_info
+    // and DROPs+recreates both tables when an old column is present.
+    //
+    // Safety: `causal_experiments` and `causal_observations` hold ephemeral
+    // A/B-test telemetry (no user-authored content), so a destructive
+    // recreate is acceptable when schemas are incompatible. ADR-0086's
+    // "preserve user content across migrations" rule does not apply.
+    //
+    // ADR-0082: any SQLite error here MUST throw loudly, not silently fall
+    // through to the old schema — no catch-and-continue.
     try {
+      const OLD_COLS = new Set([
+        'intervention_id',
+        'control_outcome',
+        'treatment_outcome',
+      ]);
+      const NEW_REQUIRED = [
+        'name',
+        'treatment_id',
+        'treatment_type',
+        'control_id',
+        'start_time',
+        'status',
+        'treatment_mean',
+        'control_mean',
+        'p_value',
+        'confidence_interval_low',
+        'confidence_interval_high',
+      ];
+
+      const existingExpCols = (this.db.prepare(`PRAGMA table_info(causal_experiments)`).all() as any[])
+        .map((row: any) => String(row.name));
+      const existingObsCols = (this.db.prepare(`PRAGMA table_info(causal_observations)`).all() as any[])
+        .map((row: any) => String(row.name));
+
+      const hasOldExp = existingExpCols.some((col: string) => OLD_COLS.has(col));
+      const missingNew = NEW_REQUIRED.filter((col: string) => !existingExpCols.includes(col));
+      const needsRecreate = existingExpCols.length > 0 && (hasOldExp || missingNew.length > 0);
+
+      const oldObsCols = new Set(['action', 'outcome', 'reward', 'session_id']);
+      const hasOldObs = existingObsCols.some((col: string) => oldObsCols.has(col)) &&
+                        !existingObsCols.includes('experiment_id');
+
+      if (needsRecreate || hasOldObs) {
+        console.warn(
+          `[NightlyLearner] Incompatible causal_experiments/observations schema detected ` +
+          `(hasOldExp=${hasOldExp}, missingNewCols=${missingNew.join(',') || 'none'}, hasOldObs=${hasOldObs}). ` +
+          `Dropping and recreating — ephemeral A/B-test telemetry, no user content.`
+        );
+        // Order matters: drop child (observations) before parent (experiments)
+        // to avoid FK constraint failures if FKs are enabled.
+        this.db.exec(`DROP TABLE IF EXISTS causal_observations;`);
+        this.db.exec(`DROP TABLE IF EXISTS causal_experiments;`);
+      }
+
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS causal_experiments (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          ts INTEGER DEFAULT (strftime('%s', 'now')),
-          intervention_id INTEGER NOT NULL,
-          control_outcome REAL NOT NULL,
-          treatment_outcome REAL NOT NULL,
-          uplift REAL NOT NULL,
-          sample_size INTEGER DEFAULT 1,
+          name TEXT NOT NULL,
+          hypothesis TEXT,
+          treatment_id INTEGER,
+          treatment_type TEXT,
+          control_id INTEGER,
+          start_time INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          end_time INTEGER,
+          sample_size INTEGER DEFAULT 0,
+          treatment_mean REAL,
+          control_mean REAL,
+          uplift REAL,
+          p_value REAL,
+          confidence_interval_low REAL,
+          confidence_interval_high REAL,
+          status TEXT NOT NULL DEFAULT 'running',
+          confidence REAL,
           metadata TEXT
         );
+        CREATE INDEX IF NOT EXISTS idx_causal_experiments_status ON causal_experiments(status);
+        CREATE INDEX IF NOT EXISTS idx_causal_experiments_treatment ON causal_experiments(treatment_id);
+
         CREATE TABLE IF NOT EXISTS causal_observations (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          experiment_id INTEGER NOT NULL,
+          episode_id INTEGER,
+          is_treatment INTEGER NOT NULL DEFAULT 0,
+          outcome_value REAL NOT NULL,
+          outcome_type TEXT,
+          context TEXT,
           ts INTEGER DEFAULT (strftime('%s', 'now')),
-          action TEXT NOT NULL,
-          outcome TEXT NOT NULL,
-          reward REAL NOT NULL,
-          session_id TEXT,
-          metadata TEXT
+          FOREIGN KEY(experiment_id) REFERENCES causal_experiments(id)
         );
+        CREATE INDEX IF NOT EXISTS idx_causal_observations_exp ON causal_observations(experiment_id);
       `);
     } catch (err: any) {
-      console.error(`[NightlyLearner] causal_experiments/observations DDL failed: ${err?.message || err}`);
+      console.error(`[NightlyLearner] causal_experiments/observations DDL+migration failed: ${err?.message || err}`);
       throw err;
     }
 

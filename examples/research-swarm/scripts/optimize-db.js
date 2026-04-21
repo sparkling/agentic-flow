@@ -34,6 +34,9 @@ try {
   optimizations.push({ name: 'WAL Mode', status: walResult.journal_mode === 'wal' ? 'enabled' : 'already active' });
   console.log(chalk.green(`   ✅ WAL mode: ${walResult.journal_mode}\n`));
 
+  // 1b. ADR-0069 A1: busy_timeout required with WAL mode to prevent SQLITE_BUSY under concurrency
+  db.prepare('PRAGMA busy_timeout=5000').run();
+
   // 2. Increase cache size to 64MB
   console.log(chalk.cyan('💾 Setting cache size...'));
   db.prepare('PRAGMA cache_size=-64000').run(); // 64MB

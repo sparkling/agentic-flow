@@ -25,6 +25,7 @@ export async function runMigrations() {
     // Create database file
     const db = new BetterSqlite3(dbPath);
     db.pragma('journal_mode = WAL');
+    db.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
     db.pragma('foreign_keys = ON');
     // Create tables
     db.exec(`
@@ -121,6 +122,7 @@ export function getDb() {
     }
     dbInstance = new BetterSqlite3(dbPath);
     dbInstance.pragma('journal_mode = WAL');
+    dbInstance.pragma('busy_timeout = 5000'); // ADR-0069 A1: required with WAL mode
     dbInstance.pragma('foreign_keys = ON');
     logger.info('Connected to ReasoningBank database', { path: dbPath });
     return dbInstance;

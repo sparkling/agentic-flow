@@ -23,6 +23,9 @@ import {
   forceLearningCycle,
   computeAttentionSimilarity,
 } from './intelligence-bridge.js';
+import { readEwcLambdaFromConfig } from '../../../../../../packages/agentdb/src/config/embedding-config.js';
+
+// ADR-0069 A4: config-chain EWC lambda now imported from shared helper
 
 /**
  * Intelligence Route Tool
@@ -312,7 +315,7 @@ export const intelligenceStatsTool: ToolDefinition = {
             enabled: stats.features?.includes('sona') ?? false,
             microLora: 'rank-1 (~0.05ms)',
             baseLora: 'rank-8',
-            ewcLambda: (() => { try { const c = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); return c?.neural?.ewcLambda ?? 2000; } catch { return 2000; } })(), // ADR-0069 A5: config-chain EWC lambda
+            ewcLambda: readEwcLambdaFromConfig(1000), // ADR-0069 A5: config-chain EWC lambda via shared helper
           },
           attention: {
             type: 'moe',

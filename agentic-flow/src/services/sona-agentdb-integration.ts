@@ -6,25 +6,12 @@
  */
 
 import { EventEmitter } from 'events';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { SonaEngine } from '@ruvector/sona';
 import agentdb from 'agentdb';
 import { SONAEngine, SONAStats, LearnResult, ValidationUtils } from './sona-types.js';
+import { readEwcLambdaFromConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
-// ADR-0069 A5: config-chain EWC lambda
-function readEwcLambdaFromConfig(fallback: number): number {
-  try {
-    const configPath = resolve(process.cwd(), '.claude-flow', 'config.json');
-    const raw = readFileSync(configPath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    const val = parsed?.neural?.ewcLambda;
-    if (typeof val === 'number' && val > 0) return val;
-  } catch {
-    // Config not found or unreadable — use fallback
-  }
-  return fallback;
-}
+// ADR-0069 A4: config-chain EWC lambda now imported from shared helper
 
 export interface AgentDBSONAConfig {
   // SONA config

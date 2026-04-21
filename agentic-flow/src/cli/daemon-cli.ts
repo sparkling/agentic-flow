@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { spawn } from 'child_process';
+import { resolvePort } from '../config/ports.js'; // ADR-0069 A6
 
 const CF_DIR = join(process.cwd(), '.claude-flow');
 const PID_FILE = join(CF_DIR, 'daemon.pid');
@@ -51,7 +52,7 @@ async function startDaemon(args: string[]): Promise<void> {
   }
   ensureDir();
   const flags = parseFlags(args);
-  const port = parseInt(flags.port || process.env.MCP_PORT || '3000', 10); // ADR-0069 A6
+  const port = resolvePort('daemon', ['MCP_PORT'], flags.port); // ADR-0069 A6: flag > env > config.ports.daemon > 3000
   const workers = parseInt(flags.workers || '4', 10);
 
   console.log(`Starting daemon... Port: ${port}, Workers: ${workers}`);

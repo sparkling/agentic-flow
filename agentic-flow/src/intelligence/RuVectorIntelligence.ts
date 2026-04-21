@@ -31,7 +31,7 @@
  *   - Background learning: Non-blocking
  */
 
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig, readEwcLambdaFromConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
 
 // Optional imports - graceful fallback on Windows/platforms without native binaries
 let SonaEngine: any = null;
@@ -84,25 +84,11 @@ try {
 
 // Import from ruvector core (for HNSW)
 import ruvector from 'ruvector';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 // Export availability flags
 export { sonaAvailable, attentionAvailable };
 
-// ADR-0069 A5: config-chain EWC lambda
-function readEwcLambdaFromConfig(fallback: number): number {
-  try {
-    const configPath = resolve(process.cwd(), '.claude-flow', 'config.json');
-    const raw = readFileSync(configPath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    const val = parsed?.neural?.ewcLambda;
-    if (typeof val === 'number' && val > 0) return val;
-  } catch {
-    // Config not found or unreadable — use fallback
-  }
-  return fallback;
-}
+// ADR-0069 A4: config-chain EWC lambda now imported from shared helper
 
 // Local type definitions (replaces imports from optional packages)
 export interface JsSonaConfig {

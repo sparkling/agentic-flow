@@ -5,6 +5,7 @@
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import { execSync } from 'child_process';
+import { resolvePort } from '../../../config/ports.js'; // ADR-0069 A6
 
 console.error('🚀 Starting Agentic-Flow MCP Server (HTTP/SSE transport)...');
 console.error('📦 Loading agentic-flow tools');
@@ -392,7 +393,7 @@ console.error('🌐 Starting HTTP/SSE transport...');
 server.start({
   transportType: 'httpStream',
   httpStream: {
-    port: parseInt(process.env.MCP_SSE_PORT || process.env.HEALTH_PORT || '', 10) || 8080, // ADR-0069 A6
+    port: resolvePort('mcpSse', ['MCP_SSE_PORT', 'HEALTH_PORT']), // ADR-0069 A6: env > config.ports.mcpSse > 8080
   }
 }).then(() => {
   console.error('✅ Agentic-Flow MCP Server running!');
