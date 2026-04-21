@@ -444,8 +444,41 @@ export class SkillLibrary {
 
     // Compute similarities
     const skillsWithSimilarity: (Skill & { similarity: number })[] = [];
+    // ADR-0094 Phase 13.2 fix: pre-embedded legacy fixtures (and skills
+    // created before the embedding write-through fix shipped) have rows
+    // in `skills` but no corresponding `skill_embeddings` row. Previously
+    // we silently skipped them (`if (!row.embedding) continue;`) which
+    // returned [] for every query against such a fixture — an ADR-0082
+    // silent-empty violation. Instead, when the embedding is missing,
+    // fall back to a substring match on name/description/code using the
+    // raw task text so the skill is still retrievable.
+    const taskLower = task.toLowerCase();
     for (const row of rows) {
-      if (!row.embedding) continue;
+      if (!row.embedding) {
+        // No embedding — use text-match similarity as a proxy
+        const haystack = [row.name, row.description ?? '', row.code ?? '']
+          .join('\n')
+          .toLowerCase();
+        const textMatch = haystack.includes(taskLower);
+        if (!textMatch) continue;
+        skillsWithSimilarity.push({
+          id: row.id,
+          name: row.name,
+          description: row.description ?? undefined,
+          signature: JSON.parse(row.signature),
+          code: row.code ?? undefined,
+          successRate: row.success_rate,
+          uses: row.uses,
+          avgReward: row.avg_reward,
+          avgLatencyMs: row.avg_latency_ms,
+          createdFromEpisode: row.created_from_episode ?? undefined,
+          metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+          // Conservative similarity score: lower than a real vector match
+          // but above zero so the result is ranked and returned.
+          similarity: 0.5,
+        });
+        continue;
+      }
 
       const embedding = new Float32Array(row.embedding.buffer);
       const similarity = cosineSimilarity(queryEmbedding, embedding);
