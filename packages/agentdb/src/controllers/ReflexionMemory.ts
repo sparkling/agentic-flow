@@ -315,6 +315,15 @@ export class ReflexionMemory {
       episodes = await this.retrieveFromGenericGraph(query);
     } else if (this.vectorBackend) {
       episodes = await this.retrieveFromVectorBackend(queryEmbedding, query);
+      // ADR-0094 Phase 13.2 fix: vectorBackend is an in-memory
+      // accelerator that is *not* persisted across CLI process
+      // boundaries — but SQLite episode_embeddings ARE persisted.
+      // If the vectorBackend came back empty, ALWAYS fall back to
+      // the SQL similarity search before declaring "no matches".
+      // ADR-0082 forbids silent-empty returns when a fallback exists.
+      if (episodes.length === 0) {
+        episodes = await this.retrieveFromSQLFallback(queryEmbedding, query);
+      }
     } else {
       episodes = await this.retrieveFromSQLFallback(queryEmbedding, query);
     }
@@ -431,13 +440,34 @@ export class ReflexionMemory {
 
   /**
    * Retrieve episodes using SQL-based similarity search (fallback)
+   *
+   * ADR-0094 Phase 13.2 fix: previously this method called
+   * `this.buildSQLFilters()` and `this.cosineSimilarity()` — neither
+   * existed as methods on the class. The moment this branch executed
+   * it threw ReferenceError, caught nowhere, surfacing as a silent
+   * empty result through `retrieveRelevant`. Inline the filter
+   * construction (pattern from the unreachable block further down in
+   * the file) and use the imported `cosineSimilarity` function.
    */
   private async retrieveFromSQLFallback(
     queryEmbedding: Float32Array,
     query: ReflexionQuery
   ): Promise<EpisodeWithEmbedding[]> {
-    const { k = 5 } = query;
-    const { whereClause, params } = this.buildSQLFilters(query);
+    const { k = 5, minReward, onlyFailures, onlySuccesses, timeWindowDays } = query;
+
+    const filters: string[] = [];
+    const params: any[] = [];
+    if (minReward !== undefined) {
+      filters.push('e.reward >= ?');
+      params.push(minReward);
+    }
+    if (onlyFailures) filters.push('e.success = 0');
+    if (onlySuccesses) filters.push('e.success = 1');
+    if (timeWindowDays) {
+      filters.push("e.ts > strftime('%s', 'now') - ?");
+      params.push(timeWindowDays * 86400);
+    }
+    const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
 
     const stmt = this.db.prepare<DatabaseRows.Episode & { embedding: Buffer }>(`
       SELECT e.*, ee.embedding
@@ -452,7 +482,7 @@ export class ReflexionMemory {
     // Calculate similarities and convert
     const episodes: EpisodeWithEmbedding[] = rows.map((row) => {
       const embedding = this.deserializeEmbedding(row.embedding);
-      const similarity = this.cosineSimilarity(queryEmbedding, embedding);
+      const similarity = cosineSimilarity(queryEmbedding, embedding);
       return this.convertDatabaseEpisode(row, similarity, embedding);
     });
 

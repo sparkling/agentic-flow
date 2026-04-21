@@ -220,7 +220,19 @@ export class SkillLibrary {
     const text = this.buildSkillText(skill);
     const embedding = await this.embedder.embed(text);
 
-    // Store in VectorBackend with skill metadata (if available)
+    // ADR-0094 Phase 13.2 fix: ALWAYS persist embedding to SQLite
+    // skill_embeddings, regardless of whether a vectorBackend is wired.
+    // Previously only the `else` branch wrote to SQLite — so when the
+    // runtime (AgentDB.initialize) passed an in-memory vectorBackend,
+    // the embedding lived only in that per-process index. A subsequent
+    // CLI invocation had a fresh empty vectorBackend, and the read
+    // path in `retrieveSkills` couldn't find anything. SQLite is the
+    // cross-process truth store (.swarm/memory.db); the vectorBackend
+    // is an accelerator. Mirrors ReflexionMemory.storeEpisode which
+    // already does vectorBackend.insert + storeEmbedding in tandem.
+    this.storeSkillEmbeddingLegacy(skillId, embedding);
+
+    // Also populate the in-memory vectorBackend accelerator if available
     if (this.vectorBackend) {
       try {
         this.vectorBackend.insert(
@@ -234,12 +246,9 @@ export class SkillLibrary {
           }
         );
       } catch {
-        // VectorBackend insert failed — fall back to legacy
-        this.storeSkillEmbeddingLegacy(skillId, embedding);
+        // vectorBackend insert failed — SQLite already has it, so
+        // retrieveSkillsLegacy will still find this skill on search.
       }
-    } else {
-      // Legacy: store in database
-      this.storeSkillEmbeddingLegacy(skillId, embedding);
     }
 
     return skillId;
@@ -346,6 +355,14 @@ export class SkillLibrary {
       try {
         const searchResults = this.vectorBackend.search(queryEmbedding, k * 3);
 
+        // ADR-0094 Phase 13.2 fix: when the vectorBackend is empty (e.g.
+        // fresh process, only SQLite is persisted), fall through to the
+        // SQL-based retrieveSkillsLegacy instead of returning []. ADR-0082
+        // forbids silent-empty returns when a fallback path exists.
+        if (!searchResults || searchResults.length === 0) {
+          return this.retrieveSkillsLegacy(query);
+        }
+
         // Map results back to skill IDs and fetch full skill data
         const skillsWithSimilarity: (Skill & { similarity: number })[] = [];
 
@@ -378,6 +395,14 @@ export class SkillLibrary {
             metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
             similarity: result.similarity
           });
+        }
+
+        // ADR-0094 Phase 13.2 fix: vectorBackend returned candidates but
+        // none survived the SQLite join (e.g. vectorBackend state is stale
+        // — ids in the in-memory index don't match rows in skills table).
+        // Fall through to SQL similarity search rather than return empty.
+        if (skillsWithSimilarity.length === 0) {
+          return this.retrieveSkillsLegacy(query);
         }
 
         // Compute composite scores
