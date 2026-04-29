@@ -1,6 +1,6 @@
 {
   "name": "agent-booster",
-  "version": "0.2.2-patch.350",
+  "version": "0.2.2-patch.352",
   "description": "High-performance prompt optimization with automatic native/WASM binding detection",
   "main": "index.js",
   "types": "index.d.ts",
@@ -26,7 +26,7 @@
     "directory": "agent-booster/npm/agent-booster"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=20"
   },
   "optionalDependencies": {
     "@agent-booster/native-darwin-arm64": "^0.1.0",

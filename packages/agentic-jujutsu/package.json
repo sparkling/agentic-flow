@@ -80,7 +80,7 @@
     "mocha": "^11.7.5"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=20"
   },
   "publishConfig": {
     "access": "public",
