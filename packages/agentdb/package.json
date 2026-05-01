@@ -1,6 +1,6 @@
 {
   "name": "agentdb",
-  "version": "3.0.0-alpha.10-patch.399",
+  "version": "3.0.0-alpha.10-patch.400",
   "description": "AgentDB v3 — Proof-gated graph intelligence for AI agents. Every state mutation requires cryptographic proof. Native Rust performance via @ruvector/graph-transformer with 8 verified graph modules, HNSW search, causal reasoning, and reflexion memory.",
   "type": "module",
   "main": "dist/src/index.js",
@@ -131,15 +131,15 @@
     "ajv": "^8.17.1",
     "sql.js": "^1.13.0",
     "zod": "^3.25.76",
-    "ruvector": "0.1.2-patch.390"
+    "ruvector": "0.1.2-patch.391"
   },
   "optionalDependencies": {
-    "@ruvector/graph-transformer": "2.0.4-patch.8",
-    "@ruvector/attention": "0.1.4-patch.8",
-    "@ruvector/gnn": "0.1.25-patch.8",
-    "@ruvector/graph-node": "2.0.2-patch.8",
-    "@ruvector/router": "0.1.28-patch.8",
-    "@ruvector/sona": "0.1.5-patch.8",
+    "@ruvector/graph-transformer": "2.0.4-patch.9",
+    "@ruvector/attention": "0.1.4-patch.9",
+    "@ruvector/gnn": "0.1.25-patch.9",
+    "@ruvector/graph-node": "2.0.2-patch.9",
+    "@ruvector/router": "0.1.28-patch.9",
+    "@ruvector/sona": "0.1.5-patch.9",
     "chalk": "^5.3.0",
     "cli-table3": "^0.6.0",
     "commander": "^12.1.0",
@@ -151,9 +151,9 @@
     "ruvector-attention-wasm": "^0.1.0",
     "ruvector-graph-transformer-wasm": "^2.0.4",
     "sqlite": "^5.1.1",
-    "@ruvector/ruvllm": "2.5.4-patch.8",
-    "@ruvector/rvf-wasm": "0.1.5-patch.8",
-    "@ruvector/rvf": "0.2.0-patch.8"
+    "@ruvector/ruvllm": "2.5.4-patch.9",
+    "@ruvector/rvf-wasm": "0.1.5-patch.9",
+    "@ruvector/rvf": "0.2.0-patch.9"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
