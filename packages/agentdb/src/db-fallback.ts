@@ -59,6 +59,13 @@ function createSqlJsWrapper(SQL: any) {
     private filename: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sql.js Statement instances
     private activeStatements: Map<number, any> = new Map();
+    // Cache wrappers by SQL text so repeated db.prepare(sameSql) returns the
+    // same underlying sql.js Statement and doesn't add a new entry to
+    // activeStatements. Without this, callers using the
+    // db.prepare(sql).run(...)-and-discard pattern (idiomatic in
+    // better-sqlite3, where V8 GCs the handle) leak forever under sql.js.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prepared-statement wrapper objects
+    private statementCache: Map<string, any> = new Map();
     private statementCounter: number = 0;
     private intervalId: NodeJS.Timeout | null = null;
 
@@ -99,14 +106,31 @@ function createSqlJsWrapper(SQL: any) {
     }
 
     prepare(sql: string) {
+      // Reuse the cached wrapper for an identical SQL string. The cache owns
+      // the underlying stmt's lifetime; finalize() is a no-op on a cached
+      // wrapper so concurrent callers that all called prepare(sql) keep
+      // working. close() drops everything.
+      const cached = this.statementCache.get(sql);
+      if (cached) return cached;
+
       const stmt = this.db.prepare(sql);
       let isFinalized = false;
       const stmtId = ++this.statementCounter;
+      const self = this;
 
       // Track active statement
       this.activeStatements.set(stmtId, stmt);
 
-      return {
+      const evictOnError = () => {
+        if (!isFinalized) {
+          stmt.free();
+          isFinalized = true;
+          self.activeStatements.delete(stmtId);
+          self.statementCache.delete(sql);
+        }
+      };
+
+      const wrapper = {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sql.js bind accepts heterogeneous params
         run: (...params: any[]) => {
           if (isFinalized) throw new Error('Statement already finalized');
@@ -120,12 +144,7 @@ function createSqlJsWrapper(SQL: any) {
               lastInsertRowid: this.db.exec('SELECT last_insert_rowid()')[0]?.values[0]?.[0] || 0
             };
           } catch (error) {
-            // Auto-free on error to prevent memory leak
-            if (!isFinalized) {
-              stmt.free();
-              isFinalized = true;
-              this.activeStatements.delete(stmtId);
-            }
+            evictOnError();
             throw error;
           }
         },
@@ -153,12 +172,7 @@ function createSqlJsWrapper(SQL: any) {
 
             return result;
           } catch (error) {
-            // Auto-free on error to prevent memory leak
-            if (!isFinalized) {
-              stmt.free();
-              isFinalized = true;
-              this.activeStatements.delete(stmtId);
-            }
+            evictOnError();
             throw error;
           }
         },
@@ -185,24 +199,20 @@ function createSqlJsWrapper(SQL: any) {
             stmt.reset();
             return results;
           } catch (error) {
-            // Auto-free on error to prevent memory leak
-            if (!isFinalized) {
-              stmt.free();
-              isFinalized = true;
-              this.activeStatements.delete(stmtId);
-            }
+            evictOnError();
             throw error;
           }
         },
 
         finalize: () => {
-          if (!isFinalized) {
-            stmt.free();
-            isFinalized = true;
-            this.activeStatements.delete(stmtId);
-          }
+          // No-op while cached: the wrapper is shared and finalize() must not
+          // tear out a stmt another caller is about to use. close() handles
+          // the real teardown.
         }
       };
+
+      this.statementCache.set(sql, wrapper);
+      return wrapper;
     }
 
     exec(sql: string) {
@@ -244,6 +254,7 @@ function createSqlJsWrapper(SQL: any) {
         }
       }
       this.activeStatements.clear();
+      this.statementCache.clear();
 
       // Save to file before closing
       this.save();
@@ -306,16 +317,31 @@ export async function createDatabase(filename: string, options?: unknown): Promi
 export function wrapExistingSqlJsDatabase(rawDb: any, filename: string = ':memory:'): any {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sql.js Statement instances
   const activeStatements = new Map<number, any>();
+  // SQL-text cache; see SqlJsDatabase.statementCache for rationale.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- prepared-statement wrapper objects
+  const statementCache = new Map<string, any>();
   let statementCounter = 0;
 
   return {
     prepare(sql: string) {
+      const cached = statementCache.get(sql);
+      if (cached) return cached;
+
       const stmt = rawDb.prepare(sql);
       let isFinalized = false;
       const stmtId = ++statementCounter;
       activeStatements.set(stmtId, stmt);
 
-      return {
+      const evictOnError = () => {
+        if (!isFinalized) {
+          stmt.free();
+          isFinalized = true;
+          activeStatements.delete(stmtId);
+          statementCache.delete(sql);
+        }
+      };
+
+      const wrapper = {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sql.js bind accepts heterogeneous params
         run(...params: any[]) {
           if (isFinalized) throw new Error('Statement already finalized');
@@ -328,7 +354,7 @@ export function wrapExistingSqlJsDatabase(rawDb: any, filename: string = ':memor
               lastInsertRowid: rawDb.exec('SELECT last_insert_rowid()')[0]?.values[0]?.[0] || 0,
             };
           } catch (error) {
-            if (!isFinalized) { stmt.free(); isFinalized = true; activeStatements.delete(stmtId); }
+            evictOnError();
             throw error;
           }
         },
@@ -346,7 +372,7 @@ export function wrapExistingSqlJsDatabase(rawDb: any, filename: string = ':memor
             columns.forEach((col: string, idx: number) => { result[col] = values[idx]; });
             return result;
           } catch (error) {
-            if (!isFinalized) { stmt.free(); isFinalized = true; activeStatements.delete(stmtId); }
+            evictOnError();
             throw error;
           }
         },
@@ -366,14 +392,17 @@ export function wrapExistingSqlJsDatabase(rawDb: any, filename: string = ':memor
             stmt.reset();
             return results;
           } catch (error) {
-            if (!isFinalized) { stmt.free(); isFinalized = true; activeStatements.delete(stmtId); }
+            evictOnError();
             throw error;
           }
         },
         finalize() {
-          if (!isFinalized) { stmt.free(); isFinalized = true; activeStatements.delete(stmtId); }
+          // No-op while cached; close() handles teardown.
         },
       };
+
+      statementCache.set(sql, wrapper);
+      return wrapper;
     },
 
     exec(sql: string) {
@@ -394,6 +423,7 @@ export function wrapExistingSqlJsDatabase(rawDb: any, filename: string = ':memor
         try { stmt.free(); } catch { /* already freed */ }
       }
       activeStatements.clear();
+      statementCache.clear();
       this.save();
       rawDb.close();
     },
