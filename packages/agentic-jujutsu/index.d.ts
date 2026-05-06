@@ -466,7 +466,7 @@ export const enum ChangeStatus {
  * Provides methods for generating keypairs, signing commits, and verifying signatures
  * using ML-DSA-65 post-quantum cryptography.
  */
-export declare class QuantumSigner {
+export class QuantumSigner {
   /**
    * Generate a new ML-DSA-65 signing keypair
    *
@@ -605,7 +605,7 @@ export declare class QuantumSigner {
 }
 export type JJWrapper = JjWrapper
 /** Main wrapper for Jujutsu operations */
-export declare class JjWrapper {
+export class JjWrapper {
   /** Create a new JJWrapper with default configuration */
   constructor()
   /** Create a new JJWrapper with custom configuration */
