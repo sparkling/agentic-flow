@@ -7,7 +7,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { CostOptimizerService } from './cost-optimizer-service.js';
-import { getEmbeddingConfig, deriveHNSWParams } from '../../../packages/agentdb/src/config/embedding-config.js'; // ADR-0069
+import { getEmbeddingConfig, deriveHNSWParams } from 'agentdb'; // ADR-0069
 
 // -- Public interfaces ------------------------------------------------------
 
@@ -210,7 +210,7 @@ export class AgentDBService {
 
     try {
       const agentdb = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/index.js'
+        /* webpackIgnore: true */ 'agentdb'
       );
       const AgentDB = agentdb.AgentDB;
       this.db = new AgentDB({ dbPath });
@@ -226,7 +226,7 @@ export class AgentDBService {
       // ADR-063: Initialize RVFOptimizer for 2-100x embedding optimization
       try {
         const { RVFOptimizer } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/optimizations/RVFOptimizer.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
         // ADR-0069 A11: config-chain dedup threshold
         let _dedupThreshold = 0.95;
@@ -271,7 +271,7 @@ export class AgentDBService {
       let vectorBackend: any = null;
       try {
         const { createBackend } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/factory.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
         const hnswParams = deriveHNSWParams(embCfg.dimension); // ADR-0069: config-chain-aware
         vectorBackend = await createBackend('auto', {
@@ -295,13 +295,13 @@ export class AgentDBService {
       if (vectorBackend) {
         try {
           const { MutationGuard } = await import(
-            /* webpackIgnore: true */ '../../../packages/agentdb/src/security/MutationGuard.js'
+            /* webpackIgnore: true */ 'agentdb'
           );
           const { GuardedVectorBackend } = await import(
-            /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/ruvector/GuardedVectorBackend.js'
+            /* webpackIgnore: true */ 'agentdb'
           );
           const { AttestationLog } = await import(
-            /* webpackIgnore: true */ '../../../packages/agentdb/src/security/AttestationLog.js'
+            /* webpackIgnore: true */ 'agentdb'
           );
           const guard = new MutationGuard({
             dimension: embCfg.dimension, // ADR-0069: config-chain-aware
@@ -388,7 +388,7 @@ export class AgentDBService {
         this.hierarchicalMemory = this.db.getController('hierarchicalMemory');
         if (!this.hierarchicalMemory) {
           const { HierarchicalMemory } = await import(
-            /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/HierarchicalMemory.js'
+            /* webpackIgnore: true */ 'agentdb'
           );
           const graphBackend: any = null;
           this.hierarchicalMemory = new HierarchicalMemory(
@@ -407,7 +407,7 @@ export class AgentDBService {
         this.memoryConsolidation = this.db.getController('memoryConsolidation');
         if (!this.memoryConsolidation) {
           const { MemoryConsolidation } = await import(
-            /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/MemoryConsolidation.js'
+            /* webpackIgnore: true */ 'agentdb'
           );
           const graphBackend: any = null;
           this.memoryConsolidation = new MemoryConsolidation(
@@ -487,7 +487,7 @@ export class AgentDBService {
       this.attentionService = this.db.getController('attentionService');
       if (!this.attentionService) {
         const { AttentionService } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/AttentionService.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
         this.attentionService = new AttentionService({
           numHeads: 8,
@@ -507,7 +507,7 @@ export class AgentDBService {
     // 2. WASMVectorSearch - High-performance vector operations with ReasoningBank WASM
     try {
       const { WASMVectorSearch } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/WASMVectorSearch.js'
+        /* webpackIgnore: true */ 'agentdb'
       );
       this.wasmVectorSearch = new WASMVectorSearch(database, {
         enableWASM: true,
@@ -524,7 +524,7 @@ export class AgentDBService {
     // 3. MMRDiversityRanker - Already loaded statically, store reference
     try {
       const { MMRDiversityRanker } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/MMRDiversityRanker.js'
+        /* webpackIgnore: true */ 'agentdb'
       );
       this.mmrRanker = MMRDiversityRanker;
       console.log('[AgentDBService] MMRDiversityRanker initialized');
@@ -536,7 +536,7 @@ export class AgentDBService {
     // 4. ContextSynthesizer - Context generation from multiple memories
     try {
       const { ContextSynthesizer } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/ContextSynthesizer.js'
+        /* webpackIgnore: true */ 'agentdb'
       );
       this.contextSynthesizer = ContextSynthesizer;
       console.log('[AgentDBService] ContextSynthesizer initialized');
@@ -569,7 +569,7 @@ export class AgentDBService {
     // -------------------------------------------------------------------
     try {
       const onnxMod = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb-onnx/src/services/ONNXEmbeddingService.js'
+        /* webpackIgnore: true */ 'agentdb-onnx'
       );
       const ONNXEmbeddingService = (onnxMod as any).ONNXEmbeddingService;
       if (typeof ONNXEmbeddingService !== 'function') {
@@ -640,7 +640,7 @@ export class AgentDBService {
     // -------------------------------------------------------------------
     try {
       const { EnhancedEmbeddingService } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/EnhancedEmbeddingService.js'
+        /* webpackIgnore: true */ 'agentdb'
       );
 
       const enhanced = new EnhancedEmbeddingService({
@@ -701,7 +701,7 @@ export class AgentDBService {
       this.gnnLearning = this.db.getController('gnnLearning');
       if (!this.gnnLearning) {
         const { RuVectorLearning } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/ruvector/RuVectorLearning.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
 
         this.gnnLearning = new RuVectorLearning({
@@ -729,7 +729,7 @@ export class AgentDBService {
       this.semanticRouter = this.db.getController('semanticRouter');
       if (!this.semanticRouter) {
         const { SemanticRouter } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/services/SemanticRouter.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
 
         this.semanticRouter = new SemanticRouter();
@@ -764,7 +764,7 @@ export class AgentDBService {
       this.graphAdapter = this.db.getController('graphAdapter');
       if (!this.graphAdapter) {
         const { GraphDatabaseAdapter } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/backends/graph/GraphDatabaseAdapter.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
 
         const graphPath = path.join(process.cwd(), '.claude-flow', 'agentdb', 'graph.db');
@@ -795,7 +795,7 @@ export class AgentDBService {
       this.sonaService = this.db.getController('sonaService');
       if (!this.sonaService) {
         const { SonaTrajectoryService } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/services/SonaTrajectoryService.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
 
         this.sonaService = new SonaTrajectoryService();
@@ -829,14 +829,14 @@ export class AgentDBService {
     // 1. SyncCoordinator - Multi-instance sync with conflict resolution
     try {
       const { SyncCoordinator } = await import(
-        /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/SyncCoordinator.js'
+        /* webpackIgnore: true */ 'agentdb'
       );
       // Initialize QUIC client if enabled
       const quicEnabled = process.env.ENABLE_QUIC_SYNC === 'true';
       if (quicEnabled && process.env.QUIC_SERVER_HOST) {
         try {
           const { QUICClient } = await import(
-            /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/QUICClient.js'
+            /* webpackIgnore: true */ 'agentdb'
           );
           this.quicClient = new QUICClient({
             serverHost: process.env.QUIC_SERVER_HOST || 'localhost',
@@ -869,7 +869,7 @@ export class AgentDBService {
       this.nightlyLearner = this.db.getController('nightlyLearner');
       if (!this.nightlyLearner) {
         const { NightlyLearner } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/NightlyLearner.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
         // ADR-0069 A7: config-chain similarity threshold
         const _cfgSimThreshold = (() => { try { const c = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), '.claude-flow', 'config.json'), 'utf-8')); return c?.memory?.similarityThreshold; } catch { return undefined; } })();
@@ -897,7 +897,7 @@ export class AgentDBService {
       this.explainableRecall = this.db.getController('explainableRecall');
       if (!this.explainableRecall) {
         const { ExplainableRecall } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/ExplainableRecall.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
         this.explainableRecall = new ExplainableRecall(database, this.embeddingService, {
           ENABLE_GRAPH_ROPE: false,
@@ -914,7 +914,7 @@ export class AgentDBService {
     if (quicServerEnabled) {
       try {
         const { QUICServer } = await import(
-          /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/QUICServer.js'
+          /* webpackIgnore: true */ 'agentdb'
         );
         this.quicServer = new QUICServer(database, {
           host: process.env.QUIC_SERVER_HOST || '0.0.0.0',
@@ -962,7 +962,7 @@ export class AgentDBService {
         if (filters && Object.keys(filters).length > 0) {
           try {
             const { MetadataFilter } = await import(
-              /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/MetadataFilter.js'
+              /* webpackIgnore: true */ 'agentdb'
             );
             episodes = MetadataFilter.apply(episodes, filters);
           } catch { /* MetadataFilter unavailable */ }
@@ -1050,7 +1050,7 @@ export class AgentDBService {
         if (filters && Object.keys(filters).length > 0) {
           try {
             const { MetadataFilter } = await import(
-              /* webpackIgnore: true */ '../../../packages/agentdb/src/controllers/MetadataFilter.js'
+              /* webpackIgnore: true */ 'agentdb'
             );
             skills = MetadataFilter.apply(skills, filters);
           } catch { /* MetadataFilter unavailable */ }
