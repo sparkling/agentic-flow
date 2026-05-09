@@ -130,3 +130,10 @@ hive-mind-prompt-*.txt
 
 # Agentic-flow runtime
 .agentic-flow/
+
+# Benchmark output (regenerated on every test run)
+benchmark-results/
+agentdb.db-shm
+
+# Claude Code session-only state
+.claude/scheduled_tasks.lock
