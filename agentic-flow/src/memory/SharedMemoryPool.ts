@@ -119,6 +119,9 @@ export class SharedMemoryPool {
     this.db = new Database(this.options.dbPath);
     // Reasonable defaults for an embedded reasoning database.
     this.db.pragma('journal_mode = WAL');
+    // ADR-0069 A1: required with WAL — bound writer-lock contention so a
+    // concurrent writer waits up to 5s instead of failing with SQLITE_BUSY.
+    this.db.pragma('busy_timeout = 5000');
     this.db.pragma('foreign_keys = ON');
     this.db.pragma('synchronous = NORMAL');
 
