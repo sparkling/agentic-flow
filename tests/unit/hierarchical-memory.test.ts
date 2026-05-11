@@ -54,7 +54,7 @@ describe('HierarchicalMemory - 3-Tier System', () => {
 
     it('should enforce working memory size limit', async () => {
       // Create memory with small limit
-      const smallMemory = new HierarchicalMemory(db, embedder, undefined, undefined, {
+      const smallMemory = new HierarchicalMemory(db, embedder, undefined, {
         workingMemoryLimit: 100, // 100 bytes
       });
 

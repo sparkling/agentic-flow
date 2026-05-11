@@ -390,12 +390,12 @@ export class AgentDBService {
           const { HierarchicalMemory } = await import(
             /* webpackIgnore: true */ 'agentdb'
           );
-          const graphBackend: any = null;
+          // ADR-0166 Phase 1.5: HierarchicalMemory's `graphBackend` parameter
+          // was dead (declared/assigned, never read) and has been removed.
           this.hierarchicalMemory = new HierarchicalMemory(
             database,
             this.embeddingService,
             vectorBackend,
-            graphBackend,
             {
               workingMemoryLimit: 1024 * 1024, // 1MB
               episodicWindow: 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -409,13 +409,12 @@ export class AgentDBService {
           const { MemoryConsolidation } = await import(
             /* webpackIgnore: true */ 'agentdb'
           );
-          const graphBackend: any = null;
+          // ADR-0166 Phase 1.5: same dead-parameter removal as HierarchicalMemory.
           this.memoryConsolidation = new MemoryConsolidation(
             database,
             this.hierarchicalMemory,
             this.embeddingService,
             vectorBackend,
-            graphBackend,
             {
               clusterThreshold: 0.75,
               importanceThreshold: 0.6,
