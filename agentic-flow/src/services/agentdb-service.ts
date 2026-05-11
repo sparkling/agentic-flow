@@ -305,9 +305,6 @@ export class AgentDBService {
           const { GuardedVectorBackend } = await import(
             /* webpackIgnore: true */ 'agentdb'
           );
-          const { AttestationLog } = await import(
-            /* webpackIgnore: true */ 'agentdb'
-          );
           const guard = new MutationGuard({
             dimension: embCfg.dimension, // ADR-0069: config-chain-aware
             maxElements: hnswParams.maxElements, // ADR-0069: use config-chain capacity
@@ -316,8 +313,12 @@ export class AgentDBService {
             defaultNamespace: 'agentdb',
           });
           await guard.initialize();
-          const attestLog = new AttestationLog(database);
-          controllerVB = new GuardedVectorBackend(vectorBackend, guard, attestLog);
+          // ADR-0170 Phase B (Wave 1a end): AttestationLog DDL is SQLite-
+          // dialect (INTEGER PRIMARY KEY AUTOINCREMENT, strftime('%s','now'))
+          // and pglite rejects it with "syntax error at or near AUTOINCREMENT".
+          // Wave 1b ports AttestationLog to postgres dialect; until then,
+          // construct the GuardedVectorBackend without an AttestationLog.
+          controllerVB = new GuardedVectorBackend(vectorBackend, guard, undefined);
           console.log(`[AgentDBService] VectorBackend guarded (${guard.getStats().engineType})`);
         } catch (guardErr) {
           const msg = guardErr instanceof Error ? guardErr.message : String(guardErr);
