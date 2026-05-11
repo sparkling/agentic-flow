@@ -213,6 +213,11 @@ export class AgentDBService {
         /* webpackIgnore: true */ 'agentdb'
       );
       const AgentDB = agentdb.AgentDB;
+      // ADR-0170 Phase A.8b: AgentDB defaults under ADR-0170 are
+      // vectorIndex='auto' and primaryStorage='pglite'. agentic-flow does
+      // not force a value; users wishing to opt into postgres server mode
+      // pass {connectionString: '...'} via AgentDBService's
+      // initializeWithConfig() path (Phase B may wire that explicitly).
       this.db = new AgentDB({ dbPath });
       await this.db.initialize();
 
