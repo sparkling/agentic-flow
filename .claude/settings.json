@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /workspaces/agentic-flow/.claude/helpers/autopilot-hook.mjs",
+            "command": "node /workspaces/agentic-flow/agentic-flow/.claude/helpers/autopilot-hook.mjs",
             "timeout": 15000
           },
           {
