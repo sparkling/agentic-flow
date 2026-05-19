@@ -197,8 +197,25 @@ export class AgentDBService {
   })();
 
   /** ADR-0195 Phase 4: tracks which synthetic autopilot sessionIds have
-   *  had `LearningSystem.startSession` invoked (lazy-bind, once per sid). */
+   *  had `LearningSystem.startSession` invoked (lazy-bind, once per sid).
+   *
+   *  ADR-0195 critique LOW 0195.3: bounded with FIFO eviction so long-running
+   *  daemons can't accumulate session ids forever. Capacity 1000 matches the
+   *  _MAX_LIST cap that already bounds episode queries; sessions evicted from
+   *  here only re-cost one extra startSession call per re-emit, not data loss.
+   *  Add via `_trackSessionBound(sid)` rather than `.add()` directly. */
+  private static readonly _AUTOPILOT_SESSIONS_BOUND_CAP = 1000;
   private readonly _autopilotSessionsBound = new Set<string>();
+
+  /** Bounded FIFO add for `_autopilotSessionsBound`. Drops oldest on overflow. */
+  private _trackSessionBound(sid: string): void {
+    const cap = AgentDBService._AUTOPILOT_SESSIONS_BOUND_CAP;
+    if (this._autopilotSessionsBound.size >= cap && !this._autopilotSessionsBound.has(sid)) {
+      const oldest = this._autopilotSessionsBound.values().next().value;
+      if (oldest !== undefined) this._autopilotSessionsBound.delete(oldest);
+    }
+    this._autopilotSessionsBound.add(sid);
+  }
 
   // ADR-0076: counters track fallback operations (no data stored in-memory)
   private fallbackEpisodeCount = 0;
@@ -1455,7 +1472,7 @@ export class AgentDBService {
           `(treating as already-bound): ${msg}`,
         );
       }
-      this._autopilotSessionsBound.add(sid);
+      this._trackSessionBound(sid);
     }
     try {
       await ls.submitFeedback({
@@ -1546,7 +1563,7 @@ export class AgentDBService {
           `threw (treating as already-bound): ${msg}`,
         );
       }
-      this._autopilotSessionsBound.add(sid);
+      this._trackSessionBound(sid);
     }
     try {
       await ls.submitFeedback({

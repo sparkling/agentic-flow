@@ -639,7 +639,26 @@ export class AutopilotLearning {
   async discoverPatternsByEmbedding(
     episodes: AutopilotEpisode[],
   ): Promise<DiscoveredPattern[]> {
-    if (!this._available || !this._agentdb) return [];
+    // Per feedback-no-fallbacks: when the controller is unavailable or the
+    // agentdb handle is null, the method cannot do its job. Throw instead of
+    // returning an empty result, which would silently mask the degraded
+    // state. discoverSuccessPatterns has its own outer `_available` guard
+    // (~line 545) that returns the Phase-2-only union before reaching here.
+    // Direct callers must check isAvailable() first.
+    if (!this._available) {
+      throw new Error(
+        '[AutopilotLearning] discoverPatternsByEmbedding: controller not ' +
+        'available (embeddings service did not initialise). Call ' +
+        '`isAvailable()` before invoking, or use `discoverSuccessPatterns` ' +
+        "which retains Phase 2's keyword discovery in degraded mode.",
+      );
+    }
+    if (!this._agentdb) {
+      throw new Error(
+        '[AutopilotLearning] discoverPatternsByEmbedding: _agentdb is null ' +
+        '(initialised state inconsistent — possible race with disable()).',
+      );
+    }
     if (episodes.length < this._clusterConfig.minSize) return [];
     // ADR-0194 security hardening: defense-in-depth cap on greedy
     // clustering's O(n²) worst case. Per `feedback-no-fallbacks`,
