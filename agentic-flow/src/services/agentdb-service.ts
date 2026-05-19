@@ -1240,6 +1240,27 @@ export class AgentDBService {
     return SonaRvfService.getInstance();
   }
 
+  /**
+   * ADR-0193 §D follow-up: delegate to the underlying AgentDB.getController()
+   * so consumers can reach any registered controller (queryOptimizer,
+   * auditLogger, batchOperations, etc.) without reaching into the private
+   * `this.db` field. Returns null when the underlying db isn't initialized
+   * or when the controller name is unknown (caught from AgentDB's throw).
+   */
+  getController(name: string): unknown {
+    if (!this.db || typeof this.db.getController !== 'function') {
+      return null;
+    }
+    try {
+      return this.db.getController(name);
+    } catch {
+      // AgentDB.getController throws on unknown names per its default case;
+      // return null instead so consumers can probe-before-use without
+      // wrapping every call.
+      return null;
+    }
+  }
+
   // -- Graph ----------------------------------------------------------------
 
   /**
