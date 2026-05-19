@@ -87,6 +87,7 @@ interface AgentDBLike {
     metadata?: Record<string, unknown>;
     ts?: number;
   }>>;
+  getFallbackStatus?(): { degraded?: boolean; backend?: string; initError?: string | null };
 }
 
 export class AutopilotLearning {
@@ -101,15 +102,37 @@ export class AutopilotLearning {
         this._available = false;
         return false;
       }
+      const asAdb = inst as unknown as AgentDBLike;
       // The AgentDBService surface we depend on: storeEpisode +
       // recallEpisodes. If either is missing, treat as unavailable
       // rather than throwing on first use.
-      if (typeof (inst as unknown as AgentDBLike).storeEpisode !== 'function'
-          || typeof (inst as unknown as AgentDBLike).recallEpisodes !== 'function') {
+      if (typeof asAdb.storeEpisode !== 'function'
+          || typeof asAdb.recallEpisodes !== 'function') {
         this._available = false;
         return false;
       }
-      this._agentdb = inst as unknown as AgentDBLike;
+      // ADR-0192: AgentDBService runs in DEGRADED mode when its underlying
+      // `agentdb` package import or init fails (e.g., `AgentDB is not a
+      // constructor` if the package shape doesn't match expectations).
+      // In that mode, `storeEpisode` throws via `assertPersistent` — every
+      // `recordTaskCompletion` would explode at runtime. Surface this as
+      // graceful-unavailable here so consumers see a typed `available:false`
+      // (the absence-not-accepted contract) rather than a midstream throw.
+      if (typeof asAdb.getFallbackStatus === 'function') {
+        try {
+          const status = asAdb.getFallbackStatus();
+          if (status?.degraded === true) {
+            this._available = false;
+            return false;
+          }
+        } catch {
+          // getFallbackStatus shouldn't throw, but if it does treat as
+          // an unknown state and refuse to claim availability.
+          this._available = false;
+          return false;
+        }
+      }
+      this._agentdb = asAdb;
       this._available = true;
       return true;
     } catch {
