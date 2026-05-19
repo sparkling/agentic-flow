@@ -1355,6 +1355,32 @@ export class AgentDBService {
         });
       });
     });
+
+    // ADR-0195 §"Open questions" #3 — trajectory step-level feedback.
+    // OFF by default. The ADR explicitly raised the tradeoff: N inserts
+    // per swarm (one per step) vs 1 (episode-level). When the env flag
+    // is unset/false, the subscriber is NOT attached → zero overhead,
+    // matching Phase 4's original episode-only disposition. When the
+    // flag is true, each `trajectory:step` becomes a `submitFeedback`
+    // call against a trajectory-scoped sessionId so Q-learning sees
+    // step-by-step policy updates within a session.
+    if (process.env.STEP_LEVEL_FEEDBACK_ENABLED === 'true') {
+      this.learningEvents.on('trajectory:step', (payload: {
+        trajectoryId: number;
+        state: string;
+        action: string;
+        reward: number;
+      }) => {
+        setImmediate(() => {
+          this._handleAutopilotStep(payload).catch((err) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.learningEvents.emit('error', new Error(
+              `trajectory:step handler failed (trajectoryId=${payload.trajectoryId}): ${msg}`,
+            ));
+          });
+        });
+      });
+    }
   }
 
   /**
@@ -1440,6 +1466,100 @@ export class AgentDBService {
         return;
       }
       // Re-throw so the bus's 'error' listener surfaces it.
+      throw err;
+    }
+  }
+
+  /**
+   * ADR-0195 §"Open questions" #3: translate an autopilot
+   * `trajectory:step` event into a `LearningSystem.submitFeedback` call.
+   *
+   * **sessionId scheme**: `autopilot:${sha1(trajectoryId)}:step` — ONE
+   * sessionId per trajectory (not per step). Q-learning needs policy
+   * continuity across steps within a session; per-step sessionIds would
+   * defeat the algorithm (each session would have a single sample, no
+   * temporal-difference signal). The trajectory id is the natural
+   * grouping unit — all steps of one swarm share one sid.
+   *
+   * **Reward shape**: pass-through. The producer (`recordIterationStep`
+   * at autopilot-learning.ts:480-496) already coerces `progress` to a
+   * numeric reward and hands it to `sona.addStep`; the step-level
+   * `submitFeedback` receives that same value. No shaping helper is
+   * applied at the step layer (`_computeShapedReward` is episode-level
+   * only — it folds critique penalties + iteration efficiency, neither
+   * of which is meaningful per-step).
+   *
+   * Guarded by `STEP_LEVEL_FEEDBACK_ENABLED=true`. When the flag is
+   * unset, this method is never invoked (the listener isn't attached).
+   *
+   * Error contract mirrors `_handleAutopilotEpisode`:
+   * - `learningSystem` null → loud log + skip.
+   * - schema/session not provisioned → warn + skip.
+   * - other errors → re-throw, surface via bus's `'error'` listener.
+   */
+  private async _handleAutopilotStep(payload: {
+    trajectoryId: number;
+    state: string;
+    action: string;
+    reward: number;
+  }): Promise<void> {
+    const ls = this.learningSystem;
+    if (!ls) {
+      console.error(
+        '[AgentDBService] Phase 4 step subscriber: learningSystem unavailable ' +
+        `(trajectoryId=${payload.trajectoryId}); cannot submitFeedback. ` +
+        'Check init logs for the original LearningSystem construction error.',
+      );
+      return;
+    }
+    const sid = `autopilot:${nodeCrypto.createHash('sha1').update(String(payload.trajectoryId)).digest('hex')}:step`;
+    if (!this._autopilotSessionsBound.has(sid)) {
+      try {
+        await ls.startSession('autopilot-step', 'q-learning', {
+          algorithm: 'q-learning',
+          learningRate: 0.1,
+          discountFactor: 0.9,
+          explorationRate: 0.1,
+          customSessionId: sid,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/no such table/i.test(msg)) {
+          console.warn(
+            `[AgentDBService] Phase 4 step subscriber: learning_sessions ` +
+            `schema not yet provisioned; skipping startSession for ${sid}`,
+          );
+          return;
+        }
+        console.warn(
+          `[AgentDBService] Phase 4 step subscriber: startSession(${sid}) ` +
+          `threw (treating as already-bound): ${msg}`,
+        );
+      }
+      this._autopilotSessionsBound.add(sid);
+    }
+    try {
+      await ls.submitFeedback({
+        sessionId: sid,
+        state: payload.state,
+        action: payload.action,
+        reward: payload.reward,
+        // Step-level events don't carry success/failure; the trajectory's
+        // outcome is signalled by the episode-level emit. Pass the
+        // reward sign as a hint so older LearningSystem versions that
+        // require `success` get a sensible value.
+        success: payload.reward > 0,
+        timestamp: Date.now(),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/no such table/i.test(msg) || /Session not found/i.test(msg)) {
+        console.warn(
+          `[AgentDBService] Phase 4 step subscriber: submitFeedback(${sid}) ` +
+          `skipped (schema/session not ready): ${msg}`,
+        );
+        return;
+      }
       throw err;
     }
   }
