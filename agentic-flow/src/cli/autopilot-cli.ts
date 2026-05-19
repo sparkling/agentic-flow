@@ -20,10 +20,19 @@ function ensureDataDir(): void {
 }
 
 function loadState(): { iterations: number; startTime: number; sessionId: string | null } {
+  // ADR-0191 Cluster D: ENOENT-only discrimination. Corrupt state JSON is a
+  // real bug and must fail loud — silently resetting the iteration counter
+  // would mask runaway autopilot loops. See loadSettings comment for the
+  // existsSync+catch race rationale.
   if (existsSync(STATE_FILE)) {
     try {
       return JSON.parse(readFileSync(STATE_FILE, 'utf-8'));
-    } catch { /* corrupt */ }
+    } catch (e: unknown) {
+      if ((e as { code?: string } | null)?.code === 'ENOENT') {
+        return { iterations: 0, startTime: Date.now(), sessionId: null };
+      }
+      throw e;
+    }
   }
   return { iterations: 0, startTime: Date.now(), sessionId: null };
 }
