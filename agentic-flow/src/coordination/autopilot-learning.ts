@@ -34,6 +34,10 @@
  *   process-wide aggregate of every SonaRvfService consumer.
  */
 
+// === PHASE 4 BEGIN (ADR-0195 cross-controller event bus) ===
+import type { EventEmitter } from 'node:events';
+// === PHASE 4 END ===
+
 export interface AutopilotEpisode {
   taskId: string;
   subject: string;

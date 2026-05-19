@@ -6,6 +6,8 @@
  */
 import * as path from 'path';
 import * as fs from 'fs';
+import * as nodeCrypto from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { CostOptimizerService } from './cost-optimizer-service.js';
 import { getEmbeddingConfig, deriveHNSWParams } from 'agentdb'; // ADR-0069
 
@@ -172,6 +174,21 @@ export class AgentDBService {
 
   // ADR-064: Cost Optimizer for 90% savings via intelligent model routing
   private costOptimizer: CostOptimizerService | null = null;
+
+  /**
+   * ADR-0195 Phase 4: process-local cross-controller event bus.
+   * AutopilotLearning (transient per-CLI producer) emits four events via
+   * `_resolveEventBus`; LearningSystem (boot-time subscriber) attaches in
+   * `_attachLearningSubscriber()` to translate `episode:recorded` into
+   * `LearningSystem.submitFeedback` with synthesized per-subject
+   * sessionIds. Mirrors the agentic-flow EventEmitter precedent
+   * (HookService, StreamingService, etc.).
+   */
+  private readonly learningEvents = new EventEmitter();
+
+  /** ADR-0195 Phase 4: tracks which synthetic autopilot sessionIds have
+   *  had `LearningSystem.startSession` invoked (lazy-bind, once per sid). */
+  private readonly _autopilotSessionsBound = new Set<string>();
 
   // ADR-0076: counters track fallback operations (no data stored in-memory)
   private fallbackEpisodeCount = 0;
@@ -359,6 +376,11 @@ export class AgentDBService {
             ?? new agentdb.LearningSystem(database, this.embeddingService);
       this.backendName = 'agentdb';
       console.log('[AgentDBService] Initialized with real AgentDB backend');
+
+      // ADR-0195 Phase 4: subscribe LearningSystem to the autopilot event
+      // bus. Runs once per `initialize()` on the long-lived service. See
+      // `_attachLearningSubscriber` for the error contract.
+      this._attachLearningSubscriber();
 
       // Phase 1: Initialize high-impact dormant controllers
       await this.initializePhase1Controllers(database);
@@ -1236,6 +1258,192 @@ export class AgentDBService {
     const { SonaRvfService } = await import('./sona-rvf-service.js');
     return SonaRvfService.getInstance();
   }
+
+  // === PHASE 4 BEGIN (ADR-0195 cross-controller event bus) ===
+  /**
+   * ADR-0195 Phase 4: shared cross-controller event bus accessor.
+   *
+   * Returns the long-lived EventEmitter on which AutopilotLearning emits
+   * `episode:recorded` / `trajectory:opened` / `trajectory:step` /
+   * `trajectory:closed`. Subscriber wiring lives in
+   * `_attachLearningSubscriber` (called once at `initialize()` time).
+   *
+   * The bus outlives any single AutopilotLearning instance — each CLI
+   * invocation constructs a fresh AutopilotLearning, but the bus and its
+   * subscribers persist across those calls. Late-attaching subscribers
+   * miss events emitted before their subscription, which is acceptable
+   * per ADR-0195 §Risks (the `episodes` SQL table is the source of
+   * truth; a missed live signal does not lose state).
+   */
+  getLearningEvents(): EventEmitter {
+    return this.learningEvents;
+  }
+
+  /**
+   * ADR-0195 Phase 4: expose the LearningSystem controller so the bus's
+   * subscriber wiring can bind `startSession` + `submitFeedback` against
+   * a synthesized per-subject sessionId. Returns `null` when the service
+   * is in DEGRADED mode (original construction threw; `learningSystem`
+   * was never assigned).
+   *
+   * Public-by-design — the previous private declaration prevented
+   * Phase 4's cross-controller bridge from binding the sessionId at the
+   * subscriber boundary. Per `feedback-no-fallbacks`, callers that find
+   * this null MUST surface the absence loudly.
+   *
+   * ADR-0197 Finding 1 note: the original in-line `predictAction?.(...)`
+   * probe at agentdb-service.ts:~1214 was structurally broken because no
+   * caller had a sessionId to bind; commit `dc41afc` removed that dead
+   * probe. Phase 4's subscriber wiring is the legitimate consumer of
+   * `predict` / `submitFeedback` with synthesized per-subject sessionIds.
+   */
+  getLearningSystem(): any {
+    return this.learningSystem;
+  }
+
+  /**
+   * ADR-0195 Phase 4 (P4.2): subscribe LearningSystem to the autopilot
+   * event bus. Each `episode:recorded` event becomes a
+   * `LearningSystem.submitFeedback` call with sessionId
+   * `autopilot:${sha1(subject)}` (full 40-char hex per ADR-0195 §Risks
+   * — substring would risk collisions in the open subject space).
+   *
+   * Per-subject `startSession` is lazy on first emit for that sid
+   * (`_autopilotSessionsBound` tracks bound ids).
+   *
+   * Error contract (per ADR-0195 §P4.4):
+   * - `learningSystem` null on emit → log loudly + skip (degraded init).
+   * - `submitFeedback` throws `SQLITE_ERROR: no such table` → schema
+   *   not yet provisioned (init race window); warn + skip.
+   * - All other throws surface via the EventEmitter's `'error'` listener,
+   *   which a default handler attached here logs via `console.error`
+   *   (NOT swallow) and does NOT re-throw (so a subscriber crash cannot
+   *   poison the producer's `storeEpisode` invariant).
+   *
+   * Subscriber work is wrapped in `setImmediate` so a slow consumer
+   * cannot backpressure the synchronous emit.
+   */
+  private _attachLearningSubscriber(): void {
+    // Default `'error'` listener prevents Node's default behavior
+    // (throw + exit) when any sync subscriber throws. Logging-only;
+    // `feedback-no-fallbacks` requires the failure to be observable
+    // via stderr — but the producer's primary write already succeeded
+    // by the time we emit, so we don't re-throw.
+    this.learningEvents.on('error', (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[AgentDBService] learningEvents subscriber error: ${msg}`);
+    });
+
+    this.learningEvents.on('episode:recorded', (payload: {
+      taskId: string;
+      subject: string;
+      status: string;
+      reward: number;
+      success: boolean;
+      timestamp: number;
+    }) => {
+      // setImmediate decouples the subscriber's latency from the
+      // producer's `storeEpisode` return.
+      setImmediate(() => {
+        this._handleAutopilotEpisode(payload).catch((err) => {
+          // Surface via the bus's 'error' listener (which the default
+          // listener above will log).
+          const msg = err instanceof Error ? err.message : String(err);
+          this.learningEvents.emit('error', new Error(
+            `episode:recorded handler failed (taskId=${payload.taskId}): ${msg}`,
+          ));
+        });
+      });
+    });
+  }
+
+  /**
+   * ADR-0195 Phase 4 (P4.2): translate an autopilot `episode:recorded`
+   * event into a `LearningSystem.submitFeedback` call with synthesized
+   * per-subject sessionId. Lazy `startSession` on first emit per sid.
+   *
+   * The reward arriving in payload.reward is the SHAPED reward already
+   * (ADR-0193 Item A.3 — shaped at the autopilot producer); pass it
+   * through so LearningSystem's incremental Q-update sees the same
+   * reward signal autopilot persisted.
+   */
+  private async _handleAutopilotEpisode(payload: {
+    taskId: string;
+    subject: string;
+    status: string;
+    reward: number;
+    success: boolean;
+    timestamp: number;
+  }): Promise<void> {
+    const ls = this.learningSystem;
+    if (!ls) {
+      // Surface absence loudly per `feedback-no-fallbacks`. A missing
+      // learningSystem here means construction failed earlier; the user
+      // needs to see that, not get silent skips.
+      console.error(
+        '[AgentDBService] Phase 4 subscriber: learningSystem unavailable ' +
+        `(taskId=${payload.taskId}); cannot submitFeedback. ` +
+        'Check init logs for the original LearningSystem construction error.',
+      );
+      return;
+    }
+    const sid = `autopilot:${nodeCrypto.createHash('sha1').update(payload.subject).digest('hex')}`;
+    if (!this._autopilotSessionsBound.has(sid)) {
+      try {
+        // LearningSystem.startSession assigns an auto-generated id and
+        // returns it; older versions ignore unrecognized config fields.
+        // We pass our synthetic id via `customSessionId` where supported,
+        // and mark sid as bound either way so we don't loop on
+        // startSession. If submitFeedback later fails with `Session not
+        // found` (older LearningSystem), the catch below handles it.
+        await ls.startSession('autopilot', 'q-learning', {
+          algorithm: 'q-learning',
+          learningRate: 0.1,
+          discountFactor: 0.9,
+          explorationRate: 0.1,
+          customSessionId: sid,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/no such table/i.test(msg)) {
+          console.warn(
+            `[AgentDBService] Phase 4 subscriber: learning_sessions schema ` +
+            `not yet provisioned; skipping startSession for ${sid}`,
+          );
+          return;
+        }
+        // The session may already exist (idempotent re-bind after a
+        // restart). Mark as bound and continue to submitFeedback.
+        console.warn(
+          `[AgentDBService] Phase 4 subscriber: startSession(${sid}) threw ` +
+          `(treating as already-bound): ${msg}`,
+        );
+      }
+      this._autopilotSessionsBound.add(sid);
+    }
+    try {
+      await ls.submitFeedback({
+        sessionId: sid,
+        state: payload.subject,
+        action: payload.status,
+        reward: payload.reward,
+        success: payload.success,
+        timestamp: payload.timestamp,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/no such table/i.test(msg) || /Session not found/i.test(msg)) {
+        console.warn(
+          `[AgentDBService] Phase 4 subscriber: submitFeedback(${sid}) ` +
+          `skipped (schema/session not ready): ${msg}`,
+        );
+        return;
+      }
+      // Re-throw so the bus's 'error' listener surfaces it.
+      throw err;
+    }
+  }
+  // === PHASE 4 END ===
 
   /**
    * ADR-0193 §D follow-up: delegate to the underlying AgentDB.getController()
