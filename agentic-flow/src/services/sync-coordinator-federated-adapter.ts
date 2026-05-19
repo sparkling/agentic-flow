@@ -19,6 +19,15 @@
  * across process restarts; deliberately NOT a hostname/machine-id derivative
  * so that two installs on the same host (e.g., dev + scratch checkouts) get
  * distinct ids.
+ *
+ * Security hardening (from security review of ADR-0196 implementation):
+ * - Cap install-id file read at 256 bytes before validation, to bound the
+ *   worst-case memory/CPU cost of a malicious or corrupted file.
+ * - Validate UUIDv4-shape (8-4-4-4-12 hex) before accepting the on-disk
+ *   value. Malformed content triggers a re-mint with a `console.warn` so
+ *   the regeneration is observable.
+ * - Re-mint always writes mode 0600; the parent `.claude-flow` directory
+ *   is created with mode 0700.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -83,21 +92,59 @@ const INSTALL_ID_FILENAME = 'install-id';
 const CLAUDE_FLOW_DIR = '.claude-flow';
 
 /**
+ * Max bytes to read from the install-id file. UUIDv4 is 36 chars; we allow
+ * 256 bytes to absorb a trailing newline + small accumulation but reject
+ * anything larger. Per the security-hardening note above.
+ */
+const INSTALL_ID_MAX_BYTES = 256;
+
+/**
+ * UUIDv4-shape regex (8-4-4-4-12 lowercase hex with required dashes).
+ * `randomUUID` always emits lowercase; we don't accept uppercase forms to
+ * keep validation tight.
+ */
+const UUID_V4_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
  * Read or create the install-id at `<projectRoot>/.claude-flow/install-id`.
  *
- * - If the file exists and contains a non-empty trimmed string, return it.
- * - Otherwise generate a UUIDv4, write it, and return it.
+ * - If the file exists and contains a UUIDv4-shaped trimmed string within
+ *   the size cap, return it.
+ * - On corrupted / malformed / oversized content, log a warning and re-mint
+ *   a fresh UUIDv4 (overwriting the file). Per `feedback-no-fallbacks`, the
+ *   re-mint is observable via stderr — the user sees that their install-id
+ *   changed and can investigate.
+ * - On a missing file, mint a new UUIDv4 and write it.
  *
- * Errors from FS operations propagate per `feedback-no-fallbacks`. A missing
- * `.claude-flow/` directory is created with mode 0700 (the install-id is not
- * a secret, but is per-user data — restrict to the owner).
+ * FS errors propagate per `feedback-no-fallbacks` — a missing parent
+ * directory is created with mode 0700; permission errors bubble up to the
+ * caller (AutopilotLearning's constructor will then propagate).
  */
 function getOrCreateInstallId(projectRoot: string): string {
   const dir = path.join(projectRoot, CLAUDE_FLOW_DIR);
   const file = path.join(dir, INSTALL_ID_FILENAME);
   if (existsSync(file)) {
-    const raw = readFileSync(file, 'utf-8').trim();
-    if (raw.length > 0) return raw;
+    // Read up to the size cap, then trim + validate. Reading the whole
+    // file is fine because the cap is small; readFileSync's full-file
+    // read is bounded by the file's actual size.
+    const raw = readFileSync(file, 'utf-8');
+    if (raw.length > INSTALL_ID_MAX_BYTES) {
+      console.warn(
+        `[SyncCoordinatorFederatedAdapter] install-id file ${file} ` +
+        `exceeds ${INSTALL_ID_MAX_BYTES}-byte cap (got ${raw.length}); ` +
+        `re-minting`,
+      );
+    } else {
+      const trimmed = raw.trim();
+      if (UUID_V4_REGEX.test(trimmed)) {
+        return trimmed;
+      }
+      console.warn(
+        `[SyncCoordinatorFederatedAdapter] install-id file ${file} ` +
+        `contains malformed content (not UUIDv4-shape); re-minting`,
+      );
+    }
   }
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
