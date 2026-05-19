@@ -65,6 +65,24 @@ export interface SyncCoordinatorLike {
     conflictsResolved?: number;
     errors?: string[];
   }>;
+  /** ADR-0200: optional single-direction push. When absent, the adapter
+   *  falls back to bidirectional `sync()` and reports only `itemsPushed`
+   *  in the resulting FederatedSyncReport (legacy behaviour). */
+  pushOnly?(onProgress?: (progress: unknown) => void): Promise<{
+    success: boolean;
+    durationMs?: number;
+    itemsPushed?: number;
+    errors?: string[];
+  }>;
+  /** ADR-0200: optional single-direction pull. Same fallback semantics
+   *  as `pushOnly`. */
+  pullOnly?(onProgress?: (progress: unknown) => void): Promise<{
+    success: boolean;
+    durationMs?: number;
+    itemsPulled?: number;
+    conflictsResolved?: number;
+    errors?: string[];
+  }>;
   getStatus?(): {
     isSyncing?: boolean;
     state?: {
@@ -203,16 +221,27 @@ export class SyncCoordinatorFederatedAdapter implements FederatedSyncProvider {
   /**
    * Push local changes to the remote peer.
    *
-   * **Currently aliased to bidirectional sync.** `SyncCoordinator.sync()`
-   * exchanges in both directions; we surface only the `itemsPushed` slice
-   * in the report. A real push-only call would require either a
-   * `SyncCoordinator.pushOnly()` method or a per-direction flag — neither
-   * exists in the agentdb surface today. Tracked as architectural
-   * follow-up; the caller can rely on `itemsTransferred` being a strict
-   * count of the push-side regardless. Errors propagate.
+   * ADR-0200: prefers `SyncCoordinator.pushOnly()` when available — that
+   * call emits only the push wire-traffic and does NOT pull/apply remote
+   * changes. Falls back to bidirectional `sync()` if the agentdb version
+   * predates ADR-0200 (older `SyncCoordinatorLike` without `pushOnly`).
+   * Errors propagate.
    */
   async push(): Promise<FederatedSyncReport> {
-    const result = await this._syncCoordinator.sync();
+    const coord = this._syncCoordinator;
+    if (typeof coord.pushOnly === 'function') {
+      const result = await coord.pushOnly();
+      return {
+        success: result.success === true,
+        durationMs: result.durationMs ?? 0,
+        itemsTransferred: result.itemsPushed ?? 0,
+        conflictsResolved: 0,
+        errors: result.errors ?? [],
+      };
+    }
+    // Legacy fallback — pre-ADR-0200 agentdb. Bidirectional sync, slice
+    // the push side from the report.
+    const result = await coord.sync();
     return {
       success: result.success === true,
       durationMs: result.durationMs ?? 0,
@@ -225,12 +254,26 @@ export class SyncCoordinatorFederatedAdapter implements FederatedSyncProvider {
   /**
    * Pull remote changes and apply locally.
    *
-   * **Currently aliased to bidirectional sync** — see `push()` for the
-   * same one-direction-vs-bidirectional caveat. We surface only the
-   * `itemsPulled` slice in the report. Errors propagate.
+   * ADR-0200: prefers `SyncCoordinator.pullOnly()` when available — that
+   * call emits only the pull wire-traffic and does NOT push local changes.
+   * Conflict resolution still runs inline (same semantics as bidirectional
+   * `sync()`). Falls back to bidirectional `sync()` if the agentdb version
+   * predates ADR-0200.
    */
   async pull(): Promise<FederatedSyncReport> {
-    const result = await this._syncCoordinator.sync();
+    const coord = this._syncCoordinator;
+    if (typeof coord.pullOnly === 'function') {
+      const result = await coord.pullOnly();
+      return {
+        success: result.success === true,
+        durationMs: result.durationMs ?? 0,
+        itemsTransferred: result.itemsPulled ?? 0,
+        conflictsResolved: result.conflictsResolved ?? 0,
+        errors: result.errors ?? [],
+      };
+    }
+    // Legacy fallback — pre-ADR-0200 agentdb.
+    const result = await coord.sync();
     return {
       success: result.success === true,
       durationMs: result.durationMs ?? 0,
