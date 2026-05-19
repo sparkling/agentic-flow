@@ -162,19 +162,27 @@ function analyzeCompletion(tasks) {
 // ============================================================================
 
 /**
- * Default dist path for the AutopilotLearning module, resolved relative to
- * this hook's location in the agentic-flow monorepo. Override for tests via
+ * Default dist path for the AutopilotLearning module. The hook lives in
+ * two layouts:
+ *   1. Monorepo dev:  <root>/.claude/helpers/  → dist at <root>/agentic-flow/dist/
+ *   2. Installed pkg: <pkg>/.claude/helpers/   → dist at <pkg>/dist/
+ * Probe both candidates; first that exists wins. Override for tests via
  * the AUTOPILOT_LEARNING_MODULE env var (absolute path or file:// URL).
  */
-const DEFAULT_LEARNING_MODULE = join(
-  __dirname,
-  '..',
-  '..',
-  'agentic-flow',
-  'dist',
-  'coordination',
-  'autopilot-learning.js',
-);
+const LEARNING_MODULE_CANDIDATES = [
+  // Installed package layout (this is what ships in @sparkleideas/agentic-flow):
+  join(__dirname, '..', '..', 'dist', 'coordination', 'autopilot-learning.js'),
+  // Monorepo dev layout (outer .claude/helpers/, dist nested under agentic-flow/):
+  join(__dirname, '..', '..', 'agentic-flow', 'dist', 'coordination', 'autopilot-learning.js'),
+];
+const DEFAULT_LEARNING_MODULE = (() => {
+  for (const candidate of LEARNING_MODULE_CANDIDATES) {
+    if (existsSync(candidate)) return candidate;
+  }
+  // Fall back to the installed-layout path so the import error surfaces a
+  // real resolvable-looking path instead of a stale dev-only assumption.
+  return LEARNING_MODULE_CANDIDATES[0];
+})();
 
 /**
  * Load AutopilotLearning lazily. Returns null and logs ONE diagnostic line
