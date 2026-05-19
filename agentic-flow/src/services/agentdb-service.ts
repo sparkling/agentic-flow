@@ -1169,19 +1169,14 @@ export class AgentDBService {
 
     // Original LearningSystem integration
     if (this.learningSystem) {
-      try {
-        const sessionId = await this.learningSystem.startSession(
-          'default', 'q-learning', { learningRate: 0.01, discountFactor: 0.99 },
-        );
-        for (const step of steps) {
-          await this.learningSystem.submitFeedback({
-            sessionId, action: step.action, state: step.state, reward: step.reward,
-            nextState: step.nextState, success: step.reward > 0, timestamp: Date.now(),
-          });
-        }
-      } catch {
-        this.learningSystem = null;
-        this.trajectories.push({ steps, reward });
+      const sessionId = await this.learningSystem.startSession(
+        'default', 'q-learning', { learningRate: 0.01, discountFactor: 0.99 },
+      );
+      for (const step of steps) {
+        await this.learningSystem.submitFeedback({
+          sessionId, action: step.action, state: step.state, reward: step.reward,
+          nextState: step.nextState, success: step.reward > 0, timestamp: Date.now(),
+        });
       }
       return;
     }
@@ -1208,13 +1203,15 @@ export class AgentDBService {
       }
     }
 
-    // Fallback to LearningSystem
-    if (this.learningSystem) {
-      try {
-        const p = await this.learningSystem.predictAction?.(String(state));
-        if (p) return { action: p.action ?? 'noop', confidence: p.confidence ?? 0, alternatives: p.alternatives ?? [] };
-      } catch { this.learningSystem = null; }
-    }
+    // ADR-0197 Finding 1: removed broken `learningSystem.predictAction?.(state)` probe.
+    // `LearningSystem.predict(sessionId, state)` requires a sessionId, but this
+    // caller surface (and its MCP / direct-call-bridge callers) only have `state`.
+    // The previous optional-chain returned `undefined` silently every time and the
+    // surrounding catch set `this.learningSystem = null`, permanently degrading the
+    // service for the rest of the process lifetime. No legitimate path bound a
+    // session here, so the branch was dead by design. Sona predict(state) above is
+    // the only working predict surface; falling through to a noop is correct when
+    // Sona isn't ready or is below the confidence threshold.
     return { action: 'noop', confidence: 0, alternatives: [] };
   }
 
