@@ -1,12 +1,20 @@
 /**
- * AutopilotLearning — Phase 2 implementation
+ * AutopilotLearning — Phase 2 + ADR-0194 Phase 3 implementation
  *
- * ADR-058 + ADR-072 + ADR-0192 Phase 1 + ADR-0193 Items A+B: learning
- * loop for the autopilot system. AgentDB-backed episode log +
- * frequency-aggregated pattern discovery + embedding-based recall +
- * SonaRvfService-backed RL trajectory recording + reward-shaped
- * persistence + retention cap. Graceful-unavailable when AgentDB isn't
- * reachable.
+ * ADR-058 + ADR-072 + ADR-0192 Phase 1 + ADR-0193 Items A+B + ADR-0194:
+ * learning loop for the autopilot system. AgentDB-backed episode log +
+ * frequency-aggregated pattern discovery + embedding-cluster pattern
+ * discovery + embedding-based recall + SonaRvfService-backed RL
+ * trajectory recording + reward-shaped persistence + retention cap.
+ * Graceful-unavailable when AgentDB isn't reachable.
+ *
+ * ADR-0194 Phase 3: `discoverPatternsByEmbedding` clusters episode
+ * subjects by cosine similarity over their embeddings (greedy single-
+ * pass, threshold default 0.75 matching MemoryConsolidation). Phase 2's
+ * keyword path is NOT replaced — both algorithms run in
+ * `discoverSuccessPatterns` and the union is returned. Each result is
+ * tagged with `source: 'phase2-keyword' | 'phase3-embedding'` so
+ * consumers can distinguish them.
  *
  * Storage strategy:
  *   Episodes flow through AgentDBService.storeEpisode (the existing
@@ -39,9 +47,37 @@ export interface AutopilotEpisode {
 }
 
 export interface DiscoveredPattern {
-  pattern: string;            // human-readable subject-keyword
+  pattern: string;            // human-readable subject-keyword (Phase 2) or cluster centroid-nearest subject (Phase 3)
   frequency: number;          // # episodes matching
   avgReward: number;          // mean reward over matching episodes
+  /**
+   * ADR-0194 Phase 3: discriminator for the producer algorithm. Existing
+   * consumers that ignore unknown fields are unaffected. New consumers
+   * can branch on this to A/B compare the two discovery strategies.
+   *
+   * - `'phase2-keyword'`: produced by `_aggregatePatterns` (ADR-058,
+   *   token-frequency aggregation over ≥4-char tokens).
+   * - `'phase3-embedding'`: produced by `discoverPatternsByEmbedding`
+   *   (greedy cosine-similarity clustering on episode-subject embeddings,
+   *   default threshold 0.75 per `MemoryConsolidation.clusterMemories`).
+   */
+  source: 'phase2-keyword' | 'phase3-embedding';
+}
+
+/**
+ * ADR-0194 Phase 3: knobs for the embedding-cluster algorithm. Mirrors
+ * `MemoryConsolidation`'s `clusterThreshold` / `maxClusterSize` /
+ * `minClusterSize` to keep the algorithm comparable with the in-tree
+ * precedent. Defaults match `MemoryConsolidation.clusterMemories`
+ * (threshold 0.75) and `_aggregatePatterns` (min size 2).
+ */
+export interface AutopilotLearningConfig {
+  /** Cosine similarity threshold for cluster membership. Default 0.75. */
+  embeddingClusterThreshold?: number;
+  /** Maximum members per cluster (safety cap). Default 100. */
+  embeddingClusterMaxSize?: number;
+  /** Minimum members to emit a pattern. Default 2 (matches Phase 2 `count >= 2`). */
+  embeddingClusterMinSize?: number;
 }
 
 export interface ReEngagementContext {
@@ -169,11 +205,43 @@ interface AgentDBLike {
    */
   getSonaService?(): Promise<SonaServiceLike>;
   getFallbackStatus?(): { degraded?: boolean; backend?: string; initError?: string | null };
+  /**
+   * ADR-0194 Phase 3: batched embedding generation for cluster discovery.
+   * AgentDBService exposes both single (`generateEmbedding`) and batched
+   * (`generateEmbeddings`) variants; we declare both as optional and
+   * prefer the batched call site (10-100× faster per ADR-063).
+   *
+   * Per `feedback-no-fallbacks`: when these are missing,
+   * `discoverPatternsByEmbedding` throws rather than silently returning
+   * an empty cluster set. There is no keyword-only "fallback" — the
+   * Phase 2 keyword path still runs unconditionally; Phase 3 either
+   * works or surfaces a real error.
+   */
+  generateEmbedding?(text: string): Promise<number[]>;
+  generateEmbeddings?(texts: string[]): Promise<number[][]>;
+}
+
+/** ADR-0194 Phase 3: resolved-defaults shape used internally. */
+interface ResolvedClusterConfig {
+  threshold: number;
+  maxSize: number;
+  minSize: number;
 }
 
 export class AutopilotLearning {
   private _available = false;
   private _agentdb: AgentDBLike | null = null;
+
+  /**
+   * ADR-0194 Phase 3: resolved cluster knobs. Mutable via
+   * `configure(config)` so populated tests can sweep the threshold
+   * without reconstructing the instance.
+   */
+  private _clusterConfig: ResolvedClusterConfig = {
+    threshold: 0.75,
+    maxSize: 100,
+    minSize: 2,
+  };
 
   /**
    * ADR-0193 Item B: id of the currently-open SonaRvfService trajectory,
@@ -331,7 +399,254 @@ export class AutopilotLearning {
   async discoverSuccessPatterns(): Promise<DiscoveredPattern[]> {
     if (!this._available) return [];
     const episodes = await this._listEpisodes();
-    return this._aggregatePatterns(episodes.filter(e => (e.reward ?? 0) > 0));
+    const successful = episodes.filter(e => (e.reward ?? 0) > 0);
+    // ADR-0194 Phase 3: Phase 2 keyword path + Phase 3 embedding-cluster
+    // path run BOTH; results are unioned. Per the implementation brief:
+    // keyword path is strictly preserved; cluster path is additive; the
+    // `source` discriminator lets downstream consumers tell them apart.
+    const phase2 = this._aggregatePatterns(successful);
+    // Phase 3 needs ≥ minSize episodes to form a cluster. Short-circuit
+    // the embedding-generation cost when the corpus is below threshold.
+    if (successful.length < this._clusterConfig.minSize) {
+      return phase2;
+    }
+    const phase3 = await this.discoverPatternsByEmbedding(successful);
+    return [...phase2, ...phase3];
+  }
+
+  /**
+   * ADR-0194 Phase 3: configure the embedding-cluster algorithm. Unset
+   * keys keep their current value (defaults: threshold=0.75, maxSize=100,
+   * minSize=2). Returns the resolved config snapshot for inspection.
+   *
+   * Threshold is bounded to `[0, 1]`; sizes must be positive integers.
+   * Invalid inputs throw rather than silently coercing (per
+   * `feedback-no-fallbacks`).
+   */
+  configure(config: AutopilotLearningConfig): ResolvedClusterConfig {
+    if (config.embeddingClusterThreshold !== undefined) {
+      const t = config.embeddingClusterThreshold;
+      if (!Number.isFinite(t) || t < 0 || t > 1) {
+        throw new Error(`[AutopilotLearning] embeddingClusterThreshold must be in [0,1], got ${t}`);
+      }
+      this._clusterConfig.threshold = t;
+    }
+    if (config.embeddingClusterMaxSize !== undefined) {
+      const m = config.embeddingClusterMaxSize;
+      if (!Number.isInteger(m) || m < 1) {
+        throw new Error(`[AutopilotLearning] embeddingClusterMaxSize must be a positive integer, got ${m}`);
+      }
+      this._clusterConfig.maxSize = m;
+    }
+    if (config.embeddingClusterMinSize !== undefined) {
+      const n = config.embeddingClusterMinSize;
+      if (!Number.isInteger(n) || n < 1) {
+        throw new Error(`[AutopilotLearning] embeddingClusterMinSize must be a positive integer, got ${n}`);
+      }
+      this._clusterConfig.minSize = n;
+    }
+    return { ...this._clusterConfig };
+  }
+
+  /**
+   * ADR-0194 Phase 3: cluster episodes by cosine-similarity over their
+   * subject embeddings; emit one `DiscoveredPattern` per cluster with
+   * `source: 'phase3-embedding'`.
+   *
+   * Algorithm (ported from
+   * `forks/agentdb/src/controllers/MemoryConsolidation.ts:298-341`):
+   *
+   *   1. Sort episodes by id ascending (determinism per ADR-0194 risk
+   *      mitigation — greedy ordering otherwise depends on storage
+   *      iteration order).
+   *   2. For each unassigned episode, seed a new cluster with that
+   *      episode as the centroid.
+   *   3. Scan remaining unassigned episodes; assign to the cluster
+   *      when `cosineSimilarity(centroid, candidate) >= threshold`.
+   *      Update centroid as the simple average of member embeddings
+   *      after each assignment.
+   *   4. After clustering, drop clusters below `minSize` (default 2,
+   *      matching Phase 2's `count >= 2` filter).
+   *   5. Label each surviving cluster with its centroid-nearest
+   *      member's subject (the in-cluster representative). Cap output
+   *      at 10 entries by frequency-desc, matching Phase 2's slice(0,10).
+   *
+   * Embeddings are sourced from `_agentdb.generateEmbeddings` (batched)
+   * or `_agentdb.generateEmbedding` (single, per episode). Per
+   * `feedback-no-fallbacks`: when both are missing, this method THROWS;
+   * it does NOT silently return an empty cluster set. The Phase 2
+   * keyword path still runs unconditionally inside
+   * `discoverSuccessPatterns`, so a Phase 3 outage degrades to keyword
+   * results loudly rather than silently.
+   *
+   * Returns `[]` when:
+   * - the autopilot is unavailable (no throw — symmetric with Phase 2);
+   * - the input is empty or smaller than `minSize`;
+   * - clustering produces zero clusters of size ≥ `minSize`.
+   */
+  async discoverPatternsByEmbedding(
+    episodes: AutopilotEpisode[],
+  ): Promise<DiscoveredPattern[]> {
+    if (!this._available || !this._agentdb) return [];
+    if (episodes.length < this._clusterConfig.minSize) return [];
+    // Per feedback-no-fallbacks: surface a real error if no embedding
+    // surface is reachable. Phase 2 keyword discovery still runs above;
+    // this throw bubbles to discoverSuccessPatterns and is the
+    // discriminable failure signal.
+    if (typeof this._agentdb.generateEmbeddings !== 'function'
+        && typeof this._agentdb.generateEmbedding !== 'function') {
+      throw new Error(
+        '[AutopilotLearning] discoverPatternsByEmbedding: ' +
+        'AgentDBService exposes neither generateEmbeddings nor ' +
+        'generateEmbedding — Phase 3 unreachable. Upgrade AgentDBService ' +
+        'or restrict callers to discoverSuccessPatterns (which retains ' +
+        "Phase 2's keyword discovery).",
+      );
+    }
+    // Determinism: sort by id ascending so the greedy seed order is
+    // stable across runs. Episodes from `_listEpisodes` carry `id` via
+    // `_rowToEpisode`; when absent (test doubles), fall back to subject
+    // for a stable secondary order.
+    type WithId = AutopilotEpisode & { id?: number | string };
+    const sorted: WithId[] = [...episodes].sort((a, b) => {
+      const ai = (a as WithId).id;
+      const bi = (b as WithId).id;
+      if (ai !== undefined && bi !== undefined) {
+        const as = String(ai), bs = String(bi);
+        if (as < bs) return -1;
+        if (as > bs) return 1;
+      } else if (ai !== undefined) return -1;
+      else if (bi !== undefined) return 1;
+      return a.subject < b.subject ? -1 : a.subject > b.subject ? 1 : 0;
+    });
+    const subjects = sorted.map(e => e.subject);
+    // Prefer batched embedding generation (10-100× faster per ADR-063);
+    // fall through to per-episode generateEmbedding when only the single
+    // variant is present.
+    let rawEmbeddings: number[][];
+    if (typeof this._agentdb.generateEmbeddings === 'function') {
+      rawEmbeddings = await this._agentdb.generateEmbeddings(subjects);
+    } else {
+      // Known above: `generateEmbedding` is defined when `generateEmbeddings`
+      // is not, by the early throw.
+      const gen = this._agentdb.generateEmbedding!;
+      rawEmbeddings = [];
+      for (const s of subjects) {
+        rawEmbeddings.push(await gen.call(this._agentdb, s));
+      }
+    }
+    if (rawEmbeddings.length !== sorted.length) {
+      throw new Error(
+        `[AutopilotLearning] discoverPatternsByEmbedding: embedding ` +
+        `count mismatch — expected ${sorted.length}, got ${rawEmbeddings.length}`,
+      );
+    }
+    // Cast to Float32Array for the math hot loop (matches
+    // MemoryConsolidation.clusterMemories' centroid type).
+    const embeddings: Float32Array[] = rawEmbeddings.map(e => Float32Array.from(e));
+    // Greedy clustering — mirror of MemoryConsolidation.clusterMemories
+    // (lines 298-341).
+    interface ProtoCluster {
+      centroid: Float32Array;
+      memberIndices: number[];
+    }
+    const clusters: ProtoCluster[] = [];
+    const assigned = new Set<number>();
+    const { threshold, maxSize, minSize } = this._clusterConfig;
+    for (let i = 0; i < sorted.length; i++) {
+      if (assigned.has(i)) continue;
+      const seed: ProtoCluster = {
+        // Clone the seed embedding — we mutate the centroid in-place
+        // when averaging, and don't want to corrupt the source array.
+        centroid: new Float32Array(embeddings[i]),
+        memberIndices: [i],
+      };
+      assigned.add(i);
+      for (let j = i + 1; j < sorted.length; j++) {
+        if (assigned.has(j)) continue;
+        if (seed.memberIndices.length >= maxSize) break;
+        const sim = AutopilotLearning._cosine(seed.centroid, embeddings[j]);
+        if (sim >= threshold) {
+          seed.memberIndices.push(j);
+          assigned.add(j);
+          AutopilotLearning._updateCentroid(seed.centroid, seed.memberIndices, embeddings);
+        }
+      }
+      clusters.push(seed);
+    }
+    // Drop sub-threshold-sized clusters, label, and compute reward.
+    const surviving = clusters.filter(c => c.memberIndices.length >= minSize);
+    const results: DiscoveredPattern[] = surviving.map(c => {
+      // Centroid-nearest label: the in-cluster member with the highest
+      // cosine to the final centroid. Defensive when ties or zero-norm
+      // embeddings: pick the lowest-indexed member.
+      let bestIdx = c.memberIndices[0];
+      let bestSim = -Infinity;
+      for (const memberIdx of c.memberIndices) {
+        const sim = AutopilotLearning._cosine(c.centroid, embeddings[memberIdx]);
+        if (sim > bestSim) {
+          bestSim = sim;
+          bestIdx = memberIdx;
+        }
+      }
+      let rewardSum = 0;
+      for (const memberIdx of c.memberIndices) {
+        rewardSum += sorted[memberIdx].reward ?? 0;
+      }
+      return {
+        pattern: sorted[bestIdx].subject,
+        frequency: c.memberIndices.length,
+        avgReward: rewardSum / c.memberIndices.length,
+        source: 'phase3-embedding' as const,
+      };
+    });
+    // Match Phase 2's frequency-desc + slice(0,10) ordering convention.
+    return results
+      .sort((a, b) => b.frequency - a.frequency)
+      .slice(0, 10);
+  }
+
+  /**
+   * ADR-0194 Phase 3: cosine similarity between two equal-length
+   * vectors. Mirrors `forks/agentdb/src/utils/similarity.ts` (the
+   * function imported by `MemoryConsolidation.clusterMemories`).
+   *
+   * Returns 0 on zero-norm inputs to keep the clustering robust against
+   * degenerate embeddings (the algorithm just won't merge them, which
+   * is the desired behaviour).
+   */
+  private static _cosine(a: Float32Array, b: Float32Array): number {
+    if (a.length !== b.length) return 0;
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < a.length; i++) {
+      const av = a[i];
+      const bv = b[i];
+      dot += av * bv;
+      normA += av * av;
+      normB += bv * bv;
+    }
+    if (normA === 0 || normB === 0) return 0;
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+
+  /**
+   * ADR-0194 Phase 3: in-place centroid update — simple average of
+   * member embeddings. Matches
+   * `MemoryConsolidation.updateCentroid` (lines 346-359).
+   */
+  private static _updateCentroid(
+    centroid: Float32Array,
+    memberIndices: number[],
+    allEmbeddings: Float32Array[],
+  ): void {
+    const dim = centroid.length;
+    for (let i = 0; i < dim; i++) centroid[i] = 0;
+    for (const idx of memberIndices) {
+      const e = allEmbeddings[idx];
+      for (let i = 0; i < dim; i++) centroid[i] += e[i];
+    }
+    const n = memberIndices.length;
+    for (let i = 0; i < dim; i++) centroid[i] /= n;
   }
 
   /**
@@ -631,6 +946,9 @@ export class AutopilotLearning {
         pattern,
         frequency: b.count,
         avgReward: b.rewardSum / b.count,
+        // ADR-0194 Phase 3: tag the producer so `discoverSuccessPatterns`'s
+        // unioned output is disambiguable downstream.
+        source: 'phase2-keyword' as const,
       }))
       .sort((a, b) => b.frequency - a.frequency)
       .slice(0, 10);
