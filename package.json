@@ -33,6 +33,8 @@
     "./agentdb": "./agentic-flow/dist/agentdb/index.js",
     "./billing": "./agentic-flow/dist/billing/index.js",
     "./embeddings": "./agentic-flow/dist/embeddings/index.js",
+    "./coordination": "./agentic-flow/dist/coordination/index.js",
+    "./coordination/autopilot-learning": "./agentic-flow/dist/coordination/autopilot-learning.js",
     "./agentic-jujutsu": {
       "require": "./packages/agentic-jujutsu/index.js",
       "import": "./packages/agentic-jujutsu/index.js",
