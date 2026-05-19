@@ -231,6 +231,95 @@ describe('AutopilotLearning', () => {
   });
 });
 
+// ─── AutopilotLearning — populated AgentDB ──────────────────────────
+//
+// ADR-0192 Phase 4: end-to-end coverage of the AgentDB-backed paths.
+// `initialize()` returns false when the consumer doesn't have agentdb
+// installed (e.g., CI containers running this test file in isolation);
+// in that case every `it` block exits via the same isAvailable guard
+// the graceful-degradation suite above already exercises.
+
+describe('AutopilotLearning — populated AgentDB', () => {
+  let learning: AutopilotLearning;
+
+  beforeEach(async () => {
+    learning = new AutopilotLearning();
+    const ready = await learning.initialize();
+    if (!ready) {
+      // AgentDB legitimately unavailable in this test env — skip the
+      // populated suite entirely. The graceful-unavailable suite above
+      // already covers that path.
+      return;
+    }
+    for (let i = 0; i < 10; i++) {
+      await learning.recordTaskCompletion({
+        taskId: `t-c-${i}`,
+        subject: i < 5
+          ? 'write unit tests for authentication'
+          : 'fix database migration bug',
+        status: 'completed',
+        iterations: 3 + i,
+        durationMs: 5000 * (i + 1),
+      });
+    }
+    for (let i = 0; i < 5; i++) {
+      await learning.recordTaskFailure({
+        taskId: `t-f-${i}`,
+        subject: 'connection timeout in database migration',
+        status: 'failed',
+        iterations: 10,
+        durationMs: 60000,
+        critique: 'connection pool exhausted',
+      });
+    }
+  }, 30000);
+
+  it('reports populated metrics', async () => {
+    if (!learning.isAvailable()) return; // skip if unavailable in env
+    const m = await learning.getMetrics();
+    expect(m.available).toBe(true);
+    expect(m.episodes).toBeGreaterThanOrEqual(15);
+    expect(m.patterns).toBeGreaterThan(0);
+  });
+
+  it('discovers patterns from grouped subjects', async () => {
+    if (!learning.isAvailable()) return;
+    const patterns = await learning.discoverSuccessPatterns();
+    expect(patterns.length).toBeGreaterThan(0);
+    expect(patterns.every(p => p.frequency >= 2)).toBe(true);
+    expect(patterns[0].pattern.length).toBeGreaterThan(3);
+  });
+
+  it('recall returns matches by subject substring', async () => {
+    if (!learning.isAvailable()) return;
+    const results = await learning.recallSimilarTasks('authentication', 5);
+    expect(results.length).toBeGreaterThan(0);
+    expect(
+      results.every(r => r.subject.toLowerCase().includes('authentication')),
+    ).toBe(true);
+  });
+
+  it('re-engagement context separates failures from successes', async () => {
+    if (!learning.isAvailable()) return;
+    const ctx = await learning.getReEngagementContext([
+      { subject: 'fix database migration', status: 'pending' },
+    ]);
+    expect(ctx.pastSuccesses.length).toBeGreaterThan(0);
+    expect(ctx.pastFailures.length).toBeGreaterThan(0);
+    expect(ctx.confidence).toBeGreaterThan(0);
+  });
+
+  it('confidence scales with episode count', async () => {
+    if (!learning.isAvailable()) return;
+    const ctx = await learning.getReEngagementContext([
+      { subject: 'unrelated query', status: 'pending' },
+    ]);
+    // 15 episodes / 50 floor = 0.3
+    expect(ctx.confidence).toBeGreaterThan(0.2);
+    expect(ctx.confidence).toBeLessThan(1.01);
+  });
+});
+
 // ─── SwarmCompletionCoordinator Integration Tests ────────────────────
 
 describe('SwarmCompletionCoordinator with Drift', () => {

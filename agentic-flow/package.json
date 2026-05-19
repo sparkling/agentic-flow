@@ -23,7 +23,9 @@
     "./router": "./dist/router/index.js",
     "./agent-booster": "./dist/agent-booster/index.js",
     "./transport/quic": "./dist/transport/quic.js",
-    "./embeddings": "./dist/embeddings/index.js"
+    "./embeddings": "./dist/embeddings/index.js",
+    "./coordination": "./dist/coordination/index.js",
+    "./coordination/autopilot-learning": "./dist/coordination/autopilot-learning.js"
   },
   "scripts": {
     "postinstall": "node scripts/postinstall.js || true",
