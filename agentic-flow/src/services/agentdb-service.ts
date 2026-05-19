@@ -199,20 +199,42 @@ export class AgentDBService {
   /** ADR-0195 Phase 4: tracks which synthetic autopilot sessionIds have
    *  had `LearningSystem.startSession` invoked (lazy-bind, once per sid).
    *
-   *  ADR-0195 critique LOW 0195.3: bounded with FIFO eviction so long-running
+   *  ADR-0195 critique LOW 0195.3: bounded with LRU eviction so long-running
    *  daemons can't accumulate session ids forever. Capacity 1000 matches the
-   *  _MAX_LIST cap that already bounds episode queries; sessions evicted from
-   *  here only re-cost one extra startSession call per re-emit, not data loss.
-   *  Add via `_trackSessionBound(sid)` rather than `.add()` directly. */
+   *  _MAX_LIST cap that already bounds episode queries. LRU semantics
+   *  (re-promote on `_hasSessionBound` hit) keep ACTIVE long-running
+   *  sessions warm even past the cap — only truly stale ones get evicted,
+   *  so the cost (one extra `startSession` call per re-emit) lands on
+   *  abandoned sessions rather than active ones.
+   *
+   *  Use `_hasSessionBound(sid)` and `_trackSessionBound(sid)` —
+   *  never `.has()` / `.add()` directly. */
   private static readonly _AUTOPILOT_SESSIONS_BOUND_CAP = 1000;
   private readonly _autopilotSessionsBound = new Set<string>();
 
-  /** Bounded FIFO add for `_autopilotSessionsBound`. Drops oldest on overflow. */
+  /** LRU has-check: re-promotes the sid on hit (delete + re-insert moves it
+   *  to the most-recently-used end of Set insertion order). */
+  private _hasSessionBound(sid: string): boolean {
+    if (!this._autopilotSessionsBound.has(sid)) return false;
+    // Promote: delete + re-insert puts it at the tail.
+    this._autopilotSessionsBound.delete(sid);
+    this._autopilotSessionsBound.add(sid);
+    return true;
+  }
+
+  /** LRU add for `_autopilotSessionsBound`. Drops least-recently-used on overflow. */
   private _trackSessionBound(sid: string): void {
     const cap = AgentDBService._AUTOPILOT_SESSIONS_BOUND_CAP;
-    if (this._autopilotSessionsBound.size >= cap && !this._autopilotSessionsBound.has(sid)) {
-      const oldest = this._autopilotSessionsBound.values().next().value;
-      if (oldest !== undefined) this._autopilotSessionsBound.delete(oldest);
+    // If already present, just re-promote (delete + re-add).
+    if (this._autopilotSessionsBound.has(sid)) {
+      this._autopilotSessionsBound.delete(sid);
+      this._autopilotSessionsBound.add(sid);
+      return;
+    }
+    // New entry; evict LRU if at cap.
+    if (this._autopilotSessionsBound.size >= cap) {
+      const lru = this._autopilotSessionsBound.values().next().value;
+      if (lru !== undefined) this._autopilotSessionsBound.delete(lru);
     }
     this._autopilotSessionsBound.add(sid);
   }
@@ -1441,7 +1463,7 @@ export class AgentDBService {
       return;
     }
     const sid = `autopilot:${nodeCrypto.createHash('sha1').update(payload.subject).digest('hex')}`;
-    if (!this._autopilotSessionsBound.has(sid)) {
+    if (!this._hasSessionBound(sid)) {
       try {
         // LearningSystem.startSession assigns an auto-generated id and
         // returns it; older versions ignore unrecognized config fields.
@@ -1540,7 +1562,7 @@ export class AgentDBService {
       return;
     }
     const sid = `autopilot:${nodeCrypto.createHash('sha1').update(String(payload.trajectoryId)).digest('hex')}:step`;
-    if (!this._autopilotSessionsBound.has(sid)) {
+    if (!this._hasSessionBound(sid)) {
       try {
         await ls.startSession('autopilot-step', 'q-learning', {
           algorithm: 'q-learning',

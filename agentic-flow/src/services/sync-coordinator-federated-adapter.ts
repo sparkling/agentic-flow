@@ -99,12 +99,15 @@ const CLAUDE_FLOW_DIR = '.claude-flow';
 const INSTALL_ID_MAX_BYTES = 256;
 
 /**
- * UUIDv4-shape regex (8-4-4-4-12 lowercase hex with required dashes).
- * `randomUUID` always emits lowercase; we don't accept uppercase forms to
- * keep validation tight.
+ * UUIDv4 regex — enforces the version-4 + RFC-4122 variant bits, not just
+ * the 8-4-4-4-12 shape. Position 13 (after 3rd dash) must be '4'; position
+ * 17 (variant) must be one of 8/9/a/b. `randomUUID` always emits lowercase
+ * RFC-4122 v4; we reject uppercase + non-v4 forms to keep validation tight.
+ * (Earlier critique INFO flagged the prior shape-only regex as accepting
+ * v1–v5 despite the `_V4_` name.)
  */
 const UUID_V4_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /**
  * Read or create the install-id at `<projectRoot>/.claude-flow/install-id`.
@@ -200,9 +203,13 @@ export class SyncCoordinatorFederatedAdapter implements FederatedSyncProvider {
   /**
    * Push local changes to the remote peer.
    *
-   * Delegates to `SyncCoordinator.sync()`, which is bidirectional — there is
-   * no push-only call in the underlying surface. We surface only the
-   * `itemsPushed` slice in the report. Errors propagate.
+   * **Currently aliased to bidirectional sync.** `SyncCoordinator.sync()`
+   * exchanges in both directions; we surface only the `itemsPushed` slice
+   * in the report. A real push-only call would require either a
+   * `SyncCoordinator.pushOnly()` method or a per-direction flag — neither
+   * exists in the agentdb surface today. Tracked as architectural
+   * follow-up; the caller can rely on `itemsTransferred` being a strict
+   * count of the push-side regardless. Errors propagate.
    */
   async push(): Promise<FederatedSyncReport> {
     const result = await this._syncCoordinator.sync();
@@ -218,8 +225,9 @@ export class SyncCoordinatorFederatedAdapter implements FederatedSyncProvider {
   /**
    * Pull remote changes and apply locally.
    *
-   * Delegates to `SyncCoordinator.sync()`, which is bidirectional. We
-   * surface only the `itemsPulled` slice in the report. Errors propagate.
+   * **Currently aliased to bidirectional sync** — see `push()` for the
+   * same one-direction-vs-bidirectional caveat. We surface only the
+   * `itemsPulled` slice in the report. Errors propagate.
    */
   async pull(): Promise<FederatedSyncReport> {
     const result = await this._syncCoordinator.sync();
