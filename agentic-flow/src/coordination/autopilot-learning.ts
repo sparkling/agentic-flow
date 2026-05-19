@@ -468,6 +468,12 @@ export class AutopilotLearning {
       }
       this._activeTrajectoryId = trajectory.id;
       this._trajectoriesOpened++;
+      // === PHASE 4 BEGIN (ADR-0195 trajectory:opened emit) ===
+      this._emitLearningEvent('trajectory:opened', {
+        trajectoryId: trajectory.id,
+        openedAt: Date.now(),
+      }, 'recordIterationStep');
+      // === PHASE 4 END ===
     }
     const stepIndex = Array.isArray(drift) ? drift.length : 0;
     const actionLabel = Array.isArray(drift) && drift.length > 0 ? `drift:${drift.length}` : 'progress';
@@ -478,6 +484,17 @@ export class AutopilotLearning {
         action: actionLabel,
         reward: rewardValue,
       });
+      // === PHASE 4 BEGIN (ADR-0195 trajectory:step emit) ===
+      // Emit only when addStep succeeded — failed addStep means no
+      // step was actually recorded, so a downstream consumer would
+      // see a phantom signal otherwise.
+      this._emitLearningEvent('trajectory:step', {
+        trajectoryId: this._activeTrajectoryId,
+        state: `iter:${stepIndex}`,
+        action: actionLabel,
+        reward: rewardValue,
+      }, 'recordIterationStep');
+      // === PHASE 4 END ===
     } catch (err) {
       // Trajectory id is still open; subsequent steps may succeed.
       console.error(`[AutopilotLearning] recordIterationStep: addStep threw: ${this._errMsg(err)}`);
@@ -498,6 +515,15 @@ export class AutopilotLearning {
     if (!sona) return;
     try {
       sona.endTrajectory(trajectoryId);
+      // === PHASE 4 BEGIN (ADR-0195 trajectory:closed emit) ===
+      // Emit only when endTrajectory succeeded — failed close means
+      // SONA didn't finalize the trajectory, so subscribers would see
+      // a misleading "closed" signal otherwise.
+      this._emitLearningEvent('trajectory:closed', {
+        trajectoryId,
+        closedAt: Date.now(),
+      }, 'endSwarmTrajectory');
+      // === PHASE 4 END ===
     } catch (err) {
       console.error(`[AutopilotLearning] endSwarmTrajectory: endTrajectory threw: ${this._errMsg(err)}`);
     }
@@ -982,6 +1008,19 @@ export class AutopilotLearning {
     // The shaped reward is what gets persisted (and what _aggregatePatterns
     // averages over) — populated-suite tests depend on the formula below.
     const reward = await this._computeShapedReward(ep, baseReward);
+    // === PHASE 5 BEGIN (ADR-0196 federated identity stamp — pre-write) ===
+    // Security hardening: ALWAYS source the origin install-id from the
+    // configured provider — never accept a caller-supplied
+    // `ep.originInstallId` literal. Per `feedback-no-fallbacks`, allowing
+    // a fallback path would let downstream consumers forge origin
+    // attribution on locally-authored episodes.
+    //
+    // VectorClock advance happens AFTER the storeEpisode write succeeds
+    // (below) — a failing write must not leak a clock tick into the
+    // next retry, otherwise peers see clock gaps and CRDT merge
+    // mis-orders the redelivered episode.
+    const originInstallId = this._syncProvider.getLocalInstallId();
+    // === PHASE 5 END ===
     await this._agentdb.storeEpisode({
       sessionId: EPISODE_SESSION_ID,
       task: ep.subject,
@@ -994,8 +1033,40 @@ export class AutopilotLearning {
         iterations: ep.iterations,
         durationMs: ep.durationMs,
         timestamp,
+        // === PHASE 5 BEGIN (ADR-0196 origin attribution in metadata) ===
+        // Stamp origin attribution at write time. The advancing vector
+        // clock is captured post-write and travels with the
+        // provider-notify payload; the persisted episode carries the
+        // origin id only — peers reconstruct causality from their own
+        // post-pull clocks via SyncCoordinator's CRDT merge.
+        originInstallId,
+        // === PHASE 5 END ===
       },
     });
+    // === PHASE 5 BEGIN (ADR-0196 vector-clock advance — POST-write) ===
+    // Advance the clock only AFTER the local write succeeds. A failing
+    // storeEpisode (AgentDB disconnect, schema mismatch) must not leak
+    // a clock tick — otherwise peers would see clock gaps and CRDT
+    // merge would mis-order the retry. The advanced clock is captured
+    // into the in-flight provider notify payload below.
+    this._vectorClock = incrementVectorClock(this._vectorClock, originInstallId);
+    const vectorClock = this._vectorClock;
+    // === PHASE 5 END ===
+    // === PHASE 5 BEGIN (ADR-0196 provider notify) ===
+    // Per `feedback-no-fallbacks`: provider throws propagate — no silent
+    // catch. NoopFederatedSyncProvider trivially succeeds; the
+    // SyncCoordinator adapter MAY trigger an eager push or buffer for
+    // batched sync. Pass the stamped episode (with originInstallId +
+    // vectorClock) so the provider doesn't re-derive identity.
+    const stampedEpisode: AutopilotEpisode = {
+      ...ep,
+      timestamp,
+      reward,
+      originInstallId,
+      vectorClock,
+    };
+    await this._syncProvider.notifyEpisode(stampedEpisode);
+    // === PHASE 5 END ===
     // === PHASE 4 BEGIN (ADR-0195 episode:recorded emit) ===
     // Cross-controller signal: AFTER storeEpisode succeeds, before
     // retention enforcement. LearningSystem subscriber in AgentDBService
