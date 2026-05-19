@@ -28,23 +28,48 @@ function loadState(): { iterations: number; startTime: number; sessionId: string
   return { iterations: 0, startTime: Date.now(), sessionId: null };
 }
 
-function loadSettings(): any {
+interface AutopilotSettingsBlock {
+  enabled?: boolean;
+  maxIterations?: number;
+  timeoutMinutes?: number;
+}
+
+interface ClaudeFlowSettings {
+  autopilot?: AutopilotSettingsBlock;
+  [key: string]: unknown;
+}
+
+interface SettingsFile {
+  claudeFlow?: ClaudeFlowSettings;
+  [key: string]: unknown;
+}
+
+interface LogEntry {
+  timestamp?: string;
+  event?: string;
+  iterations?: number;
+  reason?: string;
+  progress?: number;
+  [key: string]: unknown;
+}
+
+function loadSettings(): SettingsFile {
   if (existsSync(SETTINGS_FILE)) {
     try {
-      return JSON.parse(readFileSync(SETTINGS_FILE, 'utf-8'));
+      return JSON.parse(readFileSync(SETTINGS_FILE, 'utf-8')) as SettingsFile;
     } catch { return {}; }
   }
   return {};
 }
 
-function saveSettings(settings: any): void {
+function saveSettings(settings: SettingsFile): void {
   writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
 }
 
-function loadLog(): any[] {
+function loadLog(): LogEntry[] {
   if (existsSync(LOG_FILE)) {
     try {
-      return JSON.parse(readFileSync(LOG_FILE, 'utf-8'));
+      return JSON.parse(readFileSync(LOG_FILE, 'utf-8')) as LogEntry[];
     } catch { return []; }
   }
   return [];
@@ -260,9 +285,10 @@ async function showLearn(opts: Record<string, string | boolean>): Promise<void> 
     if (opts.json) {
       console.log(JSON.stringify({
         available: true,
-        patterns: patterns.map((p: any) => ({
-          taskType: p.taskType, approach: p.approach,
-          successRate: p.successRate, uses: p.uses,
+        patterns: patterns.map(p => ({
+          pattern: p.pattern,
+          frequency: p.frequency,
+          avgReward: p.avgReward,
         })),
         metrics: {
           episodes: metrics.episodes, patterns: metrics.patterns,
@@ -283,13 +309,12 @@ async function showLearn(opts: Record<string, string | boolean>): Promise<void> 
       console.log('  No patterns discovered yet.');
     } else {
       for (const p of patterns) {
-        const rate = Math.round((p.successRate || 0) * 100);
-        console.log(`  [${rate}%] ${p.taskType || 'unknown'}: ${p.approach || '?'} (used ${p.uses || 0}x)`);
+        console.log(`  ${p.pattern} — frequency:${p.frequency} avgReward:${p.avgReward.toFixed(2)}`);
       }
     }
     console.log('');
-  } catch (error: any) {
-    console.error(`Error: ${error.message}`);
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -325,9 +350,13 @@ async function showHistory(opts: Record<string, string | boolean>): Promise<void
     if (opts.json) {
       console.log(JSON.stringify({
         available: true, query, count: episodes.length,
-        episodes: episodes.map((ep: any) => ({
-          id: ep.id, task: ep.task, reward: ep.reward,
-          success: ep.success, similarity: ep.similarity,
+        episodes: episodes.map(ep => ({
+          taskId: ep.taskId,
+          subject: ep.subject,
+          status: ep.status,
+          reward: ep.reward,
+          iterations: ep.iterations,
+          durationMs: ep.durationMs,
         })),
       }, null, 2));
       return;
@@ -340,14 +369,13 @@ async function showHistory(opts: Record<string, string | boolean>): Promise<void
       console.log('  No matching episodes found.');
     } else {
       for (const ep of episodes) {
-        const icon = ep.success ? '+' : '-';
-        const sim = ep.similarity != null ? ` (similarity: ${(ep.similarity * 100).toFixed(0)}%)` : '';
-        console.log(`  [${icon}] ${ep.task} reward:${ep.reward}${sim}`);
+        const icon = ep.status === 'completed' ? '+' : '-';
+        console.log(`  [${icon}] ${ep.subject} reward:${ep.reward ?? '?'} status:${ep.status}`);
       }
     }
     console.log('');
-  } catch (error: any) {
-    console.error(`Error: ${error.message}`);
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -359,7 +387,7 @@ async function showPredict(opts: Record<string, string | boolean>): Promise<void
 
     if (!available) {
       if (opts.json) {
-        console.log(JSON.stringify({ available: false, action: 'continue', confidence: 0, alternatives: [] }, null, 2));
+        console.log(JSON.stringify({ available: false, action: 'continue', confidence: 0 }, null, 2));
       } else {
         console.log('\nAutopilot Prediction');
         console.log('='.repeat(50));
@@ -374,9 +402,9 @@ async function showPredict(opts: Record<string, string | boolean>): Promise<void
 
     if (opts.json) {
       console.log(JSON.stringify({
-        available: true, action: prediction.action,
+        available: true,
+        action: prediction.action,
         confidence: prediction.confidence,
-        alternatives: prediction.alternatives || [],
       }, null, 2));
       return;
     }
@@ -385,15 +413,9 @@ async function showPredict(opts: Record<string, string | boolean>): Promise<void
     console.log('='.repeat(50));
     console.log(`  Action:     ${prediction.action}`);
     console.log(`  Confidence: ${Math.round(prediction.confidence * 100)}%`);
-    if (prediction.alternatives && prediction.alternatives.length > 0) {
-      console.log('  Alternatives:');
-      for (const alt of prediction.alternatives) {
-        console.log(`    - ${alt.action} (${Math.round(alt.confidence * 100)}%)`);
-      }
-    }
     console.log('');
-  } catch (error: any) {
-    console.error(`Error: ${error.message}`);
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
