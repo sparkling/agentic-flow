@@ -241,14 +241,20 @@ describe('AutopilotLearning', () => {
 
 describe('AutopilotLearning — populated AgentDB', () => {
   let learning: AutopilotLearning;
+  // ADR-0192 review (Reviewer fix #1): emit an explicit skip marker so CI
+  // can distinguish "AgentDB unavailable so we passed-by-default" from
+  // "tested and passed for real." Sentinel is checked in every it().
+  let _skippedReason: string | null = null;
 
   beforeEach(async () => {
+    _skippedReason = null;
     learning = new AutopilotLearning();
     const ready = await learning.initialize();
     if (!ready) {
-      // AgentDB legitimately unavailable in this test env — skip the
-      // populated suite entirely. The graceful-unavailable suite above
-      // already covers that path.
+      _skippedReason = 'AgentDB unavailable in this test env';
+      // Visible in CI log + test runner output; not a silent skip.
+      // eslint-disable-next-line no-console
+      console.warn(`[autopilot-learning populated suite] SKIP: ${_skippedReason}`);
       return;
     }
     for (let i = 0; i < 10; i++) {
@@ -274,8 +280,15 @@ describe('AutopilotLearning — populated AgentDB', () => {
     }
   }, 30000);
 
+  // ADR-0192 review (Reviewer fix #2): episodes accumulate across test
+  // runs because there's no public episode-purge API in Phase 1 (out of
+  // scope per ADR-059 — no pruning/retention policies). Assertions use
+  // `toBeGreaterThanOrEqual(15)` rather than `toBe(15)` to tolerate the
+  // intentional accumulation. A future Phase (or Phase 7 follow-up) can
+  // add a purge API and this suite can tighten back to exact counts.
+
   it('reports populated metrics', async () => {
-    if (!learning.isAvailable()) return; // skip if unavailable in env
+    if (_skippedReason) return;
     const m = await learning.getMetrics();
     expect(m.available).toBe(true);
     expect(m.episodes).toBeGreaterThanOrEqual(15);
@@ -283,7 +296,7 @@ describe('AutopilotLearning — populated AgentDB', () => {
   });
 
   it('discovers patterns from grouped subjects', async () => {
-    if (!learning.isAvailable()) return;
+    if (_skippedReason) return;
     const patterns = await learning.discoverSuccessPatterns();
     expect(patterns.length).toBeGreaterThan(0);
     expect(patterns.every(p => p.frequency >= 2)).toBe(true);
@@ -291,7 +304,7 @@ describe('AutopilotLearning — populated AgentDB', () => {
   });
 
   it('recall returns matches by subject substring', async () => {
-    if (!learning.isAvailable()) return;
+    if (_skippedReason) return;
     const results = await learning.recallSimilarTasks('authentication', 5);
     expect(results.length).toBeGreaterThan(0);
     expect(
@@ -300,7 +313,7 @@ describe('AutopilotLearning — populated AgentDB', () => {
   });
 
   it('re-engagement context separates failures from successes', async () => {
-    if (!learning.isAvailable()) return;
+    if (_skippedReason) return;
     const ctx = await learning.getReEngagementContext([
       { subject: 'fix database migration', status: 'pending' },
     ]);
@@ -310,13 +323,14 @@ describe('AutopilotLearning — populated AgentDB', () => {
   });
 
   it('confidence scales with episode count', async () => {
-    if (!learning.isAvailable()) return;
+    if (_skippedReason) return;
     const ctx = await learning.getReEngagementContext([
       { subject: 'unrelated query', status: 'pending' },
     ]);
-    // 15 episodes / 50 floor = 0.3
+    // 15 episodes / 50 floor = 0.3 on the first run; accumulates on subsequent
+    // runs up to 1.0 — accept the full range until a purge API exists.
     expect(ctx.confidence).toBeGreaterThan(0.2);
-    expect(ctx.confidence).toBeLessThan(1.01);
+    expect(ctx.confidence).toBeLessThanOrEqual(1.0);
   });
 });
 

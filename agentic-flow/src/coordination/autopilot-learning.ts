@@ -99,15 +99,23 @@ export class AutopilotLearning {
       const svc = await import('../services/agentdb-service.js');
       const inst = await svc.getAgentDBService?.();
       if (!inst) {
+        // ADR-0191 §absence-not-accepted: log reason directly at the
+        // producer boundary (in addition to the doctor's consumer-side
+        // surface) so a Reason #5 absence is observable in stderr at
+        // startup.
+        console.error('[AutopilotLearning] unavailable: getAgentDBService() returned null');
         this._available = false;
         return false;
       }
-      const asAdb = inst as unknown as AgentDBLike;
+      // Runtime-guarded narrowing — the typeof checks below are the
+      // structural check; single cast is sufficient.
+      const asAdb = inst as AgentDBLike;
       // The AgentDBService surface we depend on: storeEpisode +
       // recallEpisodes. If either is missing, treat as unavailable
       // rather than throwing on first use.
       if (typeof asAdb.storeEpisode !== 'function'
           || typeof asAdb.recallEpisodes !== 'function') {
+        console.error('[AutopilotLearning] unavailable: AgentDBService missing storeEpisode/recallEpisodes — version mismatch?');
         this._available = false;
         return false;
       }
@@ -122,12 +130,14 @@ export class AutopilotLearning {
         try {
           const status = asAdb.getFallbackStatus();
           if (status?.degraded === true) {
+            console.error(`[AutopilotLearning] unavailable: AgentDBService DEGRADED (backend=${status?.backend ?? 'unknown'}, initError=${status?.initError ?? 'unknown'})`);
             this._available = false;
             return false;
           }
-        } catch {
+        } catch (statusErr) {
           // getFallbackStatus shouldn't throw, but if it does treat as
           // an unknown state and refuse to claim availability.
+          console.error(`[AutopilotLearning] unavailable: getFallbackStatus() threw: ${statusErr instanceof Error ? statusErr.message : String(statusErr)}`);
           this._available = false;
           return false;
         }
@@ -135,7 +145,11 @@ export class AutopilotLearning {
       this._agentdb = asAdb;
       this._available = true;
       return true;
-    } catch {
+    } catch (initErr) {
+      // ADR-0191 §absence-not-accepted: log the actual error so a Reason #5
+      // packaging condition vs an unexpected non-packaging error is
+      // discriminable in stderr.
+      console.error(`[AutopilotLearning] unavailable: initialize() threw: ${initErr instanceof Error ? initErr.message : String(initErr)}`);
       this._available = false;
       return false;
     }
