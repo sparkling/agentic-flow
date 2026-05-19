@@ -996,6 +996,21 @@ export class AutopilotLearning {
         timestamp,
       },
     });
+    // === PHASE 4 BEGIN (ADR-0195 episode:recorded emit) ===
+    // Cross-controller signal: AFTER storeEpisode succeeds, before
+    // retention enforcement. LearningSystem subscriber in AgentDBService
+    // translates this into `submitFeedback` with synthesized per-subject
+    // sessionId. Reward is the SHAPED reward (ADR-0193 Item A.3),
+    // inherited per ADR-0195 §Decision Outcome.
+    this._emitLearningEvent('episode:recorded', {
+      taskId: ep.taskId,
+      subject: ep.subject,
+      status: ep.status,
+      reward,
+      success,
+      timestamp,
+    }, '_record');
+    // === PHASE 4 END ===
     // ADR-0193 Item A.4: enforce retention cap after every successful
     // write. Soft-cap when deleteEpisode is unavailable (older
     // AgentDBService versions); see _enforceRetentionCap for the
