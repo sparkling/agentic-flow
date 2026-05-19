@@ -936,6 +936,32 @@ export class AgentDBService {
   }
 
   /**
+   * Delete a single episode by id. Proxies to
+   * `reflexionMemory.deleteEpisode(id)` which removes the row from SQL
+   * durable storage AND attempts vector/graph backend removal.
+   *
+   * ADR-0193 Item A.4: retention/pruning surface. AutopilotLearning's
+   * episode cap relies on this to evict the oldest entries after the
+   * cap is crossed.
+   *
+   * Returns `true` when at least one backend confirmed deletion. Returns
+   * `false` when the id was unknown OR when ReflexionMemory is null
+   * (degraded init). Never throws — caller decides whether to surface
+   * a partial-eviction case.
+   */
+  async deleteEpisode(id: number | string): Promise<boolean> {
+    if (!this.reflexionMemory) return false;
+    if (typeof this.reflexionMemory.deleteEpisode !== 'function') return false;
+    try {
+      return Boolean(await this.reflexionMemory.deleteEpisode(id));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[AgentDBService] deleteEpisode(${id}) failed: ${msg}`);
+      return false;
+    }
+  }
+
+  /**
    * Recall diverse episodes using MMR ranking to prevent near-duplicate results.
    * Now wired to use initialized MMRDiversityRanker controller.
    */
@@ -1190,6 +1216,28 @@ export class AgentDBService {
       } catch { this.learningSystem = null; }
     }
     return { action: 'noop', confidence: 0, alternatives: [] };
+  }
+
+  /**
+   * Expose the process-local SonaRvfService instance for callers that
+   * need the step-by-step trajectory surface (beginTrajectory + addStep
+   * + endTrajectory) rather than the batch-only `recordTrajectory`.
+   *
+   * ADR-0193 Item B: AutopilotLearning's `recordIterationStep` /
+   * `endSwarmTrajectory` write per-iteration steps via this API; the
+   * batch API on `recordTrajectory` (line 1128) is unsuitable because
+   * the autopilot loop doesn't know all steps up front.
+   *
+   * Returns the singleton via SonaRvfService.getInstance() — process-
+   * local, in-memory by default. `getStats()` is the count source for
+   * `AutopilotLearning.getMetrics().trajectories`. The narrow shape
+   * AutopilotLearning consumes is declared in `autopilot-learning.ts`
+   * (AgentDBLike.getSonaService) so the full SonaRvfService surface is
+   * not leaked through that interface.
+   */
+  async getSonaService(): Promise<any> {
+    const { SonaRvfService } = await import('./sona-rvf-service.js');
+    return SonaRvfService.getInstance();
   }
 
   // -- Graph ----------------------------------------------------------------
