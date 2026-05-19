@@ -158,10 +158,100 @@ function analyzeCompletion(tasks) {
 }
 
 // ============================================================================
+// Learning Augmentation (ADR-0193 Item C)
+// ============================================================================
+
+/**
+ * Default dist path for the AutopilotLearning module, resolved relative to
+ * this hook's location in the agentic-flow monorepo. Override for tests via
+ * the AUTOPILOT_LEARNING_MODULE env var (absolute path or file:// URL).
+ */
+const DEFAULT_LEARNING_MODULE = join(
+  __dirname,
+  '..',
+  '..',
+  'agentic-flow',
+  'dist',
+  'coordination',
+  'autopilot-learning.js',
+);
+
+/**
+ * Load AutopilotLearning lazily. Returns null and logs ONE diagnostic line
+ * when the import boundary fails (graceful-unavailable only at the boundary;
+ * inside the module, errors propagate — see feedback-no-fallbacks).
+ */
+async function loadAutopilotLearning() {
+  const target = process.env.AUTOPILOT_LEARNING_MODULE || DEFAULT_LEARNING_MODULE;
+  try {
+    const mod = await import(target);
+    if (!mod || typeof mod.AutopilotLearning !== 'function') {
+      console.log(`[Autopilot] learning unavailable (import failed): module did not export AutopilotLearning`);
+      return null;
+    }
+    return mod.AutopilotLearning;
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    console.log(`[Autopilot] learning unavailable (import failed): ${msg}`);
+    return null;
+  }
+}
+
+/**
+ * Print the learning-augmented re-engagement block, if learning is available
+ * AND the producer returned a non-empty context. Suppresses empty subsections
+ * (no stub headers). Errors from inside the module surface — only the IMPORT
+ * boundary is graceful.
+ */
+async function printLearningAugmentation(incompleteTasks) {
+  const Ctor = await loadAutopilotLearning();
+  if (!Ctor) return; // import boundary failed; already logged
+
+  const learning = new Ctor();
+  const ready = await learning.initialize();
+  if (!ready) return; // producer logs its own unavailable reason; stay silent
+
+  const ctx = await learning.getReEngagementContext(incompleteTasks);
+  if (!ctx || ctx.confidence === 0) return; // no episodes yet; nothing useful
+
+  const metrics = await learning.getMetrics();
+  const episodes = metrics && typeof metrics.episodes === 'number' ? metrics.episodes : 0;
+
+  console.log(`\nLearning context (${episodes} episodes, confidence ${ctx.confidence.toFixed(2)}):`);
+
+  const topSuccessPatterns = (ctx.patterns || [])
+    .filter(p => p && typeof p.avgReward === 'number' && p.avgReward > 0)
+    .slice(0, 3);
+  if (topSuccessPatterns.length > 0) {
+    console.log(`  Top patterns:`);
+    for (const p of topSuccessPatterns) {
+      console.log(`    - "${p.pattern}" succeeded ${p.frequency}× (avg reward ${p.avgReward.toFixed(2)})`);
+    }
+  }
+
+  const failures = (ctx.pastFailures || []).slice(0, 3);
+  if (failures.length > 0) {
+    console.log(`  Past failures to avoid:`);
+    for (const f of failures) {
+      const critique = f.critique ? f.critique : '(no critique recorded)';
+      console.log(`    - ${f.task}: ${critique}`);
+    }
+  }
+
+  const recs = ctx.recommendations || [];
+  if (recs.length > 0) {
+    console.log(`  Recommendations:`);
+    for (const r of recs) {
+      console.log(`    - ${r}`);
+    }
+  }
+}
+
+// ============================================================================
 // Main Hook Logic
 // ============================================================================
 
-function main() {
+async function main() {
   if (!ENABLED) {
     process.exit(0);
   }
@@ -244,11 +334,14 @@ function main() {
   console.log(`Iteration ${state.iterations}/${MAX_ITERATIONS}, elapsed ${Math.round(elapsedMinutes)}/${TIMEOUT_MINUTES} minutes.`);
   console.log(`\nRemaining tasks:\n${remainingList}${moreText}`);
   console.log(`\nPlease continue working on the remaining tasks. Do not stop until all tasks are completed.`);
+
+  // ADR-0193 Item C: append learning-derived context when available.
+  // Errors inside the learning module propagate (no-squelch); only the
+  // dynamic-import boundary is graceful-unavailable.
+  await printLearningAugmentation(analysis.remaining);
 }
 
-try {
-  main();
-} catch (err) {
-  console.error(`[Autopilot] Hook error: ${err.message || err}`);
+main().catch((err) => {
+  console.error(`[Autopilot] Hook error: ${err && err.message ? err.message : err}`);
   process.exit(0); // Allow agent to stop on hook failure
-}
+});
