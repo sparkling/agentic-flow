@@ -136,6 +136,12 @@ export function parseArgs(): CliOptions {
     return options;
   }
 
+  // Check for autopilot command (ADR-058 + ADR-0194/0196 surface)
+  if (args[0] === 'autopilot') {
+    options.mode = 'autopilot';
+    return options;
+  }
+
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
 

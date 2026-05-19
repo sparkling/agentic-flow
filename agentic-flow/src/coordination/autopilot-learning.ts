@@ -1196,7 +1196,33 @@ export class AutopilotLearning {
       critique: r.critique,
       timestamp: typeof md.timestamp === 'number' ? md.timestamp : r.ts,
       sessionId: r.sessionId,
+      // ADR-0196 Phase 5: surface federation attribution on read-back.
+      // `originInstallId` is persisted by `_record` into metadata;
+      // `vectorClock` is NOT (per `_record`: peers reconstruct causality
+      // via SyncCoordinator CRDT merge), so it stays `undefined` on read.
+      // Per `feedback-no-fallbacks` we surface what is actually persisted
+      // — no synthetic clock.
+      originInstallId: typeof md.originInstallId === 'string' ? md.originInstallId : undefined,
     };
+  }
+
+  /**
+   * Public read-only listing of recent autopilot episodes, newest-first
+   * by `timestamp` (falling back to row `ts`). Returns AT MOST `limit`
+   * episodes. Used by the `autopilot episodes` CLI subcommand.
+   *
+   * Per `feedback-no-fallbacks`: callers must call `initialize()` first
+   * and gate on `isAvailable()`. When unavailable this returns `[]` (the
+   * same absence-not-accepted signal the rest of the surface uses); the
+   * CLI gates separately and throws a clear error so the absent branch
+   * is observable to the user.
+   */
+  async listRecentEpisodes(limit: number): Promise<AutopilotEpisode[]> {
+    if (!this._available) return [];
+    const episodes = await this._listEpisodes();
+    return [...episodes]
+      .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
+      .slice(0, Math.max(0, limit));
   }
 
   private async _listEpisodes(): Promise<AutopilotEpisode[]> {
