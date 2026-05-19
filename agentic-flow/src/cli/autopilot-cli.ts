@@ -54,10 +54,18 @@ interface LogEntry {
 }
 
 function loadSettings(): SettingsFile {
+  // ADR-0191 Cluster D: ENOENT-only discrimination. SyntaxError on a state
+  // file is a corrupt-state bug and must fail loud, not fall back to "no
+  // file". The `existsSync` guard is retained for the common no-config-yet
+  // path, but the catch only swallows the post-stat race where the file
+  // disappears between existsSync and readFileSync.
   if (existsSync(SETTINGS_FILE)) {
     try {
       return JSON.parse(readFileSync(SETTINGS_FILE, 'utf-8')) as SettingsFile;
-    } catch { return {}; }
+    } catch (e: unknown) {
+      if ((e as { code?: string } | null)?.code === 'ENOENT') return {};
+      throw e;
+    }
   }
   return {};
 }
@@ -67,10 +75,14 @@ function saveSettings(settings: SettingsFile): void {
 }
 
 function loadLog(): LogEntry[] {
+  // ADR-0191 Cluster D: ENOENT-only discrimination. See loadSettings comment.
   if (existsSync(LOG_FILE)) {
     try {
       return JSON.parse(readFileSync(LOG_FILE, 'utf-8')) as LogEntry[];
-    } catch { return []; }
+    } catch (e: unknown) {
+      if ((e as { code?: string } | null)?.code === 'ENOENT') return [];
+      throw e;
+    }
   }
   return [];
 }

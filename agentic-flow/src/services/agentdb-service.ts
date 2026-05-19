@@ -184,7 +184,17 @@ export class AgentDBService {
    * sessionIds. Mirrors the agentic-flow EventEmitter precedent
    * (HookService, StreamingService, etc.).
    */
-  private readonly learningEvents = new EventEmitter();
+  private readonly learningEvents = (() => {
+    // ADR-0195 Phase 4 hardening: cap listener accumulation at 50 (vs Node's
+    // default 10). The current wiring attaches one subscriber per service
+    // instance via `_attachLearningSubscriber`, so 10 suffices today — but
+    // multi-tenant scenarios (one autopilot session per checkout) could
+    // exceed it. 50 gives headroom while still firing a
+    // MaxListenersExceededWarning on a true listener leak.
+    const e = new EventEmitter();
+    e.setMaxListeners(50);
+    return e;
+  })();
 
   /** ADR-0195 Phase 4: tracks which synthetic autopilot sessionIds have
    *  had `LearningSystem.startSession` invoked (lazy-bind, once per sid). */

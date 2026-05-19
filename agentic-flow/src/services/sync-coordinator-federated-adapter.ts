@@ -31,7 +31,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { AutopilotEpisode } from '../coordination/autopilot-learning.js';
@@ -125,17 +125,19 @@ function getOrCreateInstallId(projectRoot: string): string {
   const dir = path.join(projectRoot, CLAUDE_FLOW_DIR);
   const file = path.join(dir, INSTALL_ID_FILENAME);
   if (existsSync(file)) {
-    // Read up to the size cap, then trim + validate. Reading the whole
-    // file is fine because the cap is small; readFileSync's full-file
-    // read is bounded by the file's actual size.
-    const raw = readFileSync(file, 'utf-8');
-    if (raw.length > INSTALL_ID_MAX_BYTES) {
+    // ADR-0196 hardening: pre-check size with statSync BEFORE readFileSync
+    // so a multi-GB malicious file never gets allocated into memory. The
+    // earlier shape read first and checked after — which left the read
+    // unbounded.
+    const size = statSync(file).size;
+    if (size > INSTALL_ID_MAX_BYTES) {
       console.warn(
         `[SyncCoordinatorFederatedAdapter] install-id file ${file} ` +
-        `exceeds ${INSTALL_ID_MAX_BYTES}-byte cap (got ${raw.length}); ` +
+        `exceeds ${INSTALL_ID_MAX_BYTES}-byte cap (got ${size}); ` +
         `re-minting`,
       );
     } else {
+      const raw = readFileSync(file, 'utf-8');
       const trimmed = raw.trim();
       if (UUID_V4_REGEX.test(trimmed)) {
         return trimmed;
