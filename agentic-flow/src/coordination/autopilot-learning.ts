@@ -38,6 +38,13 @@
 import type { EventEmitter } from 'node:events';
 // === PHASE 4 END ===
 
+// === PHASE 5 BEGIN (ADR-0196 federation imports) ===
+import type { VectorClock } from 'agentdb';
+import { incrementVectorClock, createVectorClock } from 'agentdb';
+import type { FederatedSyncProvider } from '../services/federated-sync-provider.js';
+import { NoopFederatedSyncProvider } from '../services/federated-sync-provider.js';
+// === PHASE 5 END ===
+
 export interface AutopilotEpisode {
   taskId: string;
   subject: string;
@@ -48,6 +55,29 @@ export interface AutopilotEpisode {
   critique?: string;
   timestamp?: number;         // set by record* methods on write
   sessionId?: string;         // analytics only; not used for partitioning
+  // === PHASE 5 BEGIN (ADR-0196 federated identity fields) ===
+  /**
+   * ADR-0196 Phase 5: stable origin identifier for federation. Populated
+   * by `_record` from the configured `FederatedSyncProvider.getLocalInstallId()`
+   * before persistence — per `feedback-no-fallbacks`, ALWAYS the
+   * provider's value, never a caller-supplied literal. Optional on the
+   * public surface so existing callers that construct episode literals
+   * don't have to know about federation.
+   */
+  originInstallId?: string;
+  /**
+   * ADR-0196 Phase 5: vector clock for CRDT-style conflict resolution.
+   * Advanced by `_record` via `incrementVectorClock(prev, installId)`
+   * AFTER each successful `storeEpisode` — see security review
+   * hardening (Phase 5 commit message). Carried through episode
+   * metadata so `SyncCoordinator` / future `EpisodeSync.causalClock`
+   * can use it without a separate lookup.
+   *
+   * Typed as `VectorClock` from agentdb; optional here so episodes built
+   * before federation is wired remain typed-compatible.
+   */
+  vectorClock?: VectorClock;
+  // === PHASE 5 END ===
 }
 
 export interface DiscoveredPattern {
@@ -82,6 +112,12 @@ export interface AutopilotLearningConfig {
   embeddingClusterMaxSize?: number;
   /** Minimum members to emit a pattern. Default 2 (matches Phase 2 `count >= 2`). */
   embeddingClusterMinSize?: number;
+  /**
+   * ADR-0194 security hardening: maximum episodes fed into a single
+   * `discoverPatternsByEmbedding` call. Defense-in-depth against the
+   * greedy clustering's O(n²) worst case. Default 1000.
+   */
+  maxEpisodesPerClustering?: number;
 }
 
 export interface ReEngagementContext {
@@ -223,13 +259,34 @@ interface AgentDBLike {
    */
   generateEmbedding?(text: string): Promise<number[]>;
   generateEmbeddings?(texts: string[]): Promise<number[][]>;
+  // === PHASE 4 BEGIN (ADR-0195 cross-controller event bus accessor) ===
+  /**
+   * ADR-0195 Phase 4: accessor for the shared cross-controller event bus.
+   * AutopilotLearning emits four events (episode:recorded /
+   * trajectory:opened / trajectory:step / trajectory:closed) via
+   * `_resolveEventBus`. Optional on the interface so test doubles that
+   * don't care about the bus can omit it; `_resolveEventBus` returns
+   * null when absent.
+   */
+  getLearningEvents?(): EventEmitter;
+  // === PHASE 4 END ===
 }
 
-/** ADR-0194 Phase 3: resolved-defaults shape used internally. */
+/**
+ * ADR-0194 Phase 3: resolved-defaults shape used internally.
+ *
+ * `maxEpisodesPerClustering` (ADR-0194 security hardening, default 1000)
+ * caps how many episodes are fed into `discoverPatternsByEmbedding`
+ * per call — defense-in-depth against greedy clustering's O(n²)
+ * worst case. The autopilot's normal corpus is well below this cap;
+ * the bound surfaces a clear error rather than a silent slowdown when
+ * a misconfigured retention cap explodes the input set.
+ */
 interface ResolvedClusterConfig {
   threshold: number;
   maxSize: number;
   minSize: number;
+  maxEpisodesPerClustering: number;
 }
 
 export class AutopilotLearning {
@@ -239,12 +296,14 @@ export class AutopilotLearning {
   /**
    * ADR-0194 Phase 3: resolved cluster knobs. Mutable via
    * `configure(config)` so populated tests can sweep the threshold
-   * without reconstructing the instance.
+   * without reconstructing the instance. `maxEpisodesPerClustering`
+   * is the ADR-0194 security-hardening defense-in-depth cap.
    */
   private _clusterConfig: ResolvedClusterConfig = {
     threshold: 0.75,
     maxSize: 100,
     minSize: 2,
+    maxEpisodesPerClustering: 1000,
   };
 
   /**
@@ -263,6 +322,50 @@ export class AutopilotLearning {
    * aggregate including any non-autopilot consumer.
    */
   private _trajectoriesOpened = 0;
+
+  // === PHASE 5 BEGIN (ADR-0196 federation provider) ===
+  /**
+   * ADR-0196 Phase 5: federated sync provider. Default
+   * `NoopFederatedSyncProvider` preserves single-install behaviour
+   * (episode writes go to the local SQL `episodes` table only). A real
+   * provider (e.g., `SyncCoordinatorFederatedAdapter`) is injected via
+   * the constructor to enable cross-install sync via agentdb's
+   * `SyncCoordinator`.
+   *
+   * Held as a class field rather than a constructor arg pass-through so
+   * `_record` can call `provider.notifyEpisode(episode)` after every
+   * successful write without re-reading constructor args.
+   */
+  private readonly _syncProvider: FederatedSyncProvider;
+
+  /**
+   * ADR-0196 Phase 5: vector clock state for this instance. Each
+   * `_record` call invokes `incrementVectorClock(prev, installId)` on
+   * this clock AFTER the storeEpisode write succeeds (per security
+   * review — failing writes must not leak clock ticks). Matches
+   * `EpisodeSync.causalClock` (`forks/agentdb/src/types/quic.ts`) —
+   * empty clock at boot, advances on each successful write.
+   *
+   * NOTE: process-local. When two AutopilotLearning instances share an
+   * install-id (e.g., crash + restart), the post-restart clock restarts
+   * at zero. The future federation-runtime ADR must persist the latest
+   * clock alongside the install-id and rehydrate on boot. Tracked as a
+   * follow-up in ADR-0196's open questions.
+   */
+  private _vectorClock: VectorClock;
+
+  /**
+   * ADR-0196 Phase 5: optional constructor. When `provider` is omitted,
+   * the no-op default runs and Phase 5 federation stays inactive — same
+   * observable behaviour as Phase 2/3/4. Optionality preserves the
+   * `new AutopilotLearning()` call shape every existing caller uses
+   * (autopilot-hook.mjs, populated test harness, etc.).
+   */
+  constructor(provider?: FederatedSyncProvider) {
+    this._syncProvider = provider ?? new NoopFederatedSyncProvider();
+    this._vectorClock = createVectorClock();
+  }
+  // === PHASE 5 END ===
 
   async initialize(): Promise<boolean> {
     try {
@@ -449,6 +552,13 @@ export class AutopilotLearning {
       }
       this._clusterConfig.minSize = n;
     }
+    if (config.maxEpisodesPerClustering !== undefined) {
+      const cap = config.maxEpisodesPerClustering;
+      if (!Number.isInteger(cap) || cap < 1) {
+        throw new Error(`[AutopilotLearning] maxEpisodesPerClustering must be a positive integer, got ${cap}`);
+      }
+      this._clusterConfig.maxEpisodesPerClustering = cap;
+    }
     return { ...this._clusterConfig };
   }
 
@@ -493,6 +603,20 @@ export class AutopilotLearning {
   ): Promise<DiscoveredPattern[]> {
     if (!this._available || !this._agentdb) return [];
     if (episodes.length < this._clusterConfig.minSize) return [];
+    // ADR-0194 security hardening: defense-in-depth cap on greedy
+    // clustering's O(n²) worst case. Per `feedback-no-fallbacks`,
+    // surface this loudly rather than silently truncating — the caller
+    // can configure() a larger cap if they accept the cost.
+    if (episodes.length > this._clusterConfig.maxEpisodesPerClustering) {
+      throw new Error(
+        `[AutopilotLearning] discoverPatternsByEmbedding: input size ` +
+        `${episodes.length} exceeds maxEpisodesPerClustering=` +
+        `${this._clusterConfig.maxEpisodesPerClustering} (ADR-0194 ` +
+        `security cap on greedy clustering O(n²)). Configure a larger ` +
+        `cap via configure({maxEpisodesPerClustering: N}) if the ` +
+        `clustering cost is acceptable for the corpus size.`,
+      );
+    }
     // Per feedback-no-fallbacks: surface a real error if no embedding
     // surface is reachable. Phase 2 keyword discovery still runs above;
     // this throw bubbles to discoverSuccessPatterns and is the
@@ -793,6 +917,63 @@ export class AutopilotLearning {
       return null;
     }
   }
+
+  // === PHASE 4 BEGIN (ADR-0195 cross-controller event bus helpers) ===
+  /**
+   * ADR-0195 Phase 4: resolve the shared cross-controller EventEmitter
+   * for the four producer-side emits. Mirrors `_resolveSona` shape.
+   * Returns null when the autopilot is unavailable, when AgentDBService
+   * doesn't expose `getLearningEvents` (older versions / test doubles),
+   * or when the getter throws. Older-version absence uses `console.warn`
+   * since that is a legitimate graceful path; other failures use
+   * `console.error` so absence is observable per `feedback-no-fallbacks`.
+   *
+   * Synchronous (unlike `_resolveSona`'s async) — the bus is a plain
+   * field on AgentDBService, no I/O.
+   */
+  private _resolveEventBus(caller: string): EventEmitter | null {
+    if (!this._available || !this._agentdb) return null;
+    if (typeof this._agentdb.getLearningEvents !== 'function') {
+      console.warn(`[AutopilotLearning] ${caller}: AgentDBService.getLearningEvents unavailable (older version?)`);
+      return null;
+    }
+    try {
+      const bus = this._agentdb.getLearningEvents();
+      if (!bus) {
+        console.error(`[AutopilotLearning] ${caller}: getLearningEvents returned falsy`);
+        return null;
+      }
+      return bus;
+    } catch (err) {
+      console.error(`[AutopilotLearning] ${caller}: getLearningEvents threw: ${this._errMsg(err)}`);
+      return null;
+    }
+  }
+
+  /**
+   * ADR-0195 Phase 4: emit one of the four cross-controller events.
+   * AgentDBService attaches a default `'error'` listener on the bus
+   * that catches subscriber throws (synchronous emit), so this inline
+   * call is safe — a subscriber's thrown error cannot break autopilot's
+   * `storeEpisode` invariant.
+   */
+  private _emitLearningEvent(
+    event: 'episode:recorded' | 'trajectory:opened' | 'trajectory:step' | 'trajectory:closed',
+    payload: Record<string, unknown>,
+    caller: string,
+  ): void {
+    const bus = this._resolveEventBus(caller);
+    if (!bus) return;
+    try {
+      bus.emit(event, payload);
+    } catch (err) {
+      // emit itself shouldn't throw under normal conditions; if it does,
+      // surface (don't swallow per `feedback-no-fallbacks`) but don't
+      // propagate — producer's primary write already succeeded.
+      console.error(`[AutopilotLearning] ${caller}: bus.emit(${event}) threw: ${this._errMsg(err)}`);
+    }
+  }
+  // === PHASE 4 END ===
 
   private async _record(ep: AutopilotEpisode, baseReward: number, success: boolean): Promise<void> {
     if (!this._available || !this._agentdb) return;
