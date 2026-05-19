@@ -365,6 +365,18 @@ export class AutopilotLearning {
     this._syncProvider = provider ?? new NoopFederatedSyncProvider();
     this._vectorClock = createVectorClock();
   }
+
+  /**
+   * ADR-0196 Phase 5: public accessor for the configured sync provider.
+   * Used by the `autopilot federation status` CLI subcommand to surface
+   * the live provider state. When the constructor was called without an
+   * argument, this returns the `NoopFederatedSyncProvider` — which is an
+   * honest "single-install" state, not a fallback (per
+   * `feedback-no-fallbacks`).
+   */
+  getSyncProvider(): FederatedSyncProvider {
+    return this._syncProvider;
+  }
   // === PHASE 5 END ===
 
   async initialize(): Promise<boolean> {
