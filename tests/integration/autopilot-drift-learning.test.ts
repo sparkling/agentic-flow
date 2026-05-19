@@ -176,15 +176,6 @@ describe('DriftDetector', () => {
   });
 });
 
-      { subject: 'unrelated query', status: 'pending' },
-    ]);
-    // 15 episodes / 50 floor = 0.3 on the first run; accumulates on subsequent
-    // runs up to 1.0 — accept the full range until a purge API exists.
-    expect(ctx.confidence).toBeGreaterThan(0.2);
-    expect(ctx.confidence).toBeLessThanOrEqual(1.0);
-  });
-});
-
 // ─── SwarmCompletionCoordinator Integration Tests ────────────────────
 
 describe('SwarmCompletionCoordinator with Drift', () => {
