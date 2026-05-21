@@ -5,7 +5,7 @@
 
 import { pipeline, env } from '@xenova/transformers';
 import { loadConfig } from './config.js';
-import { getEmbeddingConfig } from '../../../../packages/agentdb/src/config/embedding-config.js'; // ADR-0069
+import { getEmbeddingConfig } from 'agentdb'; // ADR-0069
 
 // Configure transformers.js to use WASM backend only (avoid ONNX runtime issues)
 // The native ONNX runtime causes "DefaultLogger not registered" errors in Node.js

@@ -18,7 +18,7 @@ import {
   type Trajectory,
   type LearningOutcome,
 } from '../../../../intelligence/index.js';
-import { getEmbeddingConfig } from '../../../../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 import { getIntelligenceStore, type IntelligenceStore } from '../../../../intelligence/IntelligenceStore.js';
 import { getEmbeddingService, type EmbeddingService } from '../../../../intelligence/EmbeddingService.js';

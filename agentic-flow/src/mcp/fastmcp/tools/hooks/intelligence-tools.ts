@@ -23,7 +23,7 @@ import {
   forceLearningCycle,
   computeAttentionSimilarity,
 } from './intelligence-bridge.js';
-import { readEwcLambdaFromConfig } from '../../../../../../packages/agentdb/src/config/embedding-config.js';
+import { readEwcLambdaFromConfig } from 'agentdb';
 
 // ADR-0069 A4: config-chain EWC lambda now imported from shared helper
 

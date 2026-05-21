@@ -12,7 +12,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 interface RuVectorConfig {
   enabled: boolean;

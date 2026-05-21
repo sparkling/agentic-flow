@@ -17,7 +17,7 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 // TinyDancer module state
 let tinyDancerModule: TinyDancerModule | null = null;

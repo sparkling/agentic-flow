@@ -10,7 +10,7 @@
 
 import { EventEmitter } from 'events';
 // ADR-0069 A12: import canonical embedding config chain
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 export interface EmbeddingConfig {
   provider: 'openai' | 'transformers' | 'onnx' | 'mock';

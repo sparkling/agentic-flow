@@ -22,7 +22,7 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 // Module state
 let wasmModule: OnnxEmbeddingsModule | null = null;

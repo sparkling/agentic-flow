@@ -8,7 +8,7 @@
  */
 
 import { getOptimizedEmbedder, cosineSimilarity, euclideanDistance } from './optimized-embedder.js';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 // ============================================================================
 // Security Constants

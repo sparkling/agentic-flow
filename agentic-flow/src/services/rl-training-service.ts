@@ -240,7 +240,7 @@ export class RLTrainingService {
 
     const fullConfig: TrainingConfig = {
       algorithm: config.algorithm || 'reinforce',
-      epochs: config.epochs || 100,
+      epochs: config.epochs ?? 100,
       batchSize: config.batchSize || 32,
       learningRate: config.learningRate || 0.001,
       gamma: config.gamma || 0.99,

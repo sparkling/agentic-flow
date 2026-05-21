@@ -31,7 +31,7 @@
  *   - Background learning: Non-blocking
  */
 
-import { getEmbeddingConfig, readEwcLambdaFromConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig, readEwcLambdaFromConfig } from 'agentdb';
 
 // Optional imports - graceful fallback on Windows/platforms without native binaries
 let SonaEngine: any = null;

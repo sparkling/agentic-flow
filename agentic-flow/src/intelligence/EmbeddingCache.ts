@@ -16,7 +16,7 @@ import { existsSync, mkdirSync, statSync, readFileSync, writeFileSync, unlinkSyn
 import { join } from 'path';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 export interface CacheStats {
   totalEntries: number;

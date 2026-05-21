@@ -23,7 +23,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { extname, join, dirname, basename } from 'path';
 import { homedir } from 'os';
 import { promisify } from 'util';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 const execAsync = promisify(exec);
 

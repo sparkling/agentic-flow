@@ -9,7 +9,7 @@ import { EventEmitter } from 'events';
 import { SonaEngine } from '@ruvector/sona';
 import agentdb from 'agentdb';
 import { SONAEngine, SONAStats, LearnResult, ValidationUtils } from './sona-types.js';
-import { readEwcLambdaFromConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { readEwcLambdaFromConfig } from 'agentdb';
 
 // ADR-0069 A4: config-chain EWC lambda now imported from shared helper
 

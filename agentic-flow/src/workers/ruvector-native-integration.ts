@@ -14,7 +14,7 @@ import {
   getUnifiedPhase,
   listUnifiedPhases
 } from './consolidated-phases.js';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 // Re-export PhaseContext for backwards compatibility
 export type PhaseContext = UnifiedPhaseContext;

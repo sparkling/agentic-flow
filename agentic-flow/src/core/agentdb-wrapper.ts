@@ -12,7 +12,7 @@
  * @module agentdb-wrapper
  */
 
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 let AgentDB: any = null;
 let agentdbAvailable = false;

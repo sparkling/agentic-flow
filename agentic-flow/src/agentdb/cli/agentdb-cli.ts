@@ -17,7 +17,7 @@ import { NightlyLearner } from '../controllers/NightlyLearner.js';
 import { ReflexionMemory, Episode, ReflexionQuery, ReflexionCritiqueSummary, ReflexionPruneConfig } from '../controllers/ReflexionMemory.js';
 import { SkillLibrary, Skill, SkillQuery } from '../controllers/SkillLibrary.js';
 import { EmbeddingService } from '../controllers/EmbeddingService.js';
-import { getEmbeddingConfig } from '../../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 import * as fs from 'fs';
 import * as path from 'path';
 

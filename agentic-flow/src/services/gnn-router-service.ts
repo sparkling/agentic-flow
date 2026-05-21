@@ -10,26 +10,47 @@
  * ADR-065 Phase P1-1 Implementation
  */
 
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
-// Interface for GNNService
+// Interface for GNNService.
+// Signatures match the call sites in this file (which were written for the
+// agentdb@3.x GNN engine). The narrower originals caused the default stub to
+// receive unexpected args / return shapes the callers couldn't consume.
 interface IGNNService {
   initialize?(): Promise<void>;
   classifyIntent(embedding: Float32Array): Promise<{ intent: string; confidence: number }>;
-  classifyNode(embedding: Float32Array): Promise<{ category: string; confidence: number }>;
+  classifyNode(
+    embedding: Float32Array,
+    neighborEmbeddings?: Float32Array[],
+    categories?: string[]
+  ): Promise<{ category: string; confidence: number }>;
   predictLink(nodeA: string, nodeB: string): Promise<number>;
-  predictLinks?(nodes: string[]): Promise<number[][]>;
+  predictLinks?(
+    source: { id: string; embedding: Float32Array },
+    candidates: Array<{ id: string; embedding: Float32Array; type: string }>,
+    existingDeps: Array<{ from: string; to: string }>,
+    limit: number
+  ): Promise<Array<{ probability: number; targetId: string }>>;
   getNodeEmbedding(nodeId: string): Promise<Float32Array>;
   understandContextGAT(embedding: Float32Array, contextNodes: Float32Array[]): Promise<{
     attentionWeights: Record<string, number>;
     aggregatedContext: Float32Array;
   }>;
-  processHeterogeneousGraph?(graph: any): Promise<any>;
+  processHeterogeneousGraph?(
+    graph: any,
+    queryNodeId?: string
+  ): Promise<{ relatedNodes: any[]; pathways: any[] }>;
   getEngineType?(): string;
-  matchSkillsGCN?(taskEmbedding: Float32Array, skillNodes: any[]): Promise<any>;
+  matchSkillsGCN?(
+    taskEmbedding: Float32Array,
+    skillNodes: any,
+    limit?: number
+  ): Promise<Array<{ skill: string; score: number; confidence: number }>>;
 }
 
-// Stub implementation - will be replaced when agentdb@3.x is available
+// Stub implementation - will be replaced when agentdb@3.x is available.
+// Each method returns an empty result in the SHAPE the callers consume, so the
+// GNN-less default path degrades to "no suggestions" instead of throwing.
 class GNNServiceStub implements IGNNService {
   constructor(config?: any) {}
 
@@ -37,14 +58,23 @@ class GNNServiceStub implements IGNNService {
   async classifyIntent(embedding: Float32Array): Promise<{ intent: string; confidence: number }> {
     return { intent: 'unknown', confidence: 0 };
   }
-  async classifyNode(embedding: Float32Array): Promise<{ category: string; confidence: number }> {
+  async classifyNode(
+    _embedding: Float32Array,
+    _neighborEmbeddings?: Float32Array[],
+    _categories?: string[]
+  ): Promise<{ category: string; confidence: number }> {
     return { category: 'unknown', confidence: 0 };
   }
   async predictLink(nodeA: string, nodeB: string): Promise<number> {
     return 0.5;
   }
-  async predictLinks(nodes: string[]): Promise<number[][]> {
-    return nodes.map(() => nodes.map(() => 0.5));
+  async predictLinks(
+    _source: { id: string; embedding: Float32Array },
+    _candidates: Array<{ id: string; embedding: Float32Array; type: string }>,
+    _existingDeps: Array<{ from: string; to: string }>,
+    _limit: number
+  ): Promise<Array<{ probability: number; targetId: string }>> {
+    return [];
   }
   async getNodeEmbedding(nodeId: string): Promise<Float32Array> {
     return new Float32Array(getEmbeddingConfig()?.dimension ?? 768);
@@ -58,14 +88,21 @@ class GNNServiceStub implements IGNNService {
       aggregatedContext: new Float32Array(embedding.length)
     };
   }
-  async processHeterogeneousGraph(graph: any): Promise<any> {
-    return { nodes: [], edges: [] };
+  async processHeterogeneousGraph(
+    _graph: any,
+    _queryNodeId?: string
+  ): Promise<{ relatedNodes: any[]; pathways: any[] }> {
+    return { relatedNodes: [], pathways: [] };
   }
   getEngineType(): string {
     return 'stub';
   }
-  async matchSkillsGCN(taskEmbedding: Float32Array, skillNodes: any[]): Promise<any> {
-    return { matches: [], scores: [] };
+  async matchSkillsGCN(
+    _taskEmbedding: Float32Array,
+    _skillNodes: any,
+    _limit?: number
+  ): Promise<Array<{ skill: string; score: number; confidence: number }>> {
+    return [];
   }
 }
 
@@ -550,7 +587,9 @@ export class GNNRouterService {
     let rate = agent.performance.accuracy;
 
     // Adjust based on skill match quality
-    const avgSkillScore = skillMatches.reduce((sum, m) => sum + m.score, 0) / skillMatches.length;
+    // Guard against 0/0 = NaN when there are no skill matches (mirrors the
+    // Math.max(..., 1) guard already used in routeTask).
+    const avgSkillScore = skillMatches.reduce((sum, m) => sum + m.score, 0) / Math.max(skillMatches.length, 1);
     rate = rate * 0.6 + avgSkillScore * 0.4;
 
     // Adjust for agent experience

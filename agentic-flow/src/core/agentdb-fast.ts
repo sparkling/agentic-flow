@@ -6,7 +6,7 @@
  */
 
 import { AgentDB } from 'agentdb';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 import { EventEmitter } from 'events';
 
 export interface Episode {

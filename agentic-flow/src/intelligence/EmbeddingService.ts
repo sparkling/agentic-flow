@@ -15,7 +15,7 @@
  */
 
 import { getEmbeddingCache, type EmbeddingCache } from './EmbeddingCache.js';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js'; // ADR-0069
+import { getEmbeddingConfig } from 'agentdb'; // ADR-0069
 
 export type EmbeddingBackend = 'simple' | 'onnx' | 'auto';
 

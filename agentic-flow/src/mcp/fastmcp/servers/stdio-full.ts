@@ -226,7 +226,7 @@ server.addTool({
       let synthesized: any;
       try {
         const { ContextSynthesizer } = await import(
-          /* webpackIgnore: true */ '../../../../packages/agentdb/dist/src/controllers/ContextSynthesizer.js'
+          /* webpackIgnore: true */ 'agentdb/controllers/ContextSynthesizer'
         );
         synthesized = ContextSynthesizer.synthesize(
           episodes.map((ep: any) => ({

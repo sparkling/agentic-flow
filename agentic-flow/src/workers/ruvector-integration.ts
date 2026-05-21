@@ -10,7 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { WorkerContext, WorkerResults, WorkerTrigger } from './types.js';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 // Types for lazy-loaded modules
 type SONAService = any;

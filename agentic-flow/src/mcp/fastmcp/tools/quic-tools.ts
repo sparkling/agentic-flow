@@ -262,7 +262,7 @@ export function registerQUICTools(server: any): void {
       try {
         // Import connection pool
         const { QUICConnectionPool } = await import(
-          /* webpackIgnore: true */ '../../../../packages/agentdb/src/controllers/QUICConnectionPool.js'
+          /* webpackIgnore: true */ 'agentdb/controllers/QUICConnectionPool'
         );
 
         // Use a singleton pool or report default stats

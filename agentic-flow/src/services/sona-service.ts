@@ -17,7 +17,7 @@ import { SonaEngine } from '@ruvector/sona';
 import { EventEmitter } from 'events';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 /**
  * SONA Configuration Profiles

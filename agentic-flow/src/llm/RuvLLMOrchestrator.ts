@@ -17,7 +17,7 @@
 // Note: ReasoningPattern is not exported from agentdb, define locally
 import type { ReasoningBank } from 'agentdb';
 import type { EmbeddingService } from 'agentdb';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 // Local type definition for ReasoningPattern
 // Extended to include all fields used in this module
@@ -467,8 +467,11 @@ export class RuvLLMOrchestrator {
       return pattern.metadata.agent;
     }
 
-    // Parse from approach text
-    const match = pattern.approach.match(/Agent:\s*(\S+)/);
+    // Parse from approach text. Constrain the capture to the agent-name charset
+    // (letters/digits/dash/underscore) so the trailing ", Success: ..." that
+    // recordOutcome() appends is not swallowed into the name — `\S+` captured
+    // "coder," (with the comma), which then failed validateAgentName().
+    const match = pattern.approach.match(/Agent:\s*([A-Za-z0-9_-]+)/);
     if (match) {
       return match[1];
     }
@@ -483,9 +486,10 @@ export class RuvLLMOrchestrator {
   private inferAgentFromTaskType(taskType: string): string {
     const taskLower = taskType.toLowerCase();
 
-    if (taskLower.includes('code') || taskLower.includes('implement')) {
-      return 'coder';
-    }
+    // Check specific intent verbs BEFORE the generic 'code' substring, so a
+    // task like "review the code" routes to reviewer (the intent) rather than
+    // coder (the object). 'code'/'implement' is the catch-all just before the
+    // default.
     if (taskLower.includes('research') || taskLower.includes('analyze')) {
       return 'researcher';
     }
@@ -497,6 +501,9 @@ export class RuvLLMOrchestrator {
     }
     if (taskLower.includes('optimize') || taskLower.includes('performance')) {
       return 'optimizer';
+    }
+    if (taskLower.includes('code') || taskLower.includes('implement')) {
+      return 'coder';
     }
 
     return 'coder'; // Default

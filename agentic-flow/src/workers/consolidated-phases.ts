@@ -11,7 +11,7 @@
 import { WorkerContext } from './types.js';
 import { PhaseResult, FileFilterConfig, DEFAULT_FILE_FILTER } from './custom-worker-config.js';
 import { getCachedOnnxEmbedder } from '../utils/model-cache.js';
-import { getEmbeddingConfig } from '../../../packages/agentdb/src/config/embedding-config.js';
+import { getEmbeddingConfig } from 'agentdb';
 
 // ============================================================================
 // Unified Phase Context
