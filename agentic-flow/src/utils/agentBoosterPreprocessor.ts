@@ -5,7 +5,7 @@
  * pattern matching before falling back to LLM.
  */
 
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { extname } from 'path';
 
@@ -127,36 +127,29 @@ export class AgentBoosterPreprocessor {
       // CVE-2026-003 FIX: Validate language to prevent command injection
       const validatedLanguage = this.validateLanguage(language);
 
-      // CVE-2026-003 FIX: Use array form to prevent shell injection
-      const { spawnSync } = await import('child_process');
-      const proc = spawnSync('npx', [
-        '--yes',
-        'agent-booster@0.2.2',
-        'apply',
-        '--language',
-        validatedLanguage
-      ], {
-        input: JSON.stringify({
-          code: intent.originalCode,
-          edit: intent.targetCode
-        }),
-        encoding: 'utf-8',
-        maxBuffer: 10 * 1024 * 1024,
-        timeout: 10000,
-        shell: false // CRITICAL: Disable shell to prevent injection
-      });
+      // Use spawnSync with argument array to prevent shell injection from `language`
+      const spawnResult = spawnSync(
+        'npx',
+        ['--yes', 'agent-booster@0.2.2', 'apply', '--language', validatedLanguage],
+        {
+          encoding: 'utf-8',
+          input: JSON.stringify({
+            code: intent.originalCode,
+            edit: intent.targetCode
+          }),
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 10000,
+          shell: false // CRITICAL: Disable shell to prevent injection
+        }
+      );
 
-      let result: string;
-      if (proc.error) {
-        throw new Error(`spawnSync failed: ${proc.error.message}`);
+      if (spawnResult.error) {
+        throw new Error(`spawnSync failed: ${spawnResult.error.message}`);
       }
-
-      // Try stdout first, fall back to stderr for JSON responses
-      result = proc.stdout || proc.stderr || '';
-
-      if (!result) {
-        throw new Error('No output from agent-booster');
+      if (spawnResult.status !== 0 && !spawnResult.stdout) {
+        throw new Error(`agent-booster exited with code ${spawnResult.status}: ${spawnResult.stderr}`);
       }
+      const result: string = spawnResult.stdout || spawnResult.stderr || '';
 
       const parsed = JSON.parse(result);
 
