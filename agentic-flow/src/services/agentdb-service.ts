@@ -11,6 +11,24 @@ import { EventEmitter } from 'node:events';
 import { CostOptimizerService } from './cost-optimizer-service.js';
 import { getEmbeddingConfig, deriveHNSWParams } from 'agentdb'; // ADR-0069
 
+/**
+ * ADR-0221 F-06-006: discriminate module-not-installed (legitimate
+ * "available: false" for optional Phase 2 packages) from real init
+ * errors (logged at error level so they're visible — not silently
+ * demoted to a warn line indistinguishable from "not installed").
+ *
+ * Mirrors the F-05-003 disposition in ADR-0220, but does NOT re-throw
+ * because Phase 2 features are optional enhancements; re-throwing
+ * here would trip the outer initialize() catch and put the whole
+ * service into DEGRADED mode for what may be a single-feature failure.
+ */
+function isModuleNotInstalledError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code === 'MODULE_NOT_FOUND' || code === 'ERR_MODULE_NOT_FOUND') return true;
+  return /Cannot find (?:module|package)/i.test(err.message);
+}
+
 // -- Public interfaces ------------------------------------------------------
 
 export interface EpisodeData {
@@ -768,8 +786,13 @@ export class AgentDBService {
       this.gnnEnabled = true;
       console.log('✅ [AgentDBService] Phase 2.1: GNN-enhanced learning active (@ruvector/gnn)');
     } catch (err) {
+      // ADR-0221 F-06-006: discriminate module-not-installed from real errors.
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[AgentDBService] Phase 2.1: GNN unavailable (${msg})`);
+      if (isModuleNotInstalledError(err)) {
+        console.warn(`[AgentDBService] Phase 2.1: GNN unavailable — module not installed (${msg})`);
+      } else {
+        console.error(`[AgentDBService] Phase 2.1: GNN init failed (real error, not module-missing): ${msg}`);
+      }
       this.gnnEnabled = false;
     }
 
@@ -801,8 +824,13 @@ export class AgentDBService {
         console.log('✅ [AgentDBService] Phase 2.2: Semantic routing active (via getController)');
       }
     } catch (err) {
+      // ADR-0221 F-06-006: discriminate module-not-installed from real errors.
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[AgentDBService] Phase 2.2: Router unavailable (${msg})`);
+      if (isModuleNotInstalledError(err)) {
+        console.warn(`[AgentDBService] Phase 2.2: Router unavailable — module not installed (${msg})`);
+      } else {
+        console.error(`[AgentDBService] Phase 2.2: Router init failed (real error, not module-missing): ${msg}`);
+      }
       this.routerEnabled = false;
     }
 
@@ -830,8 +858,16 @@ export class AgentDBService {
         console.log('✅ [AgentDBService] Phase 2.3: Native hypergraph DB active (@ruvector/graph-node)');
       }
     } catch (err) {
+      // ADR-0221 F-06-006: discriminate module-not-installed from real errors.
+      // Original silent-catch (graphAdapter.initialize() failures masked as
+      // "Graph DB unavailable") was specifically flagged by the audit's
+      // F-06-006 cross-cutting pattern.
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[AgentDBService] Phase 2.3: Graph DB unavailable (${msg})`);
+      if (isModuleNotInstalledError(err)) {
+        console.warn(`[AgentDBService] Phase 2.3: Graph DB unavailable — module not installed (${msg})`);
+      } else {
+        console.error(`[AgentDBService] Phase 2.3: Graph DB init failed (real error, not module-missing): ${msg}`);
+      }
       this.graphEnabled = false;
     }
 
@@ -858,8 +894,13 @@ export class AgentDBService {
         console.log('✅ [AgentDBService] Phase 2.4: Sona RL trajectory learning active (via getController)');
       }
     } catch (err) {
+      // ADR-0221 F-06-006: discriminate module-not-installed from real errors.
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[AgentDBService] Phase 2.4: Sona unavailable (${msg})`);
+      if (isModuleNotInstalledError(err)) {
+        console.warn(`[AgentDBService] Phase 2.4: Sona unavailable — module not installed (${msg})`);
+      } else {
+        console.error(`[AgentDBService] Phase 2.4: Sona init failed (real error, not module-missing): ${msg}`);
+      }
       this.sonaEnabled = false;
     }
 
