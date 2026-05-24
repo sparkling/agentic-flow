@@ -271,7 +271,7 @@
   },
   "peerDependencies": {
     "claude-flow": "3.7.0-alpha.11-patch.292",
-    "flow-nexus": "^1.0.0"
+    "flow-nexus": "^0.1.0"
   },
   "peerDependenciesMeta": {
     "claude-flow": {
