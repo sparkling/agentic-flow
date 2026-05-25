@@ -1,6 +1,6 @@
 {
   "name": "agentic-jujutsu",
-  "version": "1.0.0-patch.10",
+  "version": "1.0.0-patch.11",
   "description": "State-of-the-art GitOps platform using Jujutsu for policy-first, progressive delivery on Kubernetes",
   "keywords": [
     "gitops",
