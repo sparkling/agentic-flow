@@ -481,30 +481,74 @@ class WebSocketFallbackTransport implements AgentTransport {
 }
 
 /**
- * Detect whether the WASM-backed QUIC transport is "real" (i.e. it
- * actually moves bytes on the wire) vs the current stub. The stub
- * returns 0ms for connect+send and never increments the server's
- * received-bytes counter. We probe by observing a documented marker
- * on the WASM module: when it's truly wired the loader function
- * `defaultConfig` returns an object whose round-trip through
- * `WasmQuicClient.new` actually opens a UDP socket — failing fast on
- * an OS that blocks UDP outbound (e.g. some sandboxed CI envs).
+ * Cached per-platform binding name + module ref. Populated on the first
+ * successful load and reused for every subsequent
+ * `loadQuicTransport()` call — `import()` has its own module cache, but
+ * keeping the platform-resolved binding here lets us emit a
+ * single resolution log on cold start and skip the dynamic-import error
+ * path on warm calls.
  *
- * Until the native build lands this returns false; the loader picks
- * WebSocket. When the native binding is wired this returns true and
- * the loader picks real QUIC. Callers get the same API either way.
+ * Typed as `unknown` because the binding module shape is owned by the
+ * `@agentic-flow/quic-native-<triple>` package and isn't type-imported
+ * here (we don't want a build-time dep on a package that may not be
+ * installed). `loadQuicTransport()` casts to `NativeQuicBinding` at use
+ * time — the cast is safe because the ADR-0265 cross-package symbol
+ * contract pins the binding's exported shape.
+ */
+let cachedNativeBinding: { name: string; mod: Record<string, unknown> } | null =
+  null;
+
+/**
+ * Detect whether the native QUIC binding is wired in this process.
+ *
+ * Two-step check (ADR-0265 §Phase 3):
+ *   1. `AGENTIC_FLOW_QUIC_NATIVE=1` env var MUST be set. Opt-in keeps
+ *      the WebSocket fallback as the default path — no surprise
+ *      transport flips for existing deployments.
+ *   2. The per-platform sub-package `@agentic-flow/quic-native-<triple>`
+ *      MUST resolve at runtime (via dynamic `import()`).
+ *
+ * Returns false on any error — the fallback path is first-class and
+ * NEVER throws (I4 in the constraint manifest).
  */
 async function isRealQuicAvailable(): Promise<boolean> {
+  if (process.env.AGENTIC_FLOW_QUIC_NATIVE !== '1') return false;
+  if (cachedNativeBinding !== null) return true;
   try {
-    // The WASM file is published in `wasm/quic/` of this package. We
-    // do NOT use it for federation today (per the wasm.rs note: it's a
-    // stub since browsers can't do UDP). When a native binding is added
-    // this probe should switch to detect that binding instead.
-    const native = process.env.AGENTIC_FLOW_QUIC_NATIVE === '1';
-    return native;
+    const triple = resolveNativeTriple();
+    const nativeName = `@agentic-flow/quic-native-${triple}`;
+    const mod = (await import(nativeName)) as Record<string, unknown>;
+    cachedNativeBinding = { name: nativeName, mod: mod as never };
+    return true;
   } catch {
     return false;
   }
+}
+
+/**
+ * Compose the napi-rs platform triple for the runtime host. Mirrors
+ * the `napi.triples.additional` list in
+ * `crates/agentic-flow-quic-node/package.json`.
+ *
+ * Supported (Phase 2 will publish artifacts for these):
+ *   darwin-arm64, darwin-x64, linux-x64-gnu, linux-arm64-gnu,
+ *   win32-x64-msvc
+ *
+ * Unknown platforms produce a triple that won't resolve — the caller
+ * falls through to WebSocket.
+ */
+function resolveNativeTriple(): string {
+  const platform = process.platform;
+  const arch = process.arch;
+  if (platform === 'win32') {
+    return `win32-${arch}-msvc`;
+  }
+  if (platform === 'linux') {
+    return `linux-${arch}-gnu`;
+  }
+  // darwin (and any other unix-y platform): napi-rs uses bare
+  // `darwin-<arch>` without a libc suffix.
+  return `${platform}-${arch}`;
 }
 
 /**
@@ -525,15 +569,27 @@ export async function loadQuicTransport(
   config: QuicTransportConfig = {},
 ): Promise<AgentTransport> {
   if (await isRealQuicAvailable()) {
-    // Future: wire to the native binding here.
-    logger.info('QUIC transport: native binding selected');
-  } else {
-    if (process.env.NODE_ENV !== 'test') {
-      logger.warn(
-        'QUIC native binding not available; using WebSocket fallback. ' +
-          'Set AGENTIC_FLOW_QUIC_NATIVE=1 once a native build is installed.',
-      );
-    }
+    // `isRealQuicAvailable` populated `cachedNativeBinding`. Wire it
+    // into `NativeQuicTransport`. Import the wrapper lazily so callers
+    // who never opt in don't pay the parse cost.
+    const nativeMod = await import('./quic-native-transport.js');
+    logger.info('QUIC transport: native binding selected', {
+      binding: cachedNativeBinding?.name,
+    });
+    // `cachedNativeBinding!.mod` is the napi-rs module — its shape
+    // matches the `NativeQuicBinding` interface (ADR-0265 contract).
+    return nativeMod.NativeQuicTransport.create(
+      cachedNativeBinding!.mod as unknown as import(
+        './quic-native-transport.js'
+      ).NativeQuicBinding,
+      config,
+    );
+  }
+  if (process.env.NODE_ENV !== 'test') {
+    logger.warn(
+      'QUIC native binding not available; using WebSocket fallback. ' +
+        'Set AGENTIC_FLOW_QUIC_NATIVE=1 once a native build is installed.',
+    );
   }
   return WebSocketFallbackTransport.create(config);
 }
@@ -546,15 +602,37 @@ export async function isQuicAvailable(): Promise<boolean> {
 export interface TransportCapabilities {
   quicAvailable: boolean;
   webSocketFallbackAvailable: true;
-  selectedBackend: 'quic' | 'websocket';
+  /**
+   * The transport the loader will pick on the next `loadQuicTransport()`
+   * call.
+   *   - `'quic'` — native binding is opted-in (`AGENTIC_FLOW_QUIC_NATIVE=1`)
+   *     and resolved on this platform.
+   *   - `'websocket'` — kept as a back-compat union member for the
+   *     pre-ADR-0265 capability shape; the current loader does not emit
+   *     this value but downstream code may still type-check against it.
+   *   - `'websocket-fallback'` — env var unset or per-platform binding
+   *     failed to load. The WebSocket transport is selected.
+   */
+  selectedBackend: 'quic' | 'websocket' | 'websocket-fallback';
+  /**
+   * Negotiated TLS version when the QUIC backend is selected. Always
+   * `'TLS_1_3'` (QUIC mandates TLS 1.3). Undefined when the loader is
+   * not on the QUIC path. Surfaces in the doctor / health output so
+   * operators can see "real QUIC is wired AND it's TLS 1.3" at a glance.
+   */
+  tlsVersion?: 'TLS_1_3';
 }
 
 export async function getTransportCapabilities(): Promise<TransportCapabilities> {
   const quic = await isRealQuicAvailable();
+  const selectedBackend: TransportCapabilities['selectedBackend'] = quic
+    ? 'quic'
+    : 'websocket-fallback';
   return {
     quicAvailable: quic,
     webSocketFallbackAvailable: true,
-    selectedBackend: quic ? 'quic' : 'websocket',
+    selectedBackend,
+    tlsVersion: quic ? 'TLS_1_3' : undefined,
   };
 }
 

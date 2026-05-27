@@ -15,3 +15,13 @@ export {
   type QuicTransportConfig as LoaderQuicTransportConfig,
   type TlsConfig,
 } from './quic-loader.js';
+export {
+  NativeQuicTransport,
+  parseNativeQuicError,
+  type NativeQuicBinding,
+  type NativeConnectionConfig,
+  type NativeConnectionStats,
+  type NativePoolStats,
+  type NativeInboundMessage,
+  type ParsedNativeQuicError,
+} from './quic-native-transport.js';
