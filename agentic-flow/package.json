@@ -22,7 +22,11 @@
     "./reasoningbank/wasm-adapter": "./dist/reasoningbank/wasm-adapter.js",
     "./router": "./dist/router/index.js",
     "./agent-booster": "./dist/agent-booster/index.js",
+    "./transport": "./dist/transport/index.js",
     "./transport/quic": "./dist/transport/quic.js",
+    "./transport/loader": "./dist/transport/quic-loader.js",
+    "./transport/quic-loader": "./dist/transport/quic-loader.js",
+    "./transport/quic-native-transport": "./dist/transport/quic-native-transport.js",
     "./embeddings": "./dist/embeddings/index.js",
     "./coordination": "./dist/coordination/index.js",
     "./coordination/autopilot-learning": "./dist/coordination/autopilot-learning.js"
