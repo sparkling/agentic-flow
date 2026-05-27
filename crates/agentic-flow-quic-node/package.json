@@ -1,6 +1,6 @@
 {
   "name": "agentic-flow-quic-native",
-  "version": "0.1.0-patch.9",
+  "version": "0.1.0-patch.10",
   "description": "Native QUIC federation transport for agentic-flow (ADR-0265 Phase 1) — N-API bindings wrapping agentic-flow-quic's native QuicClient/QuicServer",
   "main": "index.js",
   "types": "index.d.ts",
