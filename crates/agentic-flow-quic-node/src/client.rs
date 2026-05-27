@@ -137,9 +137,9 @@ pub async fn connect(addr: String, config: ConnectionConfig) -> napi::Result<u32
 /// Send raw bytes as a `QuicMessage` over a fresh `open_bi()` stream
 /// on the connection identified by `conn_id`.
 ///
-/// `message_type` defaults to `"Custom(\"binary\")"` semantics — we map
-/// the string to the upstream `MessageType` enum (`"task"` →
-/// `MessageType::Task`, `"result"` → `Result`, …; anything else
+/// `message_type` defaults to `Custom(binary)` semantics — we map
+/// the string to the upstream `MessageType` enum (`task` →
+/// `MessageType::Task`, `result` → `Result`, …; anything else
 /// becomes `MessageType::Custom(<string>)`).
 #[napi]
 pub async fn send(
