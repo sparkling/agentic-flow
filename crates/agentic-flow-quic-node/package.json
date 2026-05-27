@@ -4,6 +4,13 @@
   "description": "Native QUIC federation transport for agentic-flow (ADR-0265 Phase 1) — N-API bindings wrapping agentic-flow-quic's native QuicClient/QuicServer",
   "main": "index.js",
   "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "*.node",
+    "README.md",
+    "LICENSE"
+  ],
   "napi": {
     "name": "agentic-flow-quic",
     "triples": {

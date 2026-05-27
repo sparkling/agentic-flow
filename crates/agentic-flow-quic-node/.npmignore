@@ -1,0 +1,16 @@
+# Rust source + build artifacts
+src/
+target/
+Cargo.toml
+Cargo.lock
+build.rs
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
