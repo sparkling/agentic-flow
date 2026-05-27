@@ -515,10 +515,19 @@ async function isRealQuicAvailable(): Promise<boolean> {
   if (process.env.AGENTIC_FLOW_QUIC_NATIVE !== '1') return false;
   if (cachedNativeBinding !== null) return true;
   try {
-    const triple = resolveNativeTriple();
-    const nativeName = `@sparkleideas/agentic-flow-quic-native-${triple}`;
-    const mod = (await import(nativeName)) as Record<string, unknown>;
-    cachedNativeBinding = { name: nativeName, mod: mod as never };
+    // Import the PARENT wrapper package (@sparkleideas/agentic-flow-quic-native),
+    // NOT the per-platform sub-package directly. The parent's auto-generated
+    // index.js (napi-rs) dispatches to the correct `agentic-flow-quic.<triple>.node`
+    // via `require()` — ESM dynamic `import()` of a bare `.node` file fails with
+    // ERR_MODULE_NOT_FOUND because the sub-package's package.json `main` points
+    // at the native binary, which the ESM loader can't open as a module spec.
+    const parentName = '@sparkleideas/agentic-flow-quic-native';
+    const mod = (await import(parentName)) as Record<string, unknown>;
+    // Sanity check — the parent should expose the napi exports
+    // (connect/listen/send/close/stats/...). If not, the platform's binary
+    // wasn't installed (optionalDependency dropped) — fall back to WS.
+    if (typeof mod.connect !== 'function') return false;
+    cachedNativeBinding = { name: parentName, mod: mod as never };
     return true;
   } catch {
     return false;
