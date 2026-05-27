@@ -112,3 +112,12 @@ export interface InboundMessage {
  * without breaking the contract.
  */
 export declare function listen(port: number, config: ConnectionConfig, onMessage: (...args: any[]) => any): number
+/**
+ * Return the actual `host:port` the server bound to. Useful when
+ * `listen(0, ...)` was used to let the OS pick a free port — the caller
+ * can then `connect()` to the returned address.
+ *
+ * Errors if `server_id` doesn't exist in the registry or if the
+ * underlying `QuicServer::local_addr()` fails (e.g. endpoint closed).
+ */
+export declare function getLocalAddr(serverId: number): string

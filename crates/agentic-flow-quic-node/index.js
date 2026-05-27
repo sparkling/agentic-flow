@@ -295,7 +295,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { connect, send, close, closeAll, stats, poolStats, listen } = nativeBinding
+const { connect, send, close, closeAll, stats, poolStats, listen, getLocalAddr } = nativeBinding
 
 module.exports.connect = connect
 module.exports.send = send
@@ -304,3 +304,4 @@ module.exports.closeAll = closeAll
 module.exports.stats = stats
 module.exports.poolStats = poolStats
 module.exports.listen = listen
+module.exports.getLocalAddr = getLocalAddr
