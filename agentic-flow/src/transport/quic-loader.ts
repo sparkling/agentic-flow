@@ -489,7 +489,7 @@ class WebSocketFallbackTransport implements AgentTransport {
  * path on warm calls.
  *
  * Typed as `unknown` because the binding module shape is owned by the
- * `@agentic-flow/quic-native-<triple>` package and isn't type-imported
+ * `@sparkleideas/agentic-flow-quic-native-<triple>` package and isn't type-imported
  * here (we don't want a build-time dep on a package that may not be
  * installed). `loadQuicTransport()` casts to `NativeQuicBinding` at use
  * time — the cast is safe because the ADR-0265 cross-package symbol
@@ -505,7 +505,7 @@ let cachedNativeBinding: { name: string; mod: Record<string, unknown> } | null =
  *   1. `AGENTIC_FLOW_QUIC_NATIVE=1` env var MUST be set. Opt-in keeps
  *      the WebSocket fallback as the default path — no surprise
  *      transport flips for existing deployments.
- *   2. The per-platform sub-package `@agentic-flow/quic-native-<triple>`
+ *   2. The per-platform sub-package `@sparkleideas/agentic-flow-quic-native-<triple>`
  *      MUST resolve at runtime (via dynamic `import()`).
  *
  * Returns false on any error — the fallback path is first-class and
@@ -516,7 +516,7 @@ async function isRealQuicAvailable(): Promise<boolean> {
   if (cachedNativeBinding !== null) return true;
   try {
     const triple = resolveNativeTriple();
-    const nativeName = `@agentic-flow/quic-native-${triple}`;
+    const nativeName = `@sparkleideas/agentic-flow-quic-native-${triple}`;
     const mod = (await import(nativeName)) as Record<string, unknown>;
     cachedNativeBinding = { name: nativeName, mod: mod as never };
     return true;

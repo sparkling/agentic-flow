@@ -1,4 +1,4 @@
-// Native QUIC transport — wraps the `@agentic-flow/quic-native-<triple>`
+// Native QUIC transport — wraps the `@sparkleideas/agentic-flow-quic-native-<triple>`
 // napi-rs binding (ADR-0265 Phase 1) behind the same `AgentTransport`
 // interface as `WebSocketFallbackTransport`. Picked by `loadQuicTransport`
 // when `AGENTIC_FLOW_QUIC_NATIVE=1` AND a per-platform binding loads.
