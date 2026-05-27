@@ -1,0 +1,53 @@
+[package]
+name = "agentic-flow-quic-node"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+authors = ["Agentic Flow Contributors"]
+description = "Node.js bindings for agentic-flow-quic via NAPI-RS (ADR-0265 native QUIC federation transport)"
+license = "MIT"
+repository = "https://github.com/ruvnet/agentic-flow"
+
+[lib]
+crate-type = ["cdylib"]
+
+# Native-only crate — never built for WASM. This is the napi-rs glue that
+# wraps `agentic-flow-quic`'s native `QuicClient`/`QuicServer` for Node.
+# WASM consumers continue to use the upstream `wasm_stub` module.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+napi = { version = "2.16", default-features = false, features = ["napi9", "async", "tokio_rt", "serde-json"] }
+napi-derive = "2.16"
+agentic-flow-quic = { path = "../agentic-flow-quic", default-features = true }
+tokio = { version = "1.40", features = ["rt-multi-thread", "net", "sync", "macros"] }
+quinn = "0.11"
+bytes = { version = "1.7", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.10", features = ["v4"] }
+once_cell = "1.20"
+parking_lot = "0.12"
+tracing = "0.1"
+
+[target.'cfg(not(target_family = "wasm"))'.build-dependencies]
+napi-build = "2.1"
+
+[profile.release]
+lto = true
+strip = true
+opt-level = 3
+codegen-units = 1
+
+# Native binding crate; correctness lints stay denied, doc/style allowed.
+[lints.rust]
+unused_imports = "allow"
+dead_code = "allow"
+
+[lints.clippy]
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+missing_safety_doc = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+needless_pass_by_value = "allow"
+needless_borrow = "allow"
+module_name_repetitions = "allow"

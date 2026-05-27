@@ -1,0 +1,58 @@
+{
+  "name": "@agentic-flow/quic-native",
+  "version": "0.1.0",
+  "description": "Native QUIC federation transport for agentic-flow (ADR-0265 Phase 1) — N-API bindings wrapping agentic-flow-quic's native QuicClient/QuicServer",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "agentic-flow-quic",
+    "triples": {
+      "defaults": false,
+      "additional": [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-pc-windows-msvc"
+      ]
+    }
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "version": "napi version"
+  },
+  "keywords": [
+    "agentic-flow",
+    "quic",
+    "federation",
+    "transport",
+    "napi-rs",
+    "quinn"
+  ],
+  "author": "Agentic Flow Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ruvnet/agentic-flow"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "engines": {
+    "node": ">= 18"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "optionalDependencies": {
+    "@agentic-flow/quic-native-darwin-arm64": "0.1.0",
+    "@agentic-flow/quic-native-darwin-x64": "0.1.0",
+    "@agentic-flow/quic-native-linux-x64-gnu": "0.1.0",
+    "@agentic-flow/quic-native-linux-arm64-gnu": "0.1.0",
+    "@agentic-flow/quic-native-win32-x64-msvc": "0.1.0"
+  }
+}
