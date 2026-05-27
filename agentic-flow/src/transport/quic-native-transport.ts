@@ -41,6 +41,14 @@ export interface NativeQuicBinding {
     config: NativeConnectionConfig,
     onMessage: (inbound: NativeInboundMessage) => void,
   ): number;
+  /**
+   * Return the actual `host:port` the server is bound to. Useful when
+   * `listen(0, ...)` was used to let the OS pick a free port — callers
+   * can then `connect()` to the returned address. Added in Phase 2a
+   * follow-up so binding-direct smokes (multiplex / benchmark / C4) can
+   * drive the binding without depending on the federation plugin.
+   */
+  getLocalAddr(serverId: number): string;
 }
 
 export interface NativeConnectionConfig {

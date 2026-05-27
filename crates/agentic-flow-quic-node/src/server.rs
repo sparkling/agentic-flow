@@ -127,6 +127,26 @@ pub fn listen(
     Ok(server_id)
 }
 
+/// Return the actual `host:port` the server bound to. Useful when
+/// `listen(0, ...)` was used to let the OS pick a free port — the caller
+/// can then `connect()` to the returned address.
+///
+/// Errors if `server_id` doesn't exist in the registry or if the
+/// underlying `QuicServer::local_addr()` fails (e.g. endpoint closed).
+#[napi]
+pub fn get_local_addr(server_id: u32) -> napi::Result<String> {
+    let server = {
+        let reg = REGISTRY.lock();
+        reg.servers
+            .get(&server_id)
+            .ok_or_else(|| napi::Error::from_reason(format!("Unknown serverHandle: {}", server_id)))?
+            .server
+            .clone()
+    };
+    let addr = map_err(server.local_addr())?;
+    Ok(addr.to_string())
+}
+
 /// Convert upstream `MessageType` back to the lowercase string the JS
 /// layer expects (`'task' | 'result' | 'status' | 'coordination' |
 /// 'heartbeat' | <custom>`).

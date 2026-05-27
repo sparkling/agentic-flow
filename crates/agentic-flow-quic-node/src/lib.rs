@@ -28,4 +28,4 @@ mod server;
 // codegen discovers them at the crate root. Sub-modules keep their own
 // `#[napi]` annotations; the `pub use` here is for code organisation.
 pub use client::{close, close_all, connect, pool_stats, send, stats};
-pub use server::listen;
+pub use server::{get_local_addr, listen};
