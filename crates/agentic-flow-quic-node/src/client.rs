@@ -107,6 +107,7 @@ pub async fn connect(addr: String, config: ConnectionConfig) -> napi::Result<u32
         // Construct off-lock; another caller may race us — both build
         // a client but only one survives in the registry. The loser's
         // client drops harmlessly when `arc` goes out of scope.
+        crate::ensure_crypto_provider_installed();
         let new_client = map_err(QuicClient::new(rust_cfg.clone()).await)?;
         let arc = Arc::new(new_client);
         let mut reg = REGISTRY.lock();

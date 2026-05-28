@@ -74,6 +74,7 @@ pub fn listen(
     })?;
 
     let (server, mut rx) = handle.block_on(async move {
+        crate::ensure_crypto_provider_installed();
         map_err(QuicServer::new(bind_addr, rust_cfg).await)
     })?;
     let server = Arc::new(server);

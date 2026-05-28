@@ -20,6 +20,11 @@ napi-derive = "2.16"
 agentic-flow-quic = { path = "../agentic-flow-quic", default-features = true }
 tokio = { version = "1.40", features = ["rt-multi-thread", "net", "sync", "macros"] }
 quinn = "0.11"
+# rustls is a transitive dep of quinn but we reference its `crypto::ring::
+# default_provider()` directly to install the process-wide CryptoProvider
+# at wrapper init (see lib.rs::ensure_crypto_provider_installed). Pinning
+# 0.23 to match what quinn 0.11 actually links.
+rustls = { version = "0.23", features = ["ring"] }
 bytes = { version = "1.7", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

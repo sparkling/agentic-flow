@@ -29,3 +29,23 @@ mod server;
 // `#[napi]` annotations; the `pub use` here is for code organisation.
 pub use client::{close, close_all, connect, pool_stats, send, stats};
 pub use server::{get_local_addr, listen};
+
+// Install the rustls process-wide CryptoProvider exactly once, at first
+// use of any wrapper entry point. Upstream `agentic-flow-quic`'s
+// QuicClient::new / QuicServer::new do NOT call install_default in
+// production code (only in their #[cfg(test)] modules — see
+// `crates/agentic-flow-quic/src/{client,server}.rs:230-240`), so any
+// `connect()` or `listen()` from this wrapper otherwise panics at
+// rustls/quinn TLS setup with "Could not automatically determine the
+// process-level CryptoProvider".
+//
+// `install_default()` is idempotent at the API level (returns
+// `Result<(), Arc<CryptoProvider>>` — Err on second call). We discard
+// the result; subsequent calls become no-ops.
+pub(crate) fn ensure_crypto_provider_installed() {
+    use std::sync::Once;
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
