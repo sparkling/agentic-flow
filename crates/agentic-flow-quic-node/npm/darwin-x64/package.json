@@ -1,6 +1,6 @@
 {
   "name": "agentic-flow-quic-native-darwin-x64",
-  "version": "0.1.0-patch.4",
+  "version": "0.1.0-patch.5",
   "description": "macOS x64 (Intel) native bindings for agentic-flow-quic-native (ADR-0265 Phase 2b). Codemod rescopes to @sparkleideas/agentic-flow-quic-native-darwin-x64 at publish time.",
   "main": "agentic-flow-quic.darwin-x64.node",
   "files": [
