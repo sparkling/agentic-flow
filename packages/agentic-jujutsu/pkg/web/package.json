@@ -5,7 +5,7 @@
     "Agentic Flow Team <team@ruv.io>"
   ],
   "description": "AI-powered Jujutsu VCS wrapper for multi-agent collaboration - 10-100x faster than Git with MCP protocol support",
-  "version": "1.0.0-patch.62",
+  "version": "1.0.0-patch.63",
   "license": "MIT",
   "repository": {
     "type": "git",
