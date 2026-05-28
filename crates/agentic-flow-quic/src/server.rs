@@ -180,7 +180,14 @@ fn configure_server() -> Result<ServerConfig> {
         .with_single_cert(vec![cert_der], key_der)
         .map_err(|e| QuicError::Tls(e.to_string()))?;
 
-    server_crypto.max_early_data_size = 1024 * 1024; // 1MB for 0-RTT
+    // ADR-0265 fork-patch: quinn-proto 0.11 requires max_early_data_size to
+    // be 0 OR u32::MAX (2^32-1) — see quinn-proto/src/crypto/rustls.rs:526
+    // ("QUIC sessions must set a max early data of 0 or 2^32-1"). Upstream's
+    // `1024 * 1024` value panics at QuicServerConfig::try_from. Set to 0 to
+    // disable 0-RTT (matches ADR-0265 §Aspirational row 2's documented
+    // skip-by-policy on the 0-RTT smoke until Phase 1.5 client-side session-
+    // ticket cache lands).
+    server_crypto.max_early_data_size = 0;
 
     let mut server_config = ServerConfig::with_crypto(Arc::new(
         quinn::crypto::rustls::QuicServerConfig::try_from(server_crypto)
