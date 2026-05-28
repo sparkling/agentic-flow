@@ -1,6 +1,6 @@
 {
   "name": "agentic-flow",
-  "version": "2.0.2-alpha-patch.914",
+  "version": "2.0.2-alpha-patch.915",
   "description": "Production-ready AI agent orchestration platform with 66 specialized agents, 213 MCP tools, ReasoningBank learning memory, quantum-resistant Jujutsu VCS, and autonomous multi-agent swarms. Built by @ruvnet with Claude Agent SDK, neural networks, memory persistence, GitHub integration, and distributed consensus protocols.",
   "type": "module",
   "main": "agentic-flow/dist/index.js",
@@ -212,16 +212,16 @@
     "@google/genai": "^1.22.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/rest": "^21.1.1",
-    "@ruvector/gnn": "0.1.25-patch.200",
-    "@ruvector/ruvllm": "2.5.5-patch.174",
-    "@ruvector/rvf": "0.2.0-patch.231",
-    "@ruvector/rvf-node": "0.1.7-patch.209",
+    "@ruvector/gnn": "0.1.25-patch.201",
+    "@ruvector/ruvllm": "2.5.5-patch.175",
+    "@ruvector/rvf": "0.2.0-patch.232",
+    "@ruvector/rvf-node": "0.1.7-patch.210",
     "@supabase/supabase-js": "^2.78.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react-swc": "^4.2.0",
     "@xenova/transformers": "^2.17.2",
-    "agentdb": "3.0.0-alpha.14-patch.378",
+    "agentdb": "3.0.0-alpha.14-patch.379",
     "agentic-payments": "^0.1.13",
     "autoprefixer": "^10.4.21",
     "axios": "^1.16.1",
@@ -274,7 +274,7 @@
     "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "claude-flow": "3.7.0-alpha.11-patch.366",
+    "claude-flow": "3.7.0-alpha.11-patch.367",
     "flow-nexus": "^0.1.0"
   },
   "peerDependenciesMeta": {
@@ -286,11 +286,11 @@
     }
   },
   "optionalDependencies": {
-    "@ruvector/attention-darwin-arm64": "0.1.1-patch.175",
-    "@ruvector/attention-darwin-x64": "0.1.4-patch.175",
-    "@ruvector/attention-linux-x64-gnu": "0.1.4-patch.175",
-    "@ruvector/attention-win32-x64-msvc": "0.1.4-patch.195",
-    "agentic-flow-quic-native": "0.1.0-patch.36"
+    "@ruvector/attention-darwin-arm64": "0.1.1-patch.176",
+    "@ruvector/attention-darwin-x64": "0.1.4-patch.176",
+    "@ruvector/attention-linux-x64-gnu": "0.1.4-patch.176",
+    "@ruvector/attention-win32-x64-msvc": "0.1.4-patch.196",
+    "agentic-flow-quic-native": "0.1.0-patch.37"
   },
   "overrides": {
     "protobufjs": ">=8.2.0",
