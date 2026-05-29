@@ -1,3 +1,11 @@
+> **🍴 `@sparkleideas/agentic-flow` — the Sparkling fork**
+>
+> This is **[`@sparkleideas/agentic-flow`](https://github.com/sparkling/agentic-flow)**, the Sparkling-maintained fork of **[`ruvnet/agentic-flow`](https://github.com/ruvnet/agentic-flow)** — rebuilt from source with bug fixes and current upstream commits.
+>
+> **Install:** `npm install @sparkleideas/agentic-flow`
+> **Coming from `agentic-flow`?** It's a drop-in replacement — swap the package name.
+> **Issues & support:** <https://github.com/sparkling/agentic-flow/issues>
+
 # 🚀 Agentic-Flow v2
 
 **Version**: v1.10.3 | **AgentDB**: v3.0.0-alpha.10
@@ -1908,7 +1916,7 @@ Built with ❤️ by [rUv](https://github.com/ruvnet)
 
 Powered by:
 - [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk) by Anthropic
-- [Claude Flow](https://github.com/ruvnet/claude-flow) (101 MCP tools)
+- [Claude Flow](https://github.com/sparkling/ruflo) (101 MCP tools)
 - [RuVector](https://github.com/ruvnet/ruvector) (Native Rust vector operations)
 - [AgentDB](./packages/agentdb) (Proof-gated graph intelligence)
 - [OpenRouter](https://openrouter.ai) (100+ LLM models)
