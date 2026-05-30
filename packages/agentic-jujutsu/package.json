@@ -1,6 +1,6 @@
 {
   "name": "agentic-jujutsu",
-  "version": "1.0.0-patch.71",
+  "version": "1.0.0-patch.72",
   "description": "AI agent coordination for Jujutsu VCS with quantum-ready architecture, QuantumDAG consensus, AgentDB learning, and zero-dependency deployment",
   "keywords": [
     "jujutsu",
