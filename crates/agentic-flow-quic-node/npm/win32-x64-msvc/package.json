@@ -1,6 +1,6 @@
 {
   "name": "agentic-flow-quic-native-win32-x64-msvc",
-  "version": "0.1.0-patch.16",
+  "version": "0.1.0-patch.17",
   "description": "Windows x64 (MSVC) native bindings for agentic-flow-quic-native (ADR-0265 Phase 2b). Codemod rescopes to @sparkleideas/agentic-flow-quic-native-win32-x64-msvc at publish time.",
   "main": "agentic-flow-quic.win32-x64-msvc.node",
   "files": [
