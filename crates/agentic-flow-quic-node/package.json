@@ -1,6 +1,6 @@
 {
   "name": "agentic-flow-quic-native",
-  "version": "0.1.0-patch.60",
+  "version": "0.1.0-patch.61",
   "description": "Native QUIC federation transport for agentic-flow (ADR-0265 Phase 1) — N-API bindings wrapping agentic-flow-quic's native QuicClient/QuicServer",
   "main": "index.js",
   "types": "index.d.ts",
@@ -56,10 +56,10 @@
     "access": "public"
   },
   "optionalDependencies": {
-    "agentic-flow-quic-native-darwin-arm64": "0.1.0-patch.49",
-    "agentic-flow-quic-native-darwin-x64": "0.1.0-patch.38",
-    "agentic-flow-quic-native-linux-x64-gnu": "0.1.0-patch.36",
-    "agentic-flow-quic-native-linux-arm64-gnu": "0.1.0-patch.36",
-    "agentic-flow-quic-native-win32-x64-msvc": "0.1.0-patch.35"
+    "agentic-flow-quic-native-darwin-arm64": "0.1.0-patch.50",
+    "agentic-flow-quic-native-darwin-x64": "0.1.0-patch.39",
+    "agentic-flow-quic-native-linux-x64-gnu": "0.1.0-patch.37",
+    "agentic-flow-quic-native-linux-arm64-gnu": "0.1.0-patch.37",
+    "agentic-flow-quic-native-win32-x64-msvc": "0.1.0-patch.36"
   }
 }
