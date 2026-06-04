@@ -50,9 +50,9 @@ import type {
  * `SyncCoordinator` is unavailable at type-check time.
  *
  * The `sync()` signature here accepts a single optional progress callback
- * because that is the surface `AgentDBService.syncWithRemote` already
- * targets (`agentdb-service.ts:1546`). The real `SyncCoordinator.sync`
- * takes `(ctx, onProgress)` — `AgentDBService` is responsible for threading
+ * because that is the surface the retired in-process service's
+ * `syncWithRemote` targeted (ADR-0288). The real `SyncCoordinator.sync`
+ * takes `(ctx, onProgress)` — the caller is responsible for threading
  * the MutationContext when the real sync runs. This adapter sits one layer
  * above and does not mint contexts.
  */
@@ -96,7 +96,7 @@ export interface SyncCoordinatorLike {
 
 /**
  * Adapter config. `syncCoordinator` is the agentdb instance (typically
- * `AgentDBService.syncCoordinator`). `projectRoot` defaults to `process.cwd()`
+ * the retired service's `syncCoordinator`). `projectRoot` defaults to `process.cwd()`
  * and is the parent directory of `.claude-flow/install-id`. `strategy`
  * defaults to `latest-wins` to match `SyncCoordinator.ts:84`.
  */
@@ -204,7 +204,7 @@ export class SyncCoordinatorFederatedAdapter implements FederatedSyncProvider {
   /**
    * Best-effort signal hook. The default contract is "do nothing" because
    * episodes already flow into the local SQL `episodes` table via
-   * `AgentDBService.storeEpisode` → `ReflexionMemory`, which
+   * the episode sink's `storeEpisode` → `ReflexionMemory`, which
    * `SyncCoordinator.detectChanges()` picks up on the next `sync()` call.
    * The future QUIC-streaming provider will override this to trigger an
    * eager push.

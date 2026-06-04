@@ -15,7 +15,7 @@
  *   split). The adapter wraps a single `SyncCoordinator.sync(ctx)` call to
  *   service both directions.
  * - `notifyEpisode` replaces the event-subscription pattern (`onRemoteEpisode`
- *   in the ADR). Episode writes already go through `AgentDBService.storeEpisode`
+ *   in the ADR). Episode writes already go through the episode sink's `storeEpisode`
  *   → SQL `episodes` table, which `SyncCoordinator.detectChanges()` picks up
  *   on next sync. `notifyEpisode` is the optional out-of-band signal hook a
  *   provider can use to trigger an eager push (e.g., the future QUIC provider
@@ -113,7 +113,7 @@ export interface FederatedSyncProvider {
 /**
  * No-op provider — the default `AutopilotLearning` uses when no real provider
  * is wired. Preserves single-install behaviour: episode writes still go to
- * the local SQL `episodes` table via `AgentDBService.storeEpisode`, and no
+ * the local SQL `episodes` table via the episode sink's `storeEpisode`, and no
  * cross-install sync happens.
  *
  * Returns a stable `local` install id so callers that always read

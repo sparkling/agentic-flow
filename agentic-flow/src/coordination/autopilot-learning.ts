@@ -17,8 +17,9 @@
  * consumers can distinguish them.
  *
  * Storage strategy:
- *   Episodes flow through AgentDBService.storeEpisode (the existing
- *   ReflexionMemory-backed API). The episode's `sessionId` is set to
+ *   Episodes flow through the episode sink's storeEpisode (the
+ *   ReflexionMemory-backed AgentDBLike contract; the in-process service
+ *   that used to satisfy it was retired per ADR-0288). The episode's `sessionId` is set to
  *   the EPISODE_SESSION_ID constant so we can list autopilot episodes
  *   via the metadata filter without re-indexing other reflexion data.
  *   This reuses the existing schema rather than introducing a new
@@ -153,7 +154,7 @@ const MAX_LIST = 1000;
 /**
  * ADR-0193 Item A.4: episode retention cap. After every successful
  * `_record`, if the listing exceeds this, the oldest entries are
- * evicted via `AgentDBService.deleteEpisode`. Default 10000; override
+ * evicted via the sink's `deleteEpisode`. Default 10000; override
  * via `AUTOPILOT_EPISODE_CAP` env var. Set to a small value in tests
  * that need to exercise the eviction path without populating 10k rows.
  *
@@ -232,7 +233,7 @@ interface AgentDBLike {
   }>>;
   /**
    * ADR-0193 Item A.4: delete a single episode by id. Optional on the
-   * interface — when missing (older AgentDBService versions or test
+   * interface — when missing (legacy sink versions or test
    * doubles), the retention cap becomes soft-only and logs a warning
    * instead of evicting.
    */
@@ -247,7 +248,7 @@ interface AgentDBLike {
   getFallbackStatus?(): { degraded?: boolean; backend?: string; initError?: string | null };
   /**
    * ADR-0194 Phase 3: batched embedding generation for cluster discovery.
-   * AgentDBService exposes both single (`generateEmbedding`) and batched
+   * The sink contract declares both single (`generateEmbedding`) and batched
    * (`generateEmbeddings`) variants; we declare both as optional and
    * prefer the batched call site (10-100× faster per ADR-063).
    *
@@ -380,64 +381,20 @@ export class AutopilotLearning {
   // === PHASE 5 END ===
 
   async initialize(): Promise<boolean> {
-    try {
-      const svc = await import('../services/agentdb-service.js');
-      const inst = await svc.getAgentDBService?.();
-      if (!inst) {
-        // ADR-0191 §absence-not-accepted: log reason directly at the
-        // producer boundary (in addition to the doctor's consumer-side
-        // surface) so a Reason #5 absence is observable in stderr at
-        // startup.
-        console.error('[AutopilotLearning] unavailable: getAgentDBService() returned null');
-        this._available = false;
-        return false;
-      }
-      // Runtime-guarded narrowing — the typeof checks below are the
-      // structural check; single cast is sufficient.
-      const asAdb = inst as AgentDBLike;
-      // The AgentDBService surface we depend on: storeEpisode +
-      // recallEpisodes. If either is missing, treat as unavailable
-      // rather than throwing on first use.
-      if (typeof asAdb.storeEpisode !== 'function'
-          || typeof asAdb.recallEpisodes !== 'function') {
-        console.error('[AutopilotLearning] unavailable: AgentDBService missing storeEpisode/recallEpisodes — version mismatch?');
-        this._available = false;
-        return false;
-      }
-      // ADR-0192: AgentDBService runs in DEGRADED mode when its underlying
-      // `agentdb` package import or init fails (e.g., `AgentDB is not a
-      // constructor` if the package shape doesn't match expectations).
-      // In that mode, `storeEpisode` throws via `assertPersistent` — every
-      // `recordTaskCompletion` would explode at runtime. Surface this as
-      // graceful-unavailable here so consumers see a typed `available:false`
-      // (the absence-not-accepted contract) rather than a midstream throw.
-      if (typeof asAdb.getFallbackStatus === 'function') {
-        try {
-          const status = asAdb.getFallbackStatus();
-          if (status?.degraded === true) {
-            console.error(`[AutopilotLearning] unavailable: AgentDBService DEGRADED (backend=${status?.backend ?? 'unknown'}, initError=${status?.initError ?? 'unknown'})`);
-            this._available = false;
-            return false;
-          }
-        } catch (statusErr) {
-          // getFallbackStatus shouldn't throw, but if it does treat as
-          // an unknown state and refuse to claim availability.
-          console.error(`[AutopilotLearning] unavailable: getFallbackStatus() threw: ${statusErr instanceof Error ? statusErr.message : String(statusErr)}`);
-          this._available = false;
-          return false;
-        }
-      }
-      this._agentdb = asAdb;
-      this._available = true;
-      return true;
-    } catch (initErr) {
-      // ADR-0191 §absence-not-accepted: log the actual error so a Reason #5
-      // packaging condition vs an unexpected non-packaging error is
-      // discriminable in stderr.
-      console.error(`[AutopilotLearning] unavailable: initialize() threw: ${initErr instanceof Error ? initErr.message : String(initErr)}`);
-      this._available = false;
-      return false;
-    }
+    // ADR-0288: the in-process episode sink (the retired agentic-flow
+    // service singleton) no longer exists, so there is nothing to probe.
+    // Episode capture flows through the ruflo/SQLite store instead
+    // (`hooks post-task` -> `agentdb_reflexion_store` -> `episodes`,
+    // ADR-0268/ADR-0290). Honest unavailable per ADR-0191
+    // §absence-not-accepted: log the reason at the producer boundary and
+    // report `available:false`; every read/write method early-returns on
+    // `_available === false` exactly as in the pre-retirement degraded
+    // mode. Test doubles inject via the private `_agentdb`/`_available`
+    // fields (the AgentDBLike duck-type contract), which keeps the
+    // Phase 2-5 logic exercisable.
+    console.error('[AutopilotLearning] unavailable: in-process episode sink retired (ADR-0288)');
+    this._available = false;
+    return false;
   }
 
   isAvailable(): boolean { return this._available; }
@@ -682,8 +639,8 @@ export class AutopilotLearning {
         && typeof this._agentdb.generateEmbedding !== 'function') {
       throw new Error(
         '[AutopilotLearning] discoverPatternsByEmbedding: ' +
-        'AgentDBService exposes neither generateEmbeddings nor ' +
-        'generateEmbedding — Phase 3 unreachable. Upgrade AgentDBService ' +
+        'episode sink exposes neither generateEmbeddings nor ' +
+        'generateEmbedding — Phase 3 unreachable. Use a sink exposing them ' +
         'or restrict callers to discoverSuccessPatterns (which retains ' +
         "Phase 2's keyword discovery).",
       );
@@ -835,8 +792,8 @@ export class AutopilotLearning {
   }
 
   /**
-   * ADR-0193 Item A.2: embedding-based recall via
-   * AgentDBService.recallEpisodes. The storage layer's `recallEpisodes`
+   * ADR-0193 Item A.2: embedding-based recall via the sink's
+   * `recallEpisodes`. The storage layer's `recallEpisodes`
    * already uses ReflexionMemory.retrieveRelevant (embedding-based
    * cosine similarity), so we delegate directly rather than re-fetching
    * the whole listing and filtering in-memory.
@@ -951,7 +908,7 @@ export class AutopilotLearning {
   /**
    * ADR-0193 Item B: resolve a SonaServiceLike instance for the
    * trajectory methods. Returns null when the autopilot is unavailable,
-   * when AgentDBService doesn't expose `getSonaService`, when the
+   * when the sink doesn't expose `getSonaService`, when the
    * getter throws, or when the getter returns falsy — each branch
    * logs a distinct `console.error` with `caller` for diagnosis. Never
    * silently swallows (per `feedback-no-fallbacks`).
@@ -959,7 +916,7 @@ export class AutopilotLearning {
   private async _resolveSona(caller: string): Promise<SonaServiceLike | null> {
     if (!this._available || !this._agentdb) return null;
     if (typeof this._agentdb.getSonaService !== 'function') {
-      console.error(`[AutopilotLearning] ${caller}: AgentDBService.getSonaService unavailable`);
+      console.error(`[AutopilotLearning] ${caller}: episode sink getSonaService unavailable`);
       return null;
     }
     try {
@@ -979,19 +936,19 @@ export class AutopilotLearning {
   /**
    * ADR-0195 Phase 4: resolve the shared cross-controller EventEmitter
    * for the four producer-side emits. Mirrors `_resolveSona` shape.
-   * Returns null when the autopilot is unavailable, when AgentDBService
+   * Returns null when the autopilot is unavailable, when the sink
    * doesn't expose `getLearningEvents` (older versions / test doubles),
    * or when the getter throws. Older-version absence uses `console.warn`
    * since that is a legitimate graceful path; other failures use
    * `console.error` so absence is observable per `feedback-no-fallbacks`.
    *
    * Synchronous (unlike `_resolveSona`'s async) — the bus is a plain
-   * field on AgentDBService, no I/O.
+   * field on the sink, no I/O.
    */
   private _resolveEventBus(caller: string): EventEmitter | null {
     if (!this._available || !this._agentdb) return null;
     if (typeof this._agentdb.getLearningEvents !== 'function') {
-      console.warn(`[AutopilotLearning] ${caller}: AgentDBService.getLearningEvents unavailable (older version?)`);
+      console.warn(`[AutopilotLearning] ${caller}: episode sink getLearningEvents unavailable (older version?)`);
       return null;
     }
     try {
@@ -1009,7 +966,7 @@ export class AutopilotLearning {
 
   /**
    * ADR-0195 Phase 4: emit one of the four cross-controller events.
-   * AgentDBService attaches a default `'error'` listener on the bus
+   * The sink attaches a default `'error'` listener on the bus
    * that catches subscriber throws (synchronous emit), so this inline
    * call is safe — a subscriber's thrown error cannot break autopilot's
    * `storeEpisode` invariant.
@@ -1100,7 +1057,7 @@ export class AutopilotLearning {
     // === PHASE 5 END ===
     // === PHASE 4 BEGIN (ADR-0195 episode:recorded emit) ===
     // Cross-controller signal: AFTER storeEpisode succeeds, before
-    // retention enforcement. LearningSystem subscriber in AgentDBService
+    // retention enforcement. A LearningSystem subscriber on the sink's bus
     // translates this into `submitFeedback` with synthesized per-subject
     // sessionId. Reward is the SHAPED reward (ADR-0193 Item A.3),
     // inherited per ADR-0195 §Decision Outcome.
@@ -1114,8 +1071,8 @@ export class AutopilotLearning {
     }, '_record');
     // === PHASE 4 END ===
     // ADR-0193 Item A.4: enforce retention cap after every successful
-    // write. Soft-cap when deleteEpisode is unavailable (older
-    // AgentDBService versions); see _enforceRetentionCap for the
+    // write. Soft-cap when deleteEpisode is unavailable (legacy sink
+    // versions); see _enforceRetentionCap for the
     // graceful-degrade branch.
     await this._enforceRetentionCap();
   }
@@ -1163,7 +1120,7 @@ export class AutopilotLearning {
    * ADR-0193 Item A.4: evict oldest episodes when the listing exceeds
    * EPISODE_CAP. Soft-cap mode (warn + skip eviction) when
    * `_agentdb.deleteEpisode` is unavailable; the cap is honored on
-   * any AgentDBService version >= the one that introduced
+   * any sink version >= the one that introduced
    * `deleteEpisode` (post-ADR-0193). Documented as soft-only to make
    * the degraded behavior auditable rather than a silent leak.
    */
@@ -1175,7 +1132,7 @@ export class AutopilotLearning {
     if (typeof this._agentdb.deleteEpisode !== 'function') {
       console.warn(
         `[AutopilotLearning] AUTOPILOT_EPISODE_CAP=${cap} exceeded ` +
-        `(have ${episodes.length}) but AgentDBService.deleteEpisode unavailable ` +
+        `(have ${episodes.length}) but sink deleteEpisode unavailable ` +
         `— soft-cap mode, no eviction performed`,
       );
       return;

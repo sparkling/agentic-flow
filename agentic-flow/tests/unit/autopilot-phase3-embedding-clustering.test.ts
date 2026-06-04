@@ -16,7 +16,7 @@
  *
  * Per spec: mock collaborator services (AgentDBLike methods) but exercise
  * the real AutopilotLearning class. AgentDB itself is not required because
- * AutopilotLearning consumes AgentDBService via the AgentDBLike interface.
+ * AutopilotLearning consumes the episode sink via the AgentDBLike interface.
  *
  * NOTE: The implementer agent has not yet landed ADR-0194; these tests
  * are written against the eventual landed behavior described in the ADR
@@ -31,7 +31,7 @@ import type { DiscoveredPattern } from '../../src/coordination/autopilot-learnin
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 /**
- * Build a fake row matching the ReflexionMemory shape that AgentDBService
+ * Build a fake row matching the ReflexionMemory shape that the sink
  * returns to AutopilotLearning. The autopilot-learning module's
  * `_rowToEpisode` reads `task`, `reward`, `success`, `critique`, `metadata`.
  */

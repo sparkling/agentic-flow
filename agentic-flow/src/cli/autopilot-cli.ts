@@ -445,92 +445,6 @@ async function showPredict(opts: Record<string, string | boolean>): Promise<void
 }
 
 // === SUBSCRIBE+FEDERATION BEGIN (ADR-0195/0196 CLI surface) ===
-const VALID_SUBSCRIBE_EVENTS = new Set([
-  'episode:recorded',
-  'pattern:discovered',
-  'trajectory:opened',
-  'trajectory:step',
-  'trajectory:closed',
-]);
-
-/**
- * `autopilot subscribe --event <name> [--limit N] [--human]`
- *
- * Subscribes to one of the AutopilotLearning cross-controller events on
- * AgentDBService's long-lived `learningEvents` EventEmitter (ADR-0195
- * Phase 4) and prints one JSON line per delivered event. Exits after
- * `--limit N` deliveries (default 1) or on SIGINT.
- *
- * JSON is the default output (events are structured); `--human` pretty-
- * prints with a 2-space indent.
- *
- * Per `feedback-no-fallbacks`: when AgentDBService is missing or
- * `getLearningEvents()` is unavailable, this THROWS — no silent degrade.
- */
-async function subscribeEvents(opts: Record<string, string | boolean>): Promise<void> {
-  const event = opts.event as string | undefined;
-  if (!event) {
-    console.error('Error: --event <name> is required.');
-    console.error(`  Valid events: ${[...VALID_SUBSCRIBE_EVENTS].join(', ')}`);
-    process.exit(2);
-  }
-  if (!VALID_SUBSCRIBE_EVENTS.has(event)) {
-    console.error(`Error: unknown event "${event}".`);
-    console.error(`  Valid events: ${[...VALID_SUBSCRIBE_EVENTS].join(', ')}`);
-    process.exit(2);
-  }
-
-  const limit = opts.limit ? parseInt(opts.limit as string, 10) : 1;
-  if (isNaN(limit) || limit < 1) {
-    console.error('Error: --limit must be a positive integer.');
-    process.exit(2);
-  }
-
-  const svc = await import('../services/agentdb-service.js');
-  const getInstance = (svc as { getAgentDBService?: () => Promise<unknown> }).getAgentDBService;
-  if (typeof getInstance !== 'function') {
-    throw new Error('AgentDBService unavailable: getAgentDBService export missing');
-  }
-  type EventBus = {
-    on: (event: string, handler: (payload: unknown) => void) => void;
-    off: (event: string, handler: (payload: unknown) => void) => void;
-  };
-  const agentdb = await getInstance() as {
-    getLearningEvents?: () => EventBus;
-  } | null;
-  if (!agentdb) {
-    throw new Error('AgentDBService unavailable: getAgentDBService returned null');
-  }
-  if (typeof agentdb.getLearningEvents !== 'function') {
-    throw new Error('AgentDBService.getLearningEvents() unavailable on this build');
-  }
-  const bus = agentdb.getLearningEvents();
-  if (!bus) {
-    throw new Error('AgentDBService.getLearningEvents() returned falsy');
-  }
-
-  const human = Boolean(opts.human);
-  let count = 0;
-
-  await new Promise<void>((resolve) => {
-    const onEvent = (payload: unknown) => {
-      const line = { event, payload, timestamp: new Date().toISOString() };
-      console.log(human ? JSON.stringify(line, null, 2) : JSON.stringify(line));
-      count += 1;
-      if (count >= limit) {
-        bus.off(event, onEvent);
-        resolve();
-      }
-    };
-    bus.on(event, onEvent);
-
-    process.once('SIGINT', () => {
-      bus.off(event, onEvent);
-      resolve();
-    });
-  });
-}
-
 /**
  * `autopilot federation status [--human]`
  *
@@ -608,7 +522,7 @@ async function handleFederationCommand(args: string[]): Promise<void> {
  * (`'phase2-keyword'` or `'phase3-embedding'`); the `engine` field on
  * the JSON output summarises which producers contributed.
  *
- * Per `feedback-no-fallbacks`: when AgentDBService is unavailable this
+ * Per `feedback-no-fallbacks`: when the learning store is unavailable this
  * throws with a clear message rather than emitting an empty list.
  */
 async function showPatterns(opts: Record<string, string | boolean>): Promise<void> {
@@ -618,8 +532,9 @@ async function showPatterns(opts: Record<string, string | boolean>): Promise<voi
 
   if (!available) {
     throw new Error(
-      'AgentDBService is not available — cannot discover patterns. ' +
-      'Initialize agentic-flow with AgentDB (see `agentic-flow doctor`).',
+      'learning store is not available — cannot discover patterns ' +
+      '(in-process episode sink retired per ADR-0288; capture flows via ' +
+      'ruflo hooks post-task).',
     );
   }
 
@@ -684,7 +599,7 @@ async function showPatterns(opts: Record<string, string | boolean>): Promise<voi
  * reconstruct causality via SyncCoordinator CRDT merge), so it stays
  * `undefined` on read — surfaced honestly rather than fabricated.
  *
- * Per `feedback-no-fallbacks`: throws on AgentDBService unavailability.
+ * Per `feedback-no-fallbacks`: throws on learning-store unavailability.
  */
 async function showEpisodes(opts: Record<string, string | boolean>): Promise<void> {
   const lastRaw = opts.last as string | undefined;
@@ -699,8 +614,9 @@ async function showEpisodes(opts: Record<string, string | boolean>): Promise<voi
 
   if (!available) {
     throw new Error(
-      'AgentDBService is not available — cannot list episodes. ' +
-      'Initialize agentic-flow with AgentDB (see `agentic-flow doctor`).',
+      'learning store is not available — cannot list episodes ' +
+      '(in-process episode sink retired per ADR-0288; capture flows via ' +
+      'ruflo hooks post-task).',
     );
   }
 
@@ -773,8 +689,6 @@ COMMANDS:
   learn [--json]                              Discover success patterns from AgentDB
   history --query <text> [--limit N] [--json] Search past task episodes
   predict [--json]                            Predict optimal next action
-  subscribe --event <name> [--limit N] [--human]
-                                              Stream cross-controller events (ADR-0195)
   federation status [--human]                 Show FederatedSyncProvider state (ADR-0196)
   patterns [--json]                           Discover unioned Phase 2 + Phase 3 patterns (ADR-0194)
   episodes [--last N] [--json]                List recent autopilot episodes (ADR-0196 Phase 5 fields)
@@ -834,9 +748,8 @@ export async function handleAutopilotCommand(args: string[]): Promise<void> {
       await showPredict(opts);
       break;
     // === SUBSCRIBE+FEDERATION DISPATCH BEGIN ===
-    case 'subscribe':
-      await subscribeEvents(opts);
-      break;
+    // ADR-0288: `autopilot subscribe` removed — it streamed the retired
+    // in-process learning-events bus (the half-seam ADR-0290 rejected).
     case 'federation':
       await handleFederationCommand(args.slice(1));
       break;

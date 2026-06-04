@@ -17,7 +17,7 @@
  *   so cluster membership is testable without a live embedder
  *
  * The contract surface under test is the same one a real
- * `AgentDBService` exposes (`storeEpisode`, `recallEpisodes`,
+ * the episode sink exposes (`storeEpisode`, `recallEpisodes`,
  * `generateEmbedding` / `generateEmbeddings`, `getFallbackStatus`); the
  * test double mirrors it 1:1.
  *
@@ -38,7 +38,7 @@ import {
   type AutopilotEpisode,
 } from '../../src/coordination/autopilot-learning.js';
 
-// ─── In-memory AgentDBService test double ────────────────────────────
+// ─── In-memory episode-sink test double (AgentDBLike) ───────────────
 
 /**
  * Synthetic 16-dim embedding generator. Deterministic per subject so
@@ -148,7 +148,7 @@ class InMemoryAgentDB {
 
 /**
  * Spec-helper: AutopilotLearning's `initialize()` resolves the AgentDB
- * via dynamic import of `../services/agentdb-service.js`. To inject a
+ * via the retired in-process probe (ADR-0288). To inject a
  * test double, we reach into the private field directly.
  */
 function attachDouble(learning: AutopilotLearning, db: InMemoryAgentDB): void {
@@ -327,7 +327,7 @@ describe('AutopilotLearning Phase 3 (ADR-0194)', () => {
   );
 
   it.skipIf(!canConstruct || !phase3MethodExists)(
-    'throws (no silent fallback) when AgentDBService exposes no embedding surface',
+    'throws (no silent fallback) when the sink exposes no embedding surface',
     async () => {
       // Per feedback-no-fallbacks: when neither generateEmbedding nor
       // generateEmbeddings is available, `discoverPatternsByEmbedding`

@@ -3,41 +3,27 @@
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import { execSync } from 'child_process';
-import { AgentDBService } from '../../../services/agentdb-service.js';
-import type {
-  EpisodeData, SkillData, PatternData, TrajectoryStep,
-} from '../../../services/agentdb-service.js';
-import { registerSessionTools } from '../tools/session-tools.js';
+// ADR-0288: the in-process agentdb service island (service class + wrapping
+// tool modules) was retired; this server registers only island-free modules.
+// The canonical agent-facing agentdb MCP surface is the standalone `agentdb`
+// package / the ruflo aggregator (`mcp__ruflo__agentdb_*`).
 import { registerGitHubTools } from '../tools/github-tools.js';
-import { registerNeuralTools } from '../tools/neural-tools.js';
 import { registerRuVectorTools } from '../tools/ruvector-tools.js';
 import { registerSonaRvfTools } from '../tools/sona-rvf-tools.js';
 import { registerInfrastructureTools } from '../tools/infrastructure-tools.js';
 import { registerAutopilotTools } from '../tools/autopilot-tools.js';
-import { registerPerformanceTools } from '../tools/performance-tools.js';
-import { registerWorkflowTools } from '../tools/workflow-tools.js';
-import { registerDAATools } from '../tools/daa-tools.js';
-import { registerAttentionTools } from '../tools/attention-tools.js';
-import { registerHiddenControllerTools } from '../tools/hidden-controllers.js';
-import { registerQUICTools } from '../tools/quic-tools.js';
-import { registerRVFTools } from '../tools/rvf-tools.js';
 import { registerCostOptimizerTools } from '../tools/cost-optimizer-tools.js';
 import { registerStreamingTools } from '../tools/streaming-tools.js';
 import { registerSonaTools } from '../tools/sona-tools.js';
-import { registerMemoryTools } from '../tools/memory-tools.js';
 import { registerQuantizationTools } from '../tools/quantization-tools.js';
 import { registerExplainabilityTools } from '../tools/explainability-tools.js';
 // ADR-0069 F1 follow-up §2: Enhanced Agent Booster tools (WASM <1ms code editing)
 import { registerBoosterTools as registerEnhancedBoosterTools } from '../tools/booster-tools.js';
 // SECURITY: Import rate limiting middleware
 import { withRateLimit, getRateLimitStats } from '../../middleware/apply-rate-limit.js';
-// Import DirectCallBridge to eliminate CLI spawning
-import { DirectCallBridge } from '../../../services/direct-call-bridge.js';
-import { SwarmService } from '../../../services/swarm-service.js';
-import { HookService } from '../../../services/hook-service.js';
 
 console.error('Starting FastMCP Full Server (stdio transport)...');
-console.error('Loading 220+ tools: core (12), agentdb (12), session (8), github (8), neural (6), ruvector (6), sona-rvf (11), infrastructure (13), autopilot (10), performance (15), workflow (11), daa (10), attention (6), hidden-controllers (17), quic (4), rvf (5), cost-optimizer (4), streaming (10), sona-rl (8), memory (6), quantization (8), explainability (10), enhanced-booster (9)');
+console.error('Loading tools: core (11), github (8), ruvector (6), sona-rvf (11), infrastructure (13), autopilot (10), cost-optimizer (4), streaming (8), sona-rl (8), quantization (8), explainability (10), enhanced-booster (9) — agentdb-wrapping tools retired per ADR-0288');
 console.error('SECURITY: Rate limiting enabled (100 req/min default, 10 req/min for critical tools)');
 
 // Create server
@@ -46,41 +32,6 @@ const server = new FastMCP({
   version: '1.0.0'
 });
 
-// Initialize DirectCallBridge (eliminates CLI spawning anti-pattern)
-let directBridge: DirectCallBridge | null = null;
-(async () => {
-  try {
-    const agentDB = await AgentDBService.getInstance();
-    const hooks = new HookService(agentDB);
-    const swarm = new SwarmService(hooks, agentDB);
-    directBridge = new DirectCallBridge(agentDB, swarm);
-    console.error('[DirectCallBridge] Initialized (100-200x faster than CLI spawning)');
-
-    // ADR-0076 Phase 4: Connect controller bridge to ControllerRegistry
-    // Use the existing registry from memory-bridge (if available) to avoid
-    // creating a second ControllerRegistry with a separate AgentDB connection.
-    try {
-      const { setRegistry } = await import('../../../services/controller-bridge.js');
-      let registry: any = null;
-      try {
-        const bridgeModule = await import(
-          /* webpackIgnore: true */ '../../../../cli/src/memory/memory-bridge.js'
-        );
-        registry = await bridgeModule.getControllerRegistry?.();
-      } catch { /* memory-bridge not available */ }
-      if (!registry) {
-        // Fallback: create and initialize a fresh registry
-        const { ControllerRegistry } = await import('@claude-flow/memory');
-        registry = new ControllerRegistry();
-        await registry.initialize({ dbPath: agentDB.getDbPath?.() });
-      }
-      setRegistry(registry);
-      console.error('[ControllerBridge] Connected to ControllerRegistry');
-    } catch { /* controller-bridge wiring is best-effort */ }
-  } catch (err) {
-    console.error('[DirectCallBridge] Initialization failed, tools will fall back to CLI:', err);
-  }
-})();
 
 // SECURITY: Wrap addTool to automatically apply rate limiting to ALL tools
 const originalAddTool = server.addTool.bind(server);
@@ -186,86 +137,6 @@ server.addTool({
       }, null, 2);
     } catch (error: any) {
       throw new Error(`Failed to search memory: ${error.message}`);
-    }
-  }
-});
-
-// Tool: Memory Synthesize - Context synthesis from memory search results
-server.addTool({
-  name: 'memory_synthesize',
-  description: 'Search memory and synthesize a coherent context summary with patterns, insights, and recommendations from retrieved episodes',
-  parameters: z.object({
-    query: z.string().min(1).describe('Search query for finding relevant memories'),
-    limit: z.number().min(1).max(50).optional().default(10).describe('Number of memories to synthesize (1-50)'),
-    namespace: z.string().optional().default('default').describe('Memory namespace to search'),
-    includeRecommendations: z.boolean().optional().default(true).describe('Include actionable recommendations'),
-  }),
-  execute: async ({ query, limit, namespace, includeRecommendations }: { query: string; limit: number; namespace: string; includeRecommendations: boolean }) => {
-    try {
-      // Step 1: Retrieve episodes from AgentDB
-      const agentDB = await AgentDBService.getInstance();
-      const episodes = await agentDB.recallEpisodes(query, limit);
-
-      if (episodes.length === 0) {
-        return JSON.stringify({
-          success: true,
-          data: {
-            summary: 'No relevant memories found for the given query.',
-            patterns: [],
-            successRate: 0,
-            averageReward: 0,
-            recommendations: [],
-            keyInsights: [],
-            totalMemories: 0,
-          },
-          timestamp: new Date().toISOString(),
-        }, null, 2);
-      }
-
-      // Step 2: Synthesize using ContextSynthesizer
-      let synthesized: any;
-      try {
-        const { ContextSynthesizer } = await import(
-          /* webpackIgnore: true */ 'agentdb/controllers/ContextSynthesizer'
-        );
-        synthesized = ContextSynthesizer.synthesize(
-          episodes.map((ep: any) => ({
-            task: ep.task,
-            reward: ep.reward,
-            success: ep.success,
-            critique: ep.critique,
-            input: ep.input,
-            output: ep.output,
-            similarity: ep.similarity,
-          })),
-          { includeRecommendations, minPatternFrequency: 2 }
-        );
-      } catch {
-        // Fallback: basic synthesis without ContextSynthesizer
-        const successCount = episodes.filter((ep: any) => ep.success).length;
-        const avgReward = episodes.reduce((sum: number, ep: any) => sum + (ep.reward || 0), 0) / episodes.length;
-        synthesized = {
-          summary: `Found ${episodes.length} relevant memories with ${(successCount / episodes.length * 100).toFixed(0)}% success rate.`,
-          patterns: [],
-          successRate: successCount / episodes.length,
-          averageReward: avgReward,
-          recommendations: [],
-          keyInsights: [`${episodes.length} episodes found`, `${successCount} successful`],
-          totalMemories: episodes.length,
-        };
-      }
-
-      return JSON.stringify({
-        success: true,
-        data: synthesized,
-        timestamp: new Date().toISOString(),
-      }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({
-        success: false,
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      }, null, 2);
     }
   }
 });
@@ -591,297 +462,20 @@ ${examples && examples.length > 0 ? `## Examples\n\n${examples.map((ex, i) => `#
   }
 });
 
-// ---------------------------------------------------------------------------
-// AgentDB-powered tools (12 new tools using agentdb-service singleton)
-// ---------------------------------------------------------------------------
-
-// Tool 12: memory_episode_store
-server.addTool({
-  name: 'memory_episode_store',
-  description: 'Store an agent episode via ReflexionMemory for experience replay',
-  parameters: z.object({
-    sessionId: z.string().min(1).describe('Session identifier'),
-    task: z.string().min(1).describe('Task description'),
-    input: z.string().optional().describe('Input provided to the agent'),
-    output: z.string().optional().describe('Agent output/response'),
-    critique: z.string().optional().describe('Self-critique or reflection'),
-    reward: z.number().min(-1).max(1).describe('Reward signal (-1 to 1)'),
-    success: z.boolean().describe('Whether the episode was successful'),
-    tags: z.array(z.string()).optional().describe('Tags for categorization'),
-  }),
-  execute: async (params) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const id = await svc.storeEpisode(params as EpisodeData);
-      return JSON.stringify({ success: true, data: { id }, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 13: memory_episode_recall
-server.addTool({
-  name: 'memory_episode_recall',
-  description: 'Recall similar past episodes using semantic search',
-  parameters: z.object({
-    query: z.string().min(1).describe('Search query describing the task'),
-    limit: z.number().positive().optional().default(5).describe('Max results (1-50)'),
-  }),
-  execute: async ({ query, limit }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const episodes = await svc.recallEpisodes(query, limit);
-      return JSON.stringify({ success: true, data: { episodes, count: episodes.length }, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 14: skill_publish
-server.addTool({
-  name: 'skill_publish',
-  description: 'Publish a reusable agent skill to the SkillLibrary',
-  parameters: z.object({
-    name: z.string().min(1).describe('Skill name'),
-    description: z.string().optional().describe('Skill description'),
-    code: z.string().optional().describe('Skill implementation code'),
-    successRate: z.number().min(0).max(1).describe('Success rate (0 to 1)'),
-    metadata: z.record(z.unknown()).optional().describe('Additional metadata'),
-  }),
-  execute: async (params) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const id = await svc.publishSkill(params as SkillData);
-      return JSON.stringify({ success: true, data: { id, name: params.name }, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 15: skill_find
-server.addTool({
-  name: 'skill_find',
-  description: 'Find applicable skills by description via semantic search',
-  parameters: z.object({
-    description: z.string().min(1).describe('Task description to match skills against'),
-    limit: z.number().positive().optional().default(5).describe('Max results'),
-  }),
-  execute: async ({ description, limit }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const skills = await svc.findSkills(description, limit);
-      return JSON.stringify({ success: true, data: { skills, count: skills.length }, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 16: route_semantic
-server.addTool({
-  name: 'route_semantic',
-  description: 'Route a task to the optimal handler tier using semantic analysis (ADR-026)',
-  parameters: z.object({
-    taskDescription: z.string().min(1).describe('Task description to analyze for routing'),
-  }),
-  execute: async ({ taskDescription }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const route = await svc.routeSemantic(taskDescription);
-      return JSON.stringify({ success: true, data: route, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 17: route_causal
-server.addTool({
-  name: 'route_causal',
-  description: 'Causal routing via CausalMemoryGraph to find optimal agent path',
-  parameters: z.object({
-    taskType: z.string().min(1).describe('Type of task to route'),
-    agentTypes: z.array(z.string()).min(1).describe('Candidate agent types to consider'),
-  }),
-  execute: async ({ taskType, agentTypes }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const patterns = await svc.searchPatterns(taskType, 10);
-      const ranked = agentTypes.map((agent) => {
-        const matching = patterns.filter((p) => p.approach.toLowerCase().includes(agent.toLowerCase()));
-        const avgSuccess = matching.length > 0
-          ? matching.reduce((sum, p) => sum + p.successRate, 0) / matching.length
-          : 0.5;
-        return { agent, score: avgSuccess, matchCount: matching.length };
-      }).sort((a, b) => b.score - a.score);
-      return JSON.stringify({ success: true, data: { taskType, ranked }, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 18: attention_coordinate
-server.addTool({
-  name: 'attention_coordinate',
-  description: 'Coordinate agents using attention-weighted task assignment',
-  parameters: z.object({
-    agents: z.array(z.string()).min(1).describe('Agent names to coordinate'),
-    task: z.string().min(1).describe('Task to assign'),
-    mechanism: z.enum(['softmax', 'uniform', 'priority']).optional().default('softmax')
-      .describe('Attention mechanism: softmax, uniform, or priority'),
-  }),
-  execute: async ({ agents, task, mechanism }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const skills = await svc.findSkills(task, agents.length);
-      const weights = agents.map((agent, i) => {
-        const skill = skills[i];
-        if (mechanism === 'uniform') return 1 / agents.length;
-        if (mechanism === 'priority') return 1 / (i + 1);
-        return skill ? skill.successRate : 1 / agents.length;
-      });
-      const sum = weights.reduce((a, b) => a + b, 0) || 1;
-      const assignments = agents.map((agent, i) => ({
-        agent, weight: weights[i] / sum, task,
-      }));
-      return JSON.stringify({ success: true, data: { mechanism, assignments }, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 19: graph_query
-server.addTool({
-  name: 'graph_query',
-  description: 'Query the agent knowledge graph',
-  parameters: z.object({
-    query: z.string().min(1).describe('Graph query string (natural language or keyword)'),
-    limit: z.number().positive().optional().default(10).describe('Max results'),
-  }),
-  execute: async ({ query, limit }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const results = await svc.queryGraph(query);
-      return JSON.stringify({ success: true, data: { results: results.slice(0, limit), count: results.length }, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 20: graph_store
-server.addTool({
-  name: 'graph_store',
-  description: 'Store nodes and edges in the agent knowledge graph',
-  parameters: z.object({
-    nodes: z.array(z.object({
-      id: z.string(), type: z.string(), label: z.string().optional(),
-    })).describe('Graph nodes'),
-    edges: z.array(z.object({
-      from: z.string(), to: z.string(),
-      fromType: z.string().optional(), toType: z.string().optional(),
-      similarity: z.number().optional(), confidence: z.number().optional(),
-    })).describe('Graph edges'),
-  }),
-  execute: async ({ nodes, edges }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      await svc.storeGraphState(nodes, edges);
-      return JSON.stringify({ success: true, data: { nodesStored: nodes.length, edgesStored: edges.length }, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 21: learning_trajectory
-server.addTool({
-  name: 'learning_trajectory',
-  description: 'Record a learning trajectory (state-action-reward sequence)',
-  parameters: z.object({
-    steps: z.array(z.object({
-      state: z.string(), action: z.string(), reward: z.number(),
-      nextState: z.string().optional(),
-    })).min(1).describe('Trajectory steps'),
-    reward: z.number().describe('Total trajectory reward'),
-  }),
-  execute: async ({ steps, reward }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      await svc.recordTrajectory(steps as TrajectoryStep[], reward);
-      return JSON.stringify({ success: true, data: { stepsRecorded: steps.length, totalReward: reward }, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 22: learning_predict
-server.addTool({
-  name: 'learning_predict',
-  description: 'Predict the optimal action for a given state using learned policy',
-  parameters: z.object({
-    state: z.string().min(1).describe('Current state description'),
-  }),
-  execute: async ({ state }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const prediction = await svc.predictAction(state);
-      return JSON.stringify({ success: true, data: prediction, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Tool 23: explain_decision
-server.addTool({
-  name: 'explain_decision',
-  description: 'Get an explainable Merkle proof for a recall decision',
-  parameters: z.object({
-    decisionId: z.string().min(1).describe('Decision/query ID to explain'),
-  }),
-  execute: async ({ decisionId }) => {
-    try {
-      const svc = await AgentDBService.getInstance();
-      const explanation = await svc.explainDecision(decisionId);
-      return JSON.stringify({ success: true, data: explanation, timestamp: new Date().toISOString() }, null, 2);
-    } catch (error: any) {
-      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
-    }
-  }
-});
-
-// Register modular tool sets (120+ additional tools)
-// Note: Infrastructure and Workflow tools will use DirectCallBridge when available
-registerSessionTools(server);          // 8 tools
+// Register modular tool sets (island-free modules only — ADR-0288)
 registerGitHubTools(server);          // 8 tools
-registerNeuralTools(server);          // 6 tools
 registerRuVectorTools(server);        // 6 tools
 registerSonaRvfTools(server);         // 11 tools
-registerInfrastructureTools(server, () => directBridge);  // 13 tools (DirectCallBridge-enabled)
+registerInfrastructureTools(server);  // 13 tools
 registerAutopilotTools(server);       // 10 tools
-registerPerformanceTools(server);     // 15 tools
-registerWorkflowTools(server, () => directBridge);        // 11 tools (DirectCallBridge-enabled)
-registerDAATools(server);             // 10 tools
-registerAttentionTools(server);      // 3 tools
-registerHiddenControllerTools(server); // 17 tools (8 controllers)
-registerQUICTools(server);              // 7 tools (QUIC protocol: sync, latency, health, pool, 0rtt, multiplex)
-registerRVFTools(server);               // 5 tools (RVF optimizer - ADR-063)
 registerCostOptimizerTools(server);     // 4 tools (Cost optimizer - ADR-064)
-registerStreamingTools(server);         // 10 tools (Streaming architecture - ADR-065 P1-3)
+registerStreamingTools(server);         // 8 tools (Streaming architecture - ADR-065 P1-3; search-streaming retired per ADR-0288)
 registerSonaTools(server);              // 8 tools (SONA RL Loop - ADR-065 P1-2)
-registerMemoryTools(server);            // 6 tools (Hierarchical Memory - ADR-066 P2-3)
 registerQuantizationTools(server);      // 8 tools (Model Quantization - ADR-066 P2-2)
 registerExplainabilityTools(server);    // 10 tools (Explainability Dashboard - ADR-066 P2-4)
 registerEnhancedBoosterTools(server);   // 9 tools (Enhanced Agent Booster WASM - ADR-0069 F1 §2, F3 remaining work)
 
-console.error('Registered 217+ tools successfully');
+console.error('Registered island-free tool set (ADR-0288 slim)');
 console.error('Starting stdio transport...');
 
 // Start with stdio transport

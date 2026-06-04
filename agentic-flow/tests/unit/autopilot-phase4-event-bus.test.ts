@@ -3,7 +3,7 @@
  * event bus.
  *
  * Covers the contract spec in ADR-0195 §Scope when implemented:
- *   - AgentDBService exposes `subscribe(event, handler)` /
+ *   - the episode sink exposes `subscribe(event, handler)` /
  *     `unsubscribe(event, handler)` (or the EventEmitter via
  *     `getLearningEvents()` — both shapes are accepted; the ADR text
  *     uses Option 1).
@@ -16,7 +16,7 @@
  *   - learningSystem is NOT nulled on error — errors propagate.
  *
  * Per spec: mock collaborator services (LearningSystem) but use a real
- * AgentDBService EventEmitter / subscribe surface.
+ * episode-sink EventEmitter / subscribe surface (AgentDBLike contract).
  *
  * NOTE: The implementer agent has not yet landed ADR-0195; tests SKIP
  * with marker when the new surface is structurally absent.
@@ -77,7 +77,7 @@ function buildFakeAgentDBWithBus(rows: FakeRow[] = []) {
     getFallbackStatus: vi.fn(() => ({ degraded: false })),
     getLearningEvents: vi.fn(() => learningEvents),
     // Convenience subscribe/unsubscribe shape (the user spec uses these
-    // names; AgentDBService MAY expose them as thin wrappers around
+    // names; a sink MAY expose them as thin wrappers around
     // learningEvents.on/off, or callers MAY use the EventEmitter directly).
     subscribe: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
       learningEvents.on(event, handler);
@@ -137,7 +137,7 @@ describe('AutopilotLearning Phase 4 — event bus (ADR-0195)', () => {
 
   // ─── subscribe / unsubscribe surface ────────────────────────────
 
-  describe('AgentDBService event-bus surface', () => {
+  describe('episode-sink event-bus surface', () => {
     it('exposes learningEvents EventEmitter via getLearningEvents()', () => {
       const fake = buildFakeAgentDBWithBus();
       // The mock implements the surface; the assertion verifies the SHAPE
@@ -297,15 +297,8 @@ describe('AutopilotLearning Phase 4 — event bus (ADR-0195)', () => {
       return out;
     }
 
-    it('grep test: agentdb-service.ts does NOT call learningSystem.predictAction', () => {
-      const raw = readSrc('services/agentdb-service.ts');
-      const src = stripCommentsAndStrings(raw);
-      // After comment-strip: never as a call expression
-      //   learningSystem.predictAction(...)  or
-      //   learningSystem.predictAction?.(...)
-      const callRe = /learningSystem\.predictAction\s*\??\.\s*\(|learningSystem\.predictAction\s*\(/;
-      expect(callRe.test(src)).toBe(false);
-    });
+    // (single-file grep test removed — agentdb-service.ts deleted per ADR-0288;
+    // the walk test below still guards every surviving source file.)
 
     it('grep test: no source file calls learningSystem.predictAction()', () => {
       // Walk a few likely callers: cli/, services/, coordination/, mcp/.
@@ -332,36 +325,14 @@ describe('AutopilotLearning Phase 4 — event bus (ADR-0195)', () => {
     });
   });
 
-  // ─── learningSystem.predict(sessionId, state) IS the wire ───────
-
-  describe('learningSystem.predict(sessionId, state) is the wire shape', () => {
-    it('agentdb-service.ts references LearningSystem.predict(sessionId, state) shape', () => {
-      const src = readSrc('services/agentdb-service.ts');
-      // The Phase 4 wire-up must reach `learningSystem.predict(...)` or
-      // `learningSystem.submitFeedback({sessionId,...})` — at least one
-      // session-bound call. ADR-0195 §Contract uses submitFeedback for
-      // episode → policy update; predict is the read surface.
-      const hasSubmitFeedback = /learningSystem\.submitFeedback\s*\(/.test(src);
-      const hasPredictWithSession = /learningSystem\.predict\s*\(\s*sessionId/.test(
-        src,
-      );
-      expect(hasSubmitFeedback || hasPredictWithSession).toBe(true);
-    });
-  });
+  // (wire-shape grep describe removed — it asserted properties of the
+  // deleted agentdb-service.ts; the invariant retired with the service.
+  // ADR-0288.)
 
   // ─── learningSystem is NOT nulled on error (errors propagate) ───
 
   describe('learningSystem nulling guard — errors must propagate', () => {
-    it('grep test: agentdb-service.ts does NOT silently set learningSystem = null in catch', () => {
-      const src = readSrc('services/agentdb-service.ts');
-      // ADR-0197 Finding 1 removed the silent nulling. Per ADR-0195 §P4.4
-      // a subscriber may rebind on a specific error (schema-not-provisioned),
-      // but the bare `catch { this.learningSystem = null }` pattern must be
-      // absent.
-      const silentNull =
-        /catch\s*\{\s*this\.learningSystem\s*=\s*null\s*;?\s*\}/;
-      expect(silentNull.test(src)).toBe(false);
-    });
+    // (silent-null grep test removed — agentdb-service.ts deleted per ADR-0288.)
 
     it('errors thrown inside the LearningSystem subscriber propagate via the bus', () => {
       const fake = buildFakeAgentDBWithBus();

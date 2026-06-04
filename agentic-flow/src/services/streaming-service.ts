@@ -166,7 +166,12 @@ export class StreamingService extends EventEmitter {
         await this.streamEmbeddingViaWebSocket(ws, clientId, payload);
         break;
       case 'stream:search':
-        await this.streamSearchViaWebSocket(ws, clientId, payload);
+        // ADR-0288: episode-search streaming retired with the in-process
+        // agentdb service; recall lives on the canonical agentdb surface.
+        ws.send(JSON.stringify({
+          type: 'error',
+          error: 'stream:search retired (ADR-0288) — use the agentdb MCP/CLI recall surface',
+        }));
         break;
       case 'stream:subscribe':
         this.subscribeToUpdates(ws, clientId, payload.topics);
@@ -193,34 +198,6 @@ export class StreamingService extends EventEmitter {
           type: 'chunk',
           streamId,
           data: chunk,
-        }));
-      } else {
-        break;
-      }
-    }
-
-    if (ws.readyState === ws.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'complete',
-        streamId,
-      }));
-    }
-  }
-
-  private async streamSearchViaWebSocket(
-    ws: WebSocket,
-    clientId: string,
-    payload: { query: string; k?: number }
-  ): Promise<void> {
-    const streamId = this.generateStreamId();
-    const stream = await this.createStreamingSearch(payload.query, payload.k);
-
-    for await (const result of stream) {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'result',
-          streamId,
-          data: result,
         }));
       } else {
         break;
@@ -372,80 +349,11 @@ export class StreamingService extends EventEmitter {
     }
   }
 
-  /**
-   * Create async generator for streaming search results
-   */
-  async *createStreamingSearch(query: string, k: number = 10): AsyncGenerator<StreamChunk> {
-    const streamId = this.generateStreamId();
-    const startTime = Date.now();
-    const session = this.createSession(streamId);
+  // (createStreamingSearch removed — episode-search streaming retired per
+  // ADR-0288; episode recall lives on the canonical agentdb MCP/CLI surface)
 
-    try {
-      // Import AgentDB service
-      const { AgentDBService } = await import('./agentdb-service.js');
-      const agentDB = await AgentDBService.getInstance();
-
-      // Get more results for streaming
-      const results = await agentDB.recallEpisodes(query, k * 2);
-      let sequence = 0;
-
-      // Stream results one by one
-      for (const result of results.slice(0, k)) {
-        const streamChunk: StreamChunk = {
-          id: streamId,
-          type: 'search',
-          data: result,
-          sequence: sequence++,
-          timestamp: Date.now(),
-        };
-
-        session.buffer.push(streamChunk);
-        yield streamChunk;
-
-        // Small delay to simulate real-time streaming
-        await this.sleep(10);
-      }
-
-      // Complete
-      yield {
-        id: streamId,
-        type: 'complete',
-        data: { totalResults: k },
-        sequence: sequence++,
-        timestamp: Date.now(),
-      };
-
-      this.recordLatency(Date.now() - startTime);
-    } finally {
-      this.closeStream(streamId);
-    }
-  }
-
-  // -- Incremental Vector Updates -------------------------------------------
-
-  /**
-   * Update vector index incrementally as embeddings arrive
-   */
-  async updateVectorIncremental(
-    id: string,
-    embeddingStream: AsyncGenerator<number[]>
-  ): Promise<void> {
-    const { AgentDBService } = await import('./agentdb-service.js');
-    const agentDB = await AgentDBService.getInstance();
-
-    for await (const embedding of embeddingStream) {
-      // Store partial embedding
-      await agentDB.storeEpisode({
-        sessionId: 'streaming',
-        task: `incremental-${id}`,
-        reward: 0,
-        success: true,
-        metadata: { embedding, incremental: true },
-      });
-
-      this.emit('vector:updated', { id, dimension: embedding.length });
-    }
-  }
+  // (updateVectorIncremental removed — it wrote episodes through the retired
+  // in-process agentdb service; no consumer existed. ADR-0288)
 
   // -- Stream Multiplexing --------------------------------------------------
 

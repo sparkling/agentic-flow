@@ -6,7 +6,7 @@
  * subcommands and assert the JSON output shape.
  *
  * Per `feedback-no-fallbacks` the CLI must FAIL LOUDLY when the
- * underlying AgentDBService / AutopilotLearning surface is unavailable.
+ * underlying learning store / AutopilotLearning surface is unavailable.
  * The acceptable outcomes are:
  *
  *   1. Success (exit 0): stdout is valid JSON matching the documented
@@ -15,7 +15,7 @@
  *
  *   2. Loud failure (non-zero exit, non-empty stderr): the surface threw.
  *      Acceptable thrown errors include:
- *      - the CLI's own "AgentDBService is not available" guard,
+ *      - the CLI's own "learning store is not available" guard,
  *      - the `--last` input-validation guard,
  *      - the pre-existing Phase 5 module-load failure when `agentdb`
  *        does not export `createVectorClock` (a known ADR-0196 runtime
@@ -86,7 +86,7 @@ describe('autopilot patterns + episodes CLI', () => {
       }
     } else {
       // Loud failure: non-empty stderr, non-zero exit. Per the test
-      // header, both the explicit "AgentDBService is not available"
+      // header, both the explicit "learning store is not available"
       // throw AND the pre-existing Phase 5 createVectorClock module-load
       // SyntaxError satisfy `feedback-no-fallbacks`.
       expect(stderr.length).toBeGreaterThan(0);

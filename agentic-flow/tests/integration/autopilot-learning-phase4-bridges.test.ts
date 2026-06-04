@@ -2,7 +2,7 @@
  * Integration tests for AutopilotLearning Phase 4 (ADR-0195) bridges.
  *
  * Phase 4 wires AutopilotLearning ↔ LearningSystem via a shared event
- * bus on AgentDBService (per ADR-0195 §Decision Outcome: Option 1).
+ * bus on the episode sink (per ADR-0195 §Decision Outcome: Option 1).
  * AutopilotLearning emits `episode:recorded` / `trajectory:opened` /
  * `trajectory:step` / `trajectory:closed`; LearningSystem subscribes
  * and translates `episode:recorded` into a `submitFeedback()` call.
@@ -16,7 +16,7 @@
  * Location: inner package (per ADR-0198 Finding 1).
  *
  * Current state (2026-05-19): Phase 4 event bus is NOT yet wired in
- * AgentDBService (no `learningEvents` field, no `getLearningEvents()`).
+ * the sink (no `learningEvents` field, no `getLearningEvents()`).
  * Tests that depend on the bus are marked with `.skip` and a TODO
  * comment so the assertion shape is preserved as a binding spec the
  * implementer can flip back on. The ADR-0197 negative-assertion test
@@ -41,7 +41,7 @@ interface StoredEpisode {
 }
 
 /**
- * Bus-aware AgentDBService double: exposes `learningEvents`,
+ * Bus-aware episode-sink double: exposes `learningEvents`,
  * `getLearningEvents()`, `getLearningSystem()` per the ADR-0195
  * contract. AutopilotLearning emits via `_resolveEventBus(caller)`
  * (Phase 4 P4.1 — not yet implemented in source).
@@ -221,7 +221,7 @@ describe('AutopilotLearning Phase 4 (ADR-0195) — event bus bridge', () => {
     // → submitFeedback({sessionId, state, action, reward, ...}).
     //
     // This test wires the subscriber explicitly (the real Phase 4 wires
-    // it at AgentDBService init, post-line-359). The contract shape is
+    // it at sink init in the retired service). The contract shape is
     // the same.
     db.learningEvents.on('episode:recorded', async (ep: {
       subject: string;
@@ -312,38 +312,5 @@ describe('AutopilotLearning Phase 4 (ADR-0195) — ADR-0197 Finding 1 negative a
     expect('predictAction' in ls).toBe(false);
   });
 
-  it('AgentDBService source no longer contains the predictAction?.() call probe', async () => {
-    // Read the source file directly and assert no live call site exists.
-    // The post-ADR-0197 source removed the optional-chain CALL — but the
-    // comment block documenting the historical mistake intentionally
-    // mentions the literal `learningSystem.predictAction?.(state)` to
-    // explain what was removed. The assertion targets LIVE call sites,
-    // identifiable by `await` immediately before the optional-chain.
-    //
-    // Discriminate: a real call is `await this.learningSystem.predictAction?.(...)`;
-    // the historical mention is inside a comment line beginning with `//`.
-    // We strip comments before matching so doc references don't trip us.
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const url = await import('node:url');
-    const here = path.dirname(url.fileURLToPath(import.meta.url));
-    const srcPath = path.resolve(
-      here,
-      '../../src/services/agentdb-service.ts',
-    );
-    const src = fs.readFileSync(srcPath, 'utf-8');
-    // Strip single-line `//` comments before matching so the ADR-0197
-    // comment block doesn't trigger.
-    const stripped = src
-      .split('\n')
-      .map(line => {
-        // Find first `//` that is NOT inside a string literal — naive
-        // pass is sufficient here, the agentdb-service.ts file uses //
-        // for comments and rarely has // inside strings.
-        const idx = line.indexOf('//');
-        return idx === -1 ? line : line.slice(0, idx);
-      })
-      .join('\n');
-    expect(stripped).not.toMatch(/learningSystem\.predictAction\?\.\(/);
-  });
+  // (source grep test removed — agentdb-service.ts deleted per ADR-0288.)
 });

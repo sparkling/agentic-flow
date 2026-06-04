@@ -81,63 +81,7 @@ export function registerStreamingTools(server: any): void {
     },
   });
 
-  // Tool 2: stream_search - Stream search results in real-time
-  server.addTool({
-    name: 'stream_search',
-    description: 'Stream search results in real-time as they are found. Returns results incrementally for faster response times.',
-    parameters: z.object({
-      query: z.string().min(1).describe('Search query'),
-      k: z.number().min(1).max(100).optional().default(10).describe('Number of results (1-100)'),
-      namespace: z.string().optional().describe('Memory namespace to search'),
-    }),
-    execute: async ({ query, k, namespace }: {
-      query: string;
-      k: number;
-      namespace?: string;
-    }) => {
-      try {
-        const streaming = StreamingService.getInstance();
-        const results: any[] = [];
-        const startTime = Date.now();
-
-        // Stream search results
-        for await (const chunk of streaming.createStreamingSearch(query, k)) {
-          if (chunk.type === 'search') {
-            results.push({
-              id: chunk.data.id,
-              task: chunk.data.task,
-              similarity: chunk.data.similarity,
-              timestamp: chunk.timestamp - startTime,
-            });
-          }
-
-          if (chunk.type === 'complete') {
-            break;
-          }
-        }
-
-        const latency = Date.now() - startTime;
-
-        return JSON.stringify({
-          success: true,
-          data: {
-            query,
-            results,
-            count: results.length,
-            latency: `${latency}ms`,
-            avgResultTime: `${Math.round(latency / results.length)}ms`,
-          },
-          timestamp: new Date().toISOString(),
-        }, null, 2);
-      } catch (error: any) {
-        return JSON.stringify({
-          success: false,
-          error: error.message,
-          timestamp: new Date().toISOString(),
-        }, null, 2);
-      }
-    },
-  });
+  // (Tool 2 stream_search removed — episode-search streaming retired per ADR-0288)
 
   // Tool 3: stream_websocket - Initialize WebSocket streaming
   server.addTool({
@@ -322,58 +266,7 @@ export function registerStreamingTools(server: any): void {
     },
   });
 
-  // Tool 7: stream_multiplex - Multiplex multiple streams
-  server.addTool({
-    name: 'stream_multiplex',
-    description: 'Multiplex multiple streams into a single connection. Combines multiple streaming operations for efficiency.',
-    parameters: z.object({
-      queries: z.array(z.string()).min(1).max(10).describe('Queries to multiplex (1-10)'),
-      k: z.number().min(1).max(50).optional().default(5).describe('Results per query'),
-    }),
-    execute: async ({ queries, k }: { queries: string[]; k: number }) => {
-      try {
-        const streaming = StreamingService.getInstance({ enableMultiplexing: true });
-        const startTime = Date.now();
-
-        // Create individual streams
-        const streams = queries.map(query =>
-          streaming.createStreamingSearch(query, k)
-        );
-
-        // Multiplex streams
-        const results: any[] = [];
-        for await (const chunk of streaming.multiplexStreams(streams)) {
-          if (chunk.type === 'search') {
-            results.push({
-              query: queries[Math.floor(results.length / k)],
-              result: chunk.data.task,
-              timestamp: chunk.timestamp - startTime,
-            });
-          }
-        }
-
-        const latency = Date.now() - startTime;
-
-        return JSON.stringify({
-          success: true,
-          data: {
-            queries: queries.length,
-            results: results.length,
-            latency: `${latency}ms`,
-            avgPerQuery: `${Math.round(latency / queries.length)}ms`,
-            multiplexing: 'enabled',
-          },
-          timestamp: new Date().toISOString(),
-        }, null, 2);
-      } catch (error: any) {
-        return JSON.stringify({
-          success: false,
-          error: error.message,
-          timestamp: new Date().toISOString(),
-        }, null, 2);
-      }
-    },
-  });
+  // (Tool 7 stream_multiplex removed — episode-search streaming retired per ADR-0288)
 
   // Tool 8: stream_backpressure - Configure backpressure handling
   server.addTool({
