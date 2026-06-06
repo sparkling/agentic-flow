@@ -1,6 +1,6 @@
 {
   "name": "agent-booster",
-  "version": "0.2.2-patch.643",
+  "version": "0.2.2-patch.644",
   "description": "Ultra-fast code editing engine - 52x faster than Morph LLM at $0 cost",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
