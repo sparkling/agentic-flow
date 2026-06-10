@@ -19,10 +19,16 @@ export class Database {
   private db: SqlJsDatabase | null = null;
   private filepath: string;
   private isReady = false;
+  /** Resolves once the async sql.js WASM init has completed and the
+   *  underlying DB handle is usable. Consumers that construct then
+   *  immediately `exec()`/`prepare()` (synchronous schema setup) MUST
+   *  `await db.ready` first — the constructor cannot block on the async
+   *  WASM load. ADR-0310 Fix 1. */
+  readonly ready: Promise<void>;
 
   constructor(filepath: string, options?: any) {
     this.filepath = filepath;
-    this.init();
+    this.ready = this.init();
   }
 
   private async init() {

@@ -57,9 +57,11 @@ export class FederationHubServer {
       ...config
     };
 
-    // Initialize hub database (SQLite for metadata)
+    // Initialize hub database (SQLite for metadata).
+    // NOTE: schema creation is deferred to start() — the sql.js adapter
+    // initialises its WASM handle asynchronously, so the synchronous
+    // db.exec(schema) must wait for `db.ready`. ADR-0310 Fix 1.
     this.db = new Database(this.config.dbPath!);
-    this.initializeDatabase();
 
     // AgentDB integration optional - using SQLite for now
     this.agentDB = null as any;
@@ -126,6 +128,11 @@ export class FederationHubServer {
    * Start the hub server
    */
   async start(): Promise<void> {
+    // ADR-0310 Fix 1: the sql.js adapter inits its WASM handle async; wait
+    // for it before the synchronous schema exec, otherwise the hub throws
+    // "Database not initialized" on construct (deterministic, not racy).
+    await this.db.ready;
+    this.initializeDatabase();
     return new Promise((resolve, reject) => {
       try {
         // Create HTTP server
@@ -374,23 +381,28 @@ export class FederationHubServer {
           Date.now()
         );
 
-        // Store in AgentDB for vector memory (with tenant isolation)
-        await this.agentDB.storePattern({
-          sessionId: `${tenantId}/${episode.sessionId || agentId}`,
-          task: episode.task,
-          input: episode.input,
-          output: episode.output,
-          reward: episode.reward,
-          critique: episode.critique || '',
-          success: episode.success,
-          tokensUsed: episode.tokensUsed || 0,
-          latencyMs: episode.latencyMs || 0,
-          metadata: {
-            tenantId,
-            agentId,
-            vectorClock: message.vectorClock
-          }
-        });
+        // Store in AgentDB for vector memory (with tenant isolation).
+        // AgentDB is optional (federation works with SQLite only); only
+        // call storePattern when an AgentDB instance is actually wired,
+        // otherwise this NPEs on the null reference. ADR-0310 Fix 2.
+        if (this.agentDB && typeof this.agentDB.storePattern === 'function') {
+          await this.agentDB.storePattern({
+            sessionId: `${tenantId}/${episode.sessionId || agentId}`,
+            task: episode.task,
+            input: episode.input,
+            output: episode.output,
+            reward: episode.reward,
+            critique: episode.critique || '',
+            success: episode.success,
+            tokensUsed: episode.tokensUsed || 0,
+            latencyMs: episode.latencyMs || 0,
+            metadata: {
+              tenantId,
+              agentId,
+              vectorClock: message.vectorClock
+            }
+          });
+        }
 
         insertCount++;
       } catch (error: any) {
@@ -555,7 +567,11 @@ export class FederationHubServer {
 
     // Close databases
     this.db.close();
-    await this.agentDB.close();
+    // AgentDB is optional — guard the close so shutdown never NPEs when
+    // no AgentDB was wired. ADR-0310 Fix 2 (stop() close NPE).
+    if (this.agentDB && typeof this.agentDB.close === 'function') {
+      await this.agentDB.close();
+    }
 
     logger.info('Federation hub server stopped');
   }

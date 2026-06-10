@@ -39,6 +39,9 @@
     "./embeddings": "./agentic-flow/dist/embeddings/index.js",
     "./coordination": "./agentic-flow/dist/coordination/index.js",
     "./coordination/autopilot-learning": "./agentic-flow/dist/coordination/autopilot-learning.js",
+    "./federation": "./agentic-flow/dist/federation/index.js",
+    "./federation/server": "./agentic-flow/dist/federation/FederationHubServer.js",
+    "./federation/client": "./agentic-flow/dist/federation/FederationHubClient.js",
     "./agentic-jujutsu": {
       "require": "./packages/agentic-jujutsu/index.js",
       "import": "./packages/agentic-jujutsu/index.js",
@@ -192,6 +195,7 @@
   },
   "files": [
     "agentic-flow/dist",
+    "agentic-flow/package.json",
     "agentic-flow/docs",
     "agentic-flow/.claude",
     "agentic-flow/wasm",
