@@ -1,6 +1,6 @@
 {
   "name": "agentic-flow",
-  "version": "2.0.2-alpha-patch.985",
+  "version": "2.0.2-alpha-patch.986",
   "description": "Production-ready AI agent orchestration platform with 66 specialized agents, 213 MCP tools, ReasoningBank learning memory, quantum-resistant Jujutsu VCS, and autonomous multi-agent swarms. Built by @ruvnet with Claude Agent SDK, neural networks, memory persistence, GitHub integration, and distributed consensus protocols.",
   "type": "module",
   "main": "agentic-flow/dist/index.js",
@@ -225,7 +225,7 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react-swc": "^4.2.0",
     "@xenova/transformers": "^2.17.2",
-    "agentdb": "3.0.0-alpha.14-patch.449",
+    "agentdb": "3.0.0-alpha.14-patch.450",
     "agentic-payments": "^0.1.13",
     "autoprefixer": "^10.4.21",
     "axios": "^1.16.1",
@@ -278,7 +278,7 @@
     "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "claude-flow": "3.7.0-alpha.11-patch.437",
+    "claude-flow": "3.7.0-alpha.11-patch.438",
     "flow-nexus": "^0.1.0"
   },
   "peerDependenciesMeta": {
@@ -293,7 +293,7 @@
     "@ruvector/attention-darwin-arm64": "0.1.1-patch.221",
     "@ruvector/attention-darwin-x64": "0.1.4-patch.221",
     "@ruvector/attention-linux-x64-gnu": "0.1.4-patch.221",
-    "@ruvector/attention-win32-x64-msvc": "0.1.4-patch.259",
+    "@ruvector/attention-win32-x64-msvc": "0.1.4-patch.260",
     "agentic-flow-quic-native": "0.1.0-patch.82"
   },
   "overrides": {
